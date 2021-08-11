@@ -3,10 +3,6 @@
 const int ledPin = 13;
 uint8_t led_on = 1;
 
-#define TIMER0_WPEN_MASK      0x40
-#define TIMER0_WPDIS_MASK     0x4
-#define TIMER0_OVERFLOW_MASK  0x80
-
 // ------------ Event ring buffer ------------
 typedef struct {
   uint64_t ticks;
@@ -69,19 +65,36 @@ EventRingBuffer event_buffer_right;
 uint32_t timer0_num_overflows;
 
 bool timer0_is_write_protected() {
-  return FTM0_FMS & TIMER0_WPEN_MASK;
+  return FTM0_FMS & FTM_FMS_WPEN;
 }
 
 void timer0_set_write_protected() {
   // WPEN = 1 (write protection enabled)
-  FTM0_FMS |= TIMER0_WPEN_MASK;
+  FTM0_FMS |= FTM_FMS_WPEN;
 }
 
 void timer0_clear_write_protected() {
   // First, read WPEN
   if (timer0_is_write_protected()) {
     // WPDIS = 1 (write protection disable)
-    FTM0_MODE |= TIMER0_WPDIS_MASK;
+    FTM0_MODE |= FTM_MODE_WPDIS;
+  }
+}
+
+bool timer1_is_write_protected() {
+  return FTM1_FMS & FTM_FMS_WPEN;
+}
+
+void timer1_set_write_protected() {
+  // WPEN = 1 (write protection enabled)
+  FTM1_FMS |= FTM_FMS_WPEN;
+}
+
+void timer1_clear_write_protected() {
+  // First, read WPEN
+  if (timer1_is_write_protected()) {
+    // WPDIS = 1 (write protection disable)
+    FTM1_MODE |= FTM_MODE_WPDIS;
   }
 }
 
@@ -92,9 +105,9 @@ void setup() {
 
   timer0_num_overflows = 0;
 
-  timer0_clear_write_protected();
+/*  timer0_clear_write_protected();
   // FTMEN = 1 (enable all registers)
-  FTM0_MODE |= 0x1;
+  FTM0_MODE |= 0x1;*/
 /*  
  *   This is set up by the teensy boot up routine.
   // External oscillator is 16 MHz in Teensy 3.2
@@ -132,31 +145,67 @@ void setup() {
   // NUMTOF = 0 (TOF set at each counter overflow)
   FTM0_CONF = 0;
 
+  FTM0_FILTER = FTM_FILTER_CH0FVAL(15) | FTM_FILTER_CH1FVAL(15);
+
   NVIC_ENABLE_IRQ(IRQ_FTM0);
 
-  timer0_set_write_protected();
+//  timer0_set_write_protected();
+/*
+  PORTA_PCR12 = PORT_PCR_MUX(1);
+  SIM_SOPT4 &= SIM_SOPT4_FTM1CH0SRC(0);
+  SIM_SCGC5 |= 1 << 10;
+  SIM_SCGC6 |= 1 << 25;
+*/  
+//  timer1_clear_write_protected();
+  // FTMEN = 1 (enable all registers)
+//  FTM1_MODE |= FTM_MODE_FTMEN;
+  // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
+  #define kPWMFrequencyHz   20
+  #define kPWMPeriodTicks   ((16000000/32)/kPWMFrequencyHz)
+  #define kPWMDutyCycle     65535/8 // Over 65535
+  FTM1_SC = 0;
+  FTM1_CNT = 0;
+  FTM1_MOD = kPWMPeriodTicks - 1;
+  FTM1_SC = FTM_SC_CLKS(1) | FTM_SC_PS(5); // CPWMS=0, CLKS=System clock, PS=Divide clock by 32
+  // Set edge-aligned PWM 
+  // Enable with QUADEN=0, DECAPEN=0, COMBINE=0, CPWMS=0, MSnB=1
+  FTM1_QDCTRL = 0;
+  FTM1_COMBINE = 0;
+  // CH1IE = 0 (interrupt disabled), MS1B:MS0A = 2 and ELS1B:ELS1A = 2 (high-true pulses)
+  FTM1_C0SC = FTM_CSC_MSB | FTM_CSC_ELSB;
+
+  FTM1_CNTIN = 0;
+  FTM1_C0V = ((kPWMPeriodTicks - 1) * kPWMDutyCycle) >> 16;
+  PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
+
+//  timer1_set_write_protected();
+//  analogWriteFrequency(16, 100);
+//  analogWrite(16, 64);
 }
 
 void ftm0_isr(void) {
-  if (FTM0_SC & TIMER0_OVERFLOW_MASK) {
+  if (FTM0_SC & FTM_SC_TOF) {
     // The timer 0 counter overflowed
     timer0_num_overflows++;
     // Reset overflow flag (read SC and write 0 to TOF)
     FTM0_SC &= ~0x80;
+    return;
   }
   if (FTM0_C0SC & FTM_CSC_CHF) {
     // Toggle LED
     digitalWrite(ledPin, led_on);
     led_on = (led_on + 1) & 1;
-    FTM0_C0SC &= ~FTM_CSC_CHF;
     event_buffer_left.Write(Event{.ticks = (timer0_num_overflows << 16) | (FTM0_C0V & 0xffff)});
+    FTM0_C0SC &= ~FTM_CSC_CHF;
+    return;
   }
   if (FTM0_C1SC & FTM_CSC_CHF) {
     // Toggle LED
     digitalWrite(ledPin, led_on);
     led_on = (led_on + 1) & 1;
+    event_buffer_right.Write(Event{.ticks = (timer0_num_overflows << 16) | (FTM0_C1V & 0xffff)});
     FTM0_C1SC &= ~FTM_CSC_CHF;
-    event_buffer_right.Write(Event{.ticks = (timer0_num_overflows << 16) | (FTM0_C0V & 0xffff)});
+    return;
   }
 }
 
