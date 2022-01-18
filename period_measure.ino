@@ -101,7 +101,6 @@ void timer1_clear_write_protected() {
 void init_motor_control() {
   #define kPWMFrequencyHz   20
   #define kPWMPeriodTicks   ((16000000/32)/kPWMFrequencyHz)
-  #define kPWMDutyCycle     65535 // Over 65535
   FTM1_SC = 0;
   FTM1_CNT = 0;
   FTM1_MOD = kPWMPeriodTicks - 1;
@@ -118,22 +117,45 @@ void init_motor_control() {
 
 void set_duty_cycle_right(float s) {
   if (s > 0) {
+    pinMode(3, OUTPUT);
+    digitalWrite(3, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
     PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+  } else if (s < 0) {
+    pinMode(16, OUTPUT);
+    digitalWrite(16, 0);
+    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
+    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
+    PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+  } else {
+    FTM1_C0V = 0;
+    pinMode(3, OUTPUT);
+    digitalWrite(3, 0);
+    pinMode(16, OUTPUT);
+    digitalWrite(16, 0);
+  }
+}
+
+void set_duty_cycle_left(float s) {
+  if (s > 0) {
     pinMode(17, OUTPUT);
     digitalWrite(17, 0);
+    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
+    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
+    PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
   } else if (s < 0) {
+    pinMode(4, OUTPUT);
+    digitalWrite(4, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
     PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
-    pinMode(16, OUTPUT);
-    digitalWrite(16, 0);
   } else {
-    pinMode(16, OUTPUT);
-    digitalWrite(16, 0);
+    FTM1_C1V = 0;
     pinMode(17, OUTPUT);
     digitalWrite(17, 0);
+    pinMode(4, OUTPUT);
+    digitalWrite(4, 0);
   }
 }
 
@@ -264,6 +286,7 @@ void loop() {
   }
 
   static float t = 0.0f;
+  set_duty_cycle_left(-sin(2*3.14159f*0.1*t));
   set_duty_cycle_right(sin(2*3.14159f*0.1*t));
-  t += 0.0001f;
+  t += 0.00005f;
 }
