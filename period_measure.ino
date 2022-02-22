@@ -4,7 +4,13 @@ const int ledPin = 13;
 uint8_t led_on = 1;
 
 // ------------ Event ring buffer ------------
+typedef enum {
+  kLeftWheelTick,
+  kRightWheelTick
+} EventType;
+
 typedef struct {
+  EventType type;
   uint64_t ticks;
 } Event;
 
@@ -53,13 +59,52 @@ class EventRingBuffer {
       if (write_index_ == read_index_) {
         // Claim oldest unread slot for writing
         IncReadIndex();
-        Serial.print("gotcha!\n");
       }
     }
 };
 
-EventRingBuffer event_buffer_left;
-EventRingBuffer event_buffer_right;
+EventRingBuffer event_buffer;
+
+// ------------ State ------------
+#define kRobotDistanceBetweenTireCenters (0.13 - 0.025)
+#define kWheelRadius 0.0325
+#define kRadiansPerWheelTick (M_PI/10)   // 20 ticks per wheel encoder
+
+class Point {
+  public:
+    double x;
+    double y;
+
+    Point(): x(0), y(0) {}
+};
+
+class RobotState {
+  private:
+    uint64_t left_wheel_ticks_;
+    uint64_t right_wheel_ticks_;
+    double angle_;
+    Point center_;
+
+  public:
+    RobotState() : left_wheel_ticks_(0), right_wheel_ticks_(0), angle_(0.0) {}
+    
+    void NotifyWheelTicks(int left_ticks_inc, int right_ticks_inc) {
+      left_wheel_ticks_ += left_ticks_inc;
+      right_wheel_ticks_ += right_ticks_inc;
+      double distance_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
+      angle_ = ((kRadiansPerWheelTick * kWheelRadius) * (right_wheel_ticks_ - left_wheel_ticks_)) / kRobotDistanceBetweenTireCenters;
+      center_.x += distance_inc * cos(angle_);
+      center_.y += distance_inc * sin(angle_);
+    }
+
+    const Point &Center() {
+      return center_;
+    }
+
+    const double Angle() {
+      return angle_;
+    }
+};
 
 // ------------ Timer ------------
 uint32_t timer0_num_overflows;
@@ -117,17 +162,17 @@ void init_motor_control() {
 
 void set_duty_cycle_right(float s) {
   if (s > 0) {
-    pinMode(3, OUTPUT);
-    digitalWrite(3, 0);
-    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
-    PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
-  } else if (s < 0) {
     pinMode(16, OUTPUT);
     digitalWrite(16, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
+    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
     PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+  } else if (s < 0) {
+    pinMode(3, OUTPUT);
+    digitalWrite(3, 0);
+    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
+    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
+    PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
   } else {
     FTM1_C0V = 0;
     pinMode(3, OUTPUT);
@@ -139,17 +184,17 @@ void set_duty_cycle_right(float s) {
 
 void set_duty_cycle_left(float s) {
   if (s > 0) {
-    pinMode(17, OUTPUT);
-    digitalWrite(17, 0);
-    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
-    PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
-  } else if (s < 0) {
     pinMode(4, OUTPUT);
     digitalWrite(4, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
+    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
     PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+  } else if (s < 0) {
+    pinMode(17, OUTPUT);
+    digitalWrite(17, 0);
+    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
+    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
+    PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
   } else {
     FTM1_C1V = 0;
     pinMode(17, OUTPUT);
@@ -245,7 +290,7 @@ void ftm0_isr(void) {
     // Toggle LED
     digitalWrite(ledPin, led_on);
     led_on = (led_on + 1) & 1;
-    event_buffer_left.Write(Event{.ticks = (timer0_num_overflows << 16) | (FTM0_C0V & 0xffff)});
+    event_buffer.Write(Event{.type = kLeftWheelTick, .ticks = (timer0_num_overflows << 16) | (FTM0_C0V & 0xffff)});
     FTM0_C0SC &= ~FTM_CSC_CHF;
     return;
   }
@@ -253,7 +298,7 @@ void ftm0_isr(void) {
     // Toggle LED
     digitalWrite(ledPin, led_on);
     led_on = (led_on + 1) & 1;
-    event_buffer_right.Write(Event{.ticks = (timer0_num_overflows << 16) | (FTM0_C1V & 0xffff)});
+    event_buffer.Write(Event{.type = kRightWheelTick, .ticks = (timer0_num_overflows << 16) | (FTM0_C1V & 0xffff)});
     FTM0_C1SC &= ~FTM_CSC_CHF;
     return;
   }
@@ -271,22 +316,79 @@ void Uint64ToString(uint64_t number, char *str) {
   str[str_length] = '\0';
 }
 
-char format_buffer[32];
+//char format_buffer[32];
+
+//enum { CIRCLING_LEFT, CIRCLING_RIGHT } state = CIRCLING_LEFT;
+
+//int64_t cycles = 0;
+
+//#define kWaitCycles 5000000L
+//#define kInnerDutyCycle 0.25
+
+RobotState robot_state;
 
 void loop() {
-  if (event_buffer_left.NumEvents() > 0) {
-    Uint64ToString(event_buffer_left.Read().ticks, format_buffer);
-    Serial.print("L: ");
+/*  if (event_buffer.NumEvents() > 0) {
+    const Event &event = event_buffer.Read();
+    Uint64ToString(event.ticks, format_buffer);
+    switch(event.type) {
+      case kLeftWheelTick:
+        Serial.print("L: ");
+        break;
+      case kRightWheelTick:
+        Serial.print("R: ");
+        break;
+    }
     Serial.println(format_buffer);
   }
-  if (event_buffer_right.NumEvents() > 0) {
-    Uint64ToString(event_buffer_right.Read().ticks, format_buffer);
-    Serial.print("R: ");
-    Serial.println(format_buffer);
-  }
+*/
 
-  static float t = 0.0f;
-  set_duty_cycle_left(-sin(2*3.14159f*0.1*t));
-  set_duty_cycle_right(sin(2*3.14159f*0.1*t));
+/*  static float t = 0; 
+  float left_command = -sin(2*3.14159f*0.1*t);
+  float right_command = sin(2*3.14159f*0.1*t); 
+  set_duty_cycle_left(left_command);
+  set_duty_cycle_right(right_command);
   t += 0.00005f;
+*/
+  
+/*  switch(state) {
+    case CIRCLING_LEFT:
+      if (cycles > kWaitCycles) { 
+        set_duty_cycle_left(kInnerDutyCycle);
+        set_duty_cycle_right(1.0);
+        cycles = 0;
+        state = CIRCLING_RIGHT;
+      }
+      break;
+    case CIRCLING_RIGHT:
+      if (cycles > kWaitCycles) { 
+        set_duty_cycle_left(1.0);
+        set_duty_cycle_right(kInnerDutyCycle);
+        cycles = 0;
+        state = CIRCLING_LEFT;
+      }
+      break;
+  }
+  ++cycles;
+*/
+
+  if (event_buffer.NumEvents() > 0) {
+    int left_ticks = 0;
+    int right_ticks = 0;
+    while (event_buffer.NumEvents() > 0) {
+      const Event &event = event_buffer.Read();
+      switch(event.type) {
+        case kLeftWheelTick:
+          ++left_ticks;
+          break;
+        case kRightWheelTick:
+          ++right_ticks;
+          break;
+      }
+    }
+    robot_state.NotifyWheelTicks(left_ticks, right_ticks);
+    char text_buffer[32];
+    sprintf(text_buffer, "(%.02f, %.02f) %.02f", robot_state.Center().x, robot_state.Center().y, (robot_state.Angle() * 180.0) / M_PI);
+    Serial.println(text_buffer);
+  }
 }
