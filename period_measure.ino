@@ -6,7 +6,11 @@ uint8_t led_on = 1;
 // ------------ Event ring buffer ------------
 typedef enum {
   kLeftWheelTick,
-  kRightWheelTick
+  kRightWheelTick,
+  kLeftWheelForwardCommand,
+  kLeftWheelBackwardCommand,
+  kRightWheelForwardCommand,
+  kRightWheelBackwardCommand,
 } EventType;
 
 typedef struct {
@@ -50,9 +54,11 @@ class EventRingBuffer {
       return event;
     }
 
-    // Writes a new value in the buffer. The caller must guarantee that no
-    // interrupts will alter the buffer indices while this function runs.
+    // Writes a new value in the buffer. The interrupt is disabled while
+    // writing the event, so this function can be called from inside or
+    // outside the ISR.
     void Write(const Event &event) {
+      NVIC_DISABLE_IRQ(IRQ_FTM0);
       events_[write_index_] = event;
       IncWriteIndex();
       num_events_++;
@@ -60,6 +66,7 @@ class EventRingBuffer {
         // Claim oldest unread slot for writing
         IncReadIndex();
       }
+      NVIC_ENABLE_IRQ(IRQ_FTM0);
     }
 };
 
@@ -80,21 +87,37 @@ class Point {
 
 class RobotState {
   private:
-    uint64_t left_wheel_ticks_;
-    uint64_t right_wheel_ticks_;
+    int left_wheel_ticks_;
+    int right_wheel_ticks_;
     double angle_;
     Point center_;
+    bool left_wheel_moving_backward_;
+    bool right_wheel_moving_backward_;
 
   public:
-    RobotState() : left_wheel_ticks_(0), right_wheel_ticks_(0), angle_(0.0) {}
+    RobotState() : left_wheel_ticks_(0), right_wheel_ticks_(0), angle_(0.0), left_wheel_moving_backward_(false), right_wheel_moving_backward_(false) {}
     
     void NotifyWheelTicks(int left_ticks_inc, int right_ticks_inc) {
+      if (left_wheel_moving_backward_) {
+        left_ticks_inc = -left_ticks_inc;
+      }
+      if (right_wheel_moving_backward_) {
+        right_ticks_inc = -right_ticks_inc;
+      }
       left_wheel_ticks_ += left_ticks_inc;
       right_wheel_ticks_ += right_ticks_inc;
       double distance_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
       angle_ = ((kRadiansPerWheelTick * kWheelRadius) * (right_wheel_ticks_ - left_wheel_ticks_)) / kRobotDistanceBetweenTireCenters;
       center_.x += distance_inc * cos(angle_);
       center_.y += distance_inc * sin(angle_);
+    }
+
+    void NotifyLeftWheelDirection(bool backward) {
+      left_wheel_moving_backward_ = backward;
+    }
+
+    void NotifyRightWheelDirection(bool backward) {
+      right_wheel_moving_backward_ = backward;
     }
 
     const Point &Center() {
@@ -143,6 +166,13 @@ void timer1_clear_write_protected() {
   }
 }
 
+uint32_t timer_ticks() {
+  NVIC_DISABLE_IRQ(IRQ_FTM0);
+  uint32_t cur_time = (timer0_num_overflows << 16) | (FTM0_CNT & 0xffff);
+  NVIC_DISABLE_IRQ(IRQ_FTM0);
+  return cur_time;
+}
+
 void init_motor_control() {
   #define kPWMFrequencyHz   20
   #define kPWMPeriodTicks   ((16000000/32)/kPWMFrequencyHz)
@@ -167,12 +197,14 @@ void set_duty_cycle_right(float s) {
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
     PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    event_buffer.Write(Event{.type = kRightWheelForwardCommand, .ticks = timer_ticks()});
   } else if (s < 0) {
     pinMode(3, OUTPUT);
     digitalWrite(3, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
     PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    event_buffer.Write(Event{.type = kRightWheelBackwardCommand, .ticks = timer_ticks()});
   } else {
     FTM1_C0V = 0;
     pinMode(3, OUTPUT);
@@ -189,12 +221,14 @@ void set_duty_cycle_left(float s) {
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
     PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    event_buffer.Write(Event{.type = kLeftWheelForwardCommand, .ticks = timer_ticks()});
   } else if (s < 0) {
     pinMode(17, OUTPUT);
     digitalWrite(17, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
     PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    event_buffer.Write(Event{.type = kLeftWheelBackwardCommand, .ticks = timer_ticks()});
   } else {
     FTM1_C1V = 0;
     pinMode(17, OUTPUT);
@@ -380,15 +414,31 @@ void loop() {
       switch(event.type) {
         case kLeftWheelTick:
           ++left_ticks;
+          robot_state.NotifyWheelTicks(left_ticks, right_ticks);
           break;
         case kRightWheelTick:
           ++right_ticks;
+          robot_state.NotifyWheelTicks(left_ticks, right_ticks);
+          break;
+        case kLeftWheelForwardCommand:
+          robot_state.NotifyLeftWheelDirection(false);
+          break;
+        case kLeftWheelBackwardCommand:
+          robot_state.NotifyLeftWheelDirection(true);
+          break;
+        case kRightWheelForwardCommand:
+          robot_state.NotifyRightWheelDirection(false);
+          break;
+        case kRightWheelBackwardCommand:
+          robot_state.NotifyRightWheelDirection(true);
           break;
       }
     }
-    robot_state.NotifyWheelTicks(left_ticks, right_ticks);
     char text_buffer[32];
     sprintf(text_buffer, "(%.02f, %.02f) %.02f", robot_state.Center().x, robot_state.Center().y, (robot_state.Angle() * 180.0) / M_PI);
     Serial.println(text_buffer);
   }
+
+  set_duty_cycle_left(1.0f);
+  set_duty_cycle_right(1.0f);
 }
