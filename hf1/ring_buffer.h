@@ -1,10 +1,9 @@
-template<typename ValueType, int kCapacity> class RingBuffer {
-  private:
-    ValueType values_[kCapacity];
-    int read_index_;
-    int write_index_;
-    volatile int size_;
+#ifndef RING_BUFFER__
+#define RING_BUFFER__
 
+#include <stddef.h>
+
+template<typename ValueType, int kCapacity> class RingBuffer {
   public:
     RingBuffer() : read_index_(0), write_index_(0) {
     }
@@ -13,43 +12,70 @@ template<typename ValueType, int kCapacity> class RingBuffer {
       return kCapacity;
     }
 
-    inline void IncReadIndex() {
+    // Returns the number of values in the buffer.
+    inline int Size() {
+      return size_;
+    }
+
+    // Returns a pointer to the oldest value in the buffer, or NULL if the buffer is empty.
+    // The caller must consider that the pointee may mutate if someone edits the memory
+    // returned by NewValue(). If an IRQ calls does that, the caller should either copy the 
+    // value or extend mutual exclusion throughout value access.
+    // This function does not block. 
+    const ValueType *OldestValue() {
+      if (Size() == 0) return NULL;
+      return &values_[read_index_];
+    }
+
+    // Discards the oldest value in the buffer.
+    void Consume() {
+      IncReadIndex();
+      --size_;
+    }
+
+    // Returns a writable reference to a new value in the buffer. 
+    // The value may be edited, but it won't be visible in OldestValue() or Size() until Commit() is called.
+    // When the buffer is full, it returns a reference to the oldest value in the buffer.
+    ValueType &NewValue() {
+      return values_[write_index_];
+    }
+
+    // Makes the the newest value visible to readers.
+    void Commit() {
+      IncWriteIndex();
+      ++size_;
+      if (write_index_ == read_index_) {
+        // Claim oldest unread slot for writing
+        IncReadIndex();
+      }
+    }
+
+    // Writes a new value in the buffer. 
+    void Write(const ValueType &value) {
+      NewValue() = value;
+      Commit();
+    }
+
+    const ValueType Read() {
+      ValueType value = *OldestValue();
+      Consume();
+      return value;
+    }
+
+  protected:
+      inline void IncReadIndex() {
       read_index_ = (read_index_ + 1) % kCapacity;
     }
 
     inline void IncWriteIndex() {
       write_index_ = (write_index_ + 1) % kCapacity;
     }
-
-    // Returns the number of values in the buffer.
-    inline int Size() {
-      return size_;
-    }
-
-    // Returns the oldest value in the buffer. This function blocks until a
-    // a value becomes available. It should not be called from an ISR.
-    ValueType Read() {
-      while (Size() == 0) {}
-      NVIC_DISABLE_IRQ(IRQ_FTM0);
-      ValueType value = values_[read_index_];
-      IncReadIndex();
-      size_--;
-      NVIC_ENABLE_IRQ(IRQ_FTM0);
-      return value;
-    }
-
-    // Writes a new value in the buffer. The interrupt is disabled while
-    // writing the event, so this function can be called from inside or
-    // outside the ISR.
-    void Write(const ValueType &value) {
-      NVIC_DISABLE_IRQ(IRQ_FTM0);
-      values_[write_index_] = value;
-      IncWriteIndex();
-      size_++;
-      if (write_index_ == read_index_) {
-        // Claim oldest unread slot for writing
-        IncReadIndex();
-      }
-      NVIC_ENABLE_IRQ(IRQ_FTM0);
-    }
+    
+  private:
+    ValueType values_[kCapacity];
+    int read_index_;
+    int write_index_;
+    volatile int size_;
 };
+
+#endif  // RING_BUFFER__

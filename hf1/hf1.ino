@@ -6,6 +6,8 @@ uint8_t led_on = 1;
 #include "ring_buffer.h"
 #include "robot_state.h"
 #include "utils.h"
+#include "p2p_packet_stream.h"
+// #include <SPI.h>
 
 // ------------ Event ring buffer ------------
 typedef enum {
@@ -95,14 +97,20 @@ void set_duty_cycle_right(float s) {
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
     PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    // Disable the IRQ while writing to the event buffer to avoid a race.
+    NVIC_DISABLE_IRQ(IRQ_FTM0);
     event_buffer.Write(Event{.type = kRightWheelForwardCommand, .ticks = timer_ticks()});
+    NVIC_ENABLE_IRQ(IRQ_FTM0);
   } else if (s < 0) {
     pinMode(3, OUTPUT);
     digitalWrite(3, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
     PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    // Disable the IRQ while writing to the event buffer to avoid a race.
+    NVIC_DISABLE_IRQ(IRQ_FTM0);
     event_buffer.Write(Event{.type = kRightWheelBackwardCommand, .ticks = timer_ticks()});
+    NVIC_ENABLE_IRQ(IRQ_FTM0);
   } else {
     FTM1_C0V = 0;
     pinMode(3, OUTPUT);
@@ -119,14 +127,20 @@ void set_duty_cycle_left(float s) {
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
     PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    // Disable the IRQ while writing to the event buffer to avoid a race.
+    NVIC_DISABLE_IRQ(IRQ_FTM0);
     event_buffer.Write(Event{.type = kLeftWheelForwardCommand, .ticks = timer_ticks()});
+    NVIC_ENABLE_IRQ(IRQ_FTM0);
   } else if (s < 0) {
     pinMode(17, OUTPUT);
     digitalWrite(17, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
     PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    // Disable the IRQ while writing to the event buffer to avoid a race.
+    NVIC_DISABLE_IRQ(IRQ_FTM0);
     event_buffer.Write(Event{.type = kLeftWheelBackwardCommand, .ticks = timer_ticks()});
+    NVIC_ENABLE_IRQ(IRQ_FTM0);
   } else {
     FTM1_C1V = 0;
     pinMode(17, OUTPUT);
@@ -140,6 +154,8 @@ void setup() {
   pinMode(ledPin, OUTPUT);
 
   Serial.begin(9600);
+  Serial1.begin(2000000);
+  Serial1.attachRts(2);
 
   timer0_num_overflows = 0;
 
@@ -156,6 +172,7 @@ void setup() {
   // OSCSEL = 0 (system oscillator)
   MCG_C7 = 0;
 */
+
   FTM0_SC = 0;
   // Total prescaler is 512 because RANGE0!=0 and FRDIV=100b
   // This results in 16e6/512=31.25kHz, which is within the range
@@ -187,7 +204,8 @@ void setup() {
 
   NVIC_ENABLE_IRQ(IRQ_FTM0);
 
-  init_motor_control();
+  init_motor_control();  
+
 
 //  timer0_set_write_protected();
 /*
@@ -208,6 +226,18 @@ void setup() {
 //  timer1_set_write_protected();
 //  analogWriteFrequency(16, 100);
 //  analogWrite(16, 64);
+
+/*
+  // PORTD_PCR1 = PORT_PCR_MUX(2);
+  // PORTD_PCR2 = PORT_PCR_MUX(2);
+  // PORTD_PCR3 = PORT_PCR_MUX(2);
+  SPI.setSCK(14);
+  SPI.setMISO(8);
+  SPI.setMOSI(7);
+  SPI.begin();  
+  pinMode(2, OUTPUT);   // SPI CS
+  digitalWrite(2, HIGH);
+  */
 }
 
 void ftm0_isr(void) {
@@ -222,6 +252,7 @@ void ftm0_isr(void) {
     // Toggle LED
     digitalWrite(ledPin, led_on);
     led_on = (led_on + 1) & 1;
+    // We have exclusive access to the event buffer while in the ISR.
     event_buffer.Write(Event{.type = kLeftWheelTick, .ticks = (timer0_num_overflows << 16) | (FTM0_C0V & 0xffff)});
     FTM0_C0SC &= ~FTM_CSC_CHF;
     return;
@@ -230,6 +261,7 @@ void ftm0_isr(void) {
     // Toggle LED
     digitalWrite(ledPin, led_on);
     led_on = (led_on + 1) & 1;
+    // We have exclusive access to the event buffer while in the ISR.
     event_buffer.Write(Event{.type = kRightWheelTick, .ticks = (timer0_num_overflows << 16) | (FTM0_C1V & 0xffff)});
     FTM0_C1SC &= ~FTM_CSC_CHF;
     return;
@@ -257,9 +289,48 @@ TrajectoryPoint trajectory[kMaxTrajectoryPoints];
 int send_index = 0;
 char tmp[128];
 
+char a = '0';
+
 void loop() {
+/*
+ if (SPI.pinIsChipSelect(2)) { Serial.println("2 is CS"); }
+  else { Serial.println("2 is NOT CS");}
+  if (SPI.pinIsSCK(14)) { Serial.println("14 is SCK"); }
+  else { Serial.println("14 is NOT SCK");}
+  if (SPI.pinIsMISO(8)) { Serial.println("8 is MISO"); }
+  else { Serial.println("8 is NOT MISO");}
+  if (SPI.pinIsMOSI(7)) { Serial.println("7 is MOSI"); }
+  else { Serial.println("7 is NOT MOSI");}
+
+    SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE1));
+    Serial.println("Enabling CS");
+    digitalWrite(2, LOW); // select device
+    delay(5000);
+    Serial.println("Transferring");
+    
+    char buffer[1000];
+    for (int i = 0; i < (int)sizeof(buffer); ++i) buffer[i] = 0xaa;
+    for (int i = 0; i < 100; ++i) {
+    SPI.transfer(buffer, sizeof(buffer));
+    }
+    Serial.println("Disabling CS");
+    digitalWrite(2, HIGH);
+    SPI.endTransaction();
+    delay(5000);
+    return;
+*/
+    Serial1.write(a);
+    a++;
+    if (a > 'z') { a = '0'; }
+
+  int k = Serial1.read();
+  if (k >= 0) {
+    Serial.println(k);
+  }
+  return;
+
 /*  if (event_buffer.NumEvents() > 0) {
-    const Event &event = event_buffer.Read();
+    const Event event = event_buffer.Read();
     Uint64ToString(event.ticks, format_buffer);
     switch(event.type) {
       case kLeftWheelTick:
@@ -329,7 +400,10 @@ void loop() {
     int right_ticks = 0;
     while (event_buffer.Size() > 0) {
       ++cycles;
-      const Event &event = event_buffer.Read();
+      // Disable the IRQ while reading from the event buffer to avoid a race.
+      NVIC_DISABLE_IRQ(IRQ_FTM0);
+      const Event event = event_buffer.Read();
+      NVIC_ENABLE_IRQ(IRQ_FTM0);
       switch(event.type) {
         case kLeftWheelTick:
           ++left_ticks;
