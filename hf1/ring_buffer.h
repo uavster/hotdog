@@ -5,7 +5,7 @@
 
 template<typename ValueType, int kCapacity> class RingBuffer {
   public:
-    RingBuffer() : read_index_(0), write_index_(0) {
+    RingBuffer() : read_index_(0), write_index_(0), size_(0) {
     }
 
     inline int Capacity() const {
@@ -27,10 +27,13 @@ template<typename ValueType, int kCapacity> class RingBuffer {
       return &values_[read_index_];
     }
 
-    // Discards the oldest value in the buffer.
-    void Consume() {
+    // Discards the oldest value in the buffer. Returns true is success, or false if there is
+    // no value to consume.
+    bool Consume() {
+      if (Size() == 0) return false;
       IncReadIndex();
       --size_;
+      return true;
     }
 
     // Returns a writable reference to a new value in the buffer. 
@@ -63,7 +66,7 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     }
 
   protected:
-      inline void IncReadIndex() {
+    inline void IncReadIndex() {
       read_index_ = (read_index_ + 1) % kCapacity;
     }
 

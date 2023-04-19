@@ -7,6 +7,7 @@ uint8_t led_on = 1;
 #include "robot_state.h"
 #include "utils.h"
 #include "p2p_packet_stream.h"
+#include "p2p_byte_stream_arduino.h"
 // #include <SPI.h>
 
 // ------------ Event ring buffer ------------
@@ -150,11 +151,15 @@ void set_duty_cycle_left(float s) {
   }
 }
 
+P2PByteStreamArduino byte_stream(&Serial1);
+P2PPacketInputStream<3, kLittleEndian> p2p_input_stream(&byte_stream);
+P2PPacketOutputStream<3, kLittleEndian> p2p_output_stream(&byte_stream);
+
 void setup() {
   pinMode(ledPin, OUTPUT);
 
   Serial.begin(9600);
-  Serial1.begin(2000000);
+  Serial1.begin(115200);
   Serial1.attachRts(2);
 
   timer0_num_overflows = 0;
@@ -205,7 +210,6 @@ void setup() {
   NVIC_ENABLE_IRQ(IRQ_FTM0);
 
   init_motor_control();  
-
 
 //  timer0_set_write_protected();
 /*
@@ -289,9 +293,40 @@ TrajectoryPoint trajectory[kMaxTrajectoryPoints];
 int send_index = 0;
 char tmp[128];
 
-char a = '0';
+// char a = '0';
+
+StatusOr<P2PMutablePacketView> current_packet_view(kUnavailableError);
 
 void loop() {
+  if (current_packet_view.ok()) {
+    while (Serial.available() > 0) {  
+      char c = Serial.read();
+      if (c == 0x13) {
+        p2p_output_stream.Commit();
+        current_packet_view = StatusOr<P2PMutablePacketView>(kUnavailableError);
+      } else {
+        current_packet_view->content()[current_packet_view->length()] = c;
+        ++current_packet_view->length();
+      }
+    }
+  } else {
+    current_packet_view = p2p_output_stream.NewPacket();
+    if (current_packet_view.ok()) {
+      current_packet_view->length() = 0;
+    }
+  }
+
+  while(p2p_input_stream.OldestPacket().ok()) {
+  Serial.println("heelo");
+    Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
+    Serial.println();
+    p2p_input_stream.Consume();
+  }
+
+  p2p_input_stream.Run();
+  p2p_output_stream.Run();
+
+  return;
 /*
  if (SPI.pinIsChipSelect(2)) { Serial.println("2 is CS"); }
   else { Serial.println("2 is NOT CS");}
@@ -319,6 +354,7 @@ void loop() {
     delay(5000);
     return;
 */
+/*
     Serial1.write(a);
     a++;
     if (a > 'z') { a = '0'; }
@@ -328,6 +364,7 @@ void loop() {
     Serial.println(k);
   }
   return;
+  */
 
 /*  if (event_buffer.NumEvents() > 0) {
     const Event event = event_buffer.Read();
