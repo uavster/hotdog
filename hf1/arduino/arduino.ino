@@ -159,6 +159,7 @@ void setup() {
 
   Serial.begin(9600);
   Serial1.begin(115200);
+
   Serial1.attachRts(2);
 
   timer0_num_overflows = 0;

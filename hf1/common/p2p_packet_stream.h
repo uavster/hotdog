@@ -5,6 +5,7 @@
 #include "p2p_packet_stream_protocol.h"
 #include "p2p_byte_stream_interface.h"
 #include "ring_buffer.h"
+#include "status_or.h"
 #ifdef ARDUINO
 #include <DebugLog.h>
 #define assert ASSERT
@@ -99,25 +100,6 @@ public:
 
 private:
   P2PPacket *packet_;
-};
-
-enum Status {
-  kSuccess, kUnavailableError
-};
-
-template<typename ValueType> class StatusOr {
-public:
-  StatusOr(ValueType &&v) : status_(kSuccess), value_(v) {}
-  StatusOr(Status e) : status_(e) {}
-  
-  ValueType *operator->() { return &value_; }
-  ValueType &operator*() { return value_; }
-
-  bool ok() const { return status_ == kSuccess; }
-
-private:
-  Status status_;
-  ValueType value_;
 };
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketInputStream {
