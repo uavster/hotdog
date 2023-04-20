@@ -14,7 +14,6 @@ P2PChecksumType P2PPacket::CalculateChecksum() const {
 }
 
 bool P2PPacket::PrepareToRead() {
-  Serial.printf("%d == %d\n", CalculateChecksum(), checksum());
   if (CalculateChecksum() != checksum()) {
     return false;
   }

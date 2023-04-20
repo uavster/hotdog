@@ -3,11 +3,10 @@
 const int ledPin = 13;
 uint8_t led_on = 1;
 
-#include "ring_buffer.h"
 #include "robot_state.h"
 #include "utils.h"
-#include "p2p_packet_stream.h"
 #include "p2p_byte_stream_arduino.h"
+#include "p2p_packet_stream.h"
 // #include <SPI.h>
 
 // ------------ Event ring buffer ------------
@@ -72,13 +71,13 @@ uint32_t timer_ticks() {
 }
 
 void init_motor_control() {
-  #define kPWMFrequencyHz   20
-  #define kPWMPeriodTicks   ((16000000/32)/kPWMFrequencyHz)
+#define kPWMFrequencyHz 20
+#define kPWMPeriodTicks ((16000000 / 32) / kPWMFrequencyHz)
   FTM1_SC = 0;
   FTM1_CNT = 0;
   FTM1_MOD = kPWMPeriodTicks - 1;
-  FTM1_SC = FTM_SC_CLKS(1) | FTM_SC_PS(5); // CPWMS=0, CLKS=System clock, PS=Divide clock by 32
-  // Set edge-aligned PWM 
+  FTM1_SC = FTM_SC_CLKS(1) | FTM_SC_PS(5);  // CPWMS=0, CLKS=System clock, PS=Divide clock by 32
+  // Set edge-aligned PWM
   // Enable with QUADEN=0, DECAPEN=0, COMBINE=0, CPWMS=0, MSnB=1
   FTM1_QDCTRL = 0;
   FTM1_COMBINE = 0;
@@ -97,20 +96,20 @@ void set_duty_cycle_right(float s) {
     digitalWrite(16, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
-    PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
     // Disable the IRQ while writing to the event buffer to avoid a race.
     NVIC_DISABLE_IRQ(IRQ_FTM0);
-    event_buffer.Write(Event{.type = kRightWheelForwardCommand, .ticks = timer_ticks()});
+    event_buffer.Write(Event{ .type = kRightWheelForwardCommand, .ticks = timer_ticks() });
     NVIC_ENABLE_IRQ(IRQ_FTM0);
   } else if (s < 0) {
     pinMode(3, OUTPUT);
     digitalWrite(3, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
-    PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
     // Disable the IRQ while writing to the event buffer to avoid a race.
     NVIC_DISABLE_IRQ(IRQ_FTM0);
-    event_buffer.Write(Event{.type = kRightWheelBackwardCommand, .ticks = timer_ticks()});
+    event_buffer.Write(Event{ .type = kRightWheelBackwardCommand, .ticks = timer_ticks() });
     NVIC_ENABLE_IRQ(IRQ_FTM0);
   } else {
     FTM1_C0V = 0;
@@ -127,20 +126,20 @@ void set_duty_cycle_left(float s) {
     digitalWrite(4, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
-    PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
     // Disable the IRQ while writing to the event buffer to avoid a race.
     NVIC_DISABLE_IRQ(IRQ_FTM0);
-    event_buffer.Write(Event{.type = kLeftWheelForwardCommand, .ticks = timer_ticks()});
+    event_buffer.Write(Event{ .type = kLeftWheelForwardCommand, .ticks = timer_ticks() });
     NVIC_ENABLE_IRQ(IRQ_FTM0);
   } else if (s < 0) {
     pinMode(17, OUTPUT);
     digitalWrite(17, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
-    PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;  
+    PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
     // Disable the IRQ while writing to the event buffer to avoid a race.
     NVIC_DISABLE_IRQ(IRQ_FTM0);
-    event_buffer.Write(Event{.type = kLeftWheelBackwardCommand, .ticks = timer_ticks()});
+    event_buffer.Write(Event{ .type = kLeftWheelBackwardCommand, .ticks = timer_ticks() });
     NVIC_ENABLE_IRQ(IRQ_FTM0);
   } else {
     FTM1_C1V = 0;
@@ -164,10 +163,10 @@ void setup() {
 
   timer0_num_overflows = 0;
 
-/*  timer0_clear_write_protected();
+  /*  timer0_clear_write_protected();
   // FTMEN = 1 (enable all registers)
   FTM0_MODE |= 0x1;*/
-/*  
+  /*  
  *   This is set up by the teensy boot up routine.
   // External oscillator is 16 MHz in Teensy 3.2
   // FRDIV = 100b (clock/512), IREFS = 0 (get fixed frequency clock from external+prescalers)
@@ -181,7 +180,7 @@ void setup() {
   FTM0_SC = 0;
   // Total prescaler is 512 because RANGE0!=0 and FRDIV=100b
   // This results in 16e6/512=31.25kHz, which is within the range
-  // specified in the FRDIV documentation.  
+  // specified in the FRDIV documentation.
   // DECAPEN = 0, COMBINE = 0
   FTM0_COMBINE = 0;
   // TOIE = 1 (timer overflow interrupt enabled), CLKS = 2 (fixed frequency clock), PS = 0 (divide clock by 1)
@@ -209,29 +208,29 @@ void setup() {
 
   NVIC_ENABLE_IRQ(IRQ_FTM0);
 
-  init_motor_control();  
+  init_motor_control();
 
-//  timer0_set_write_protected();
-/*
+  //  timer0_set_write_protected();
+  /*
   PORTA_PCR12 = PORT_PCR_MUX(1);
   SIM_SOPT4 &= SIM_SOPT4_FTM1CH0SRC(0);
   SIM_SCGC5 |= 1 << 10;
   SIM_SCGC6 |= 1 << 25;
-*/  
-//  timer1_clear_write_protected();
+*/
+  //  timer1_clear_write_protected();
   // FTMEN = 1 (enable all registers)
-//  FTM1_MODE |= FTM_MODE_FTMEN;
-  
+  //  FTM1_MODE |= FTM_MODE_FTMEN;
+
   // Pin 1 controls direction of the right wheel.
-//  pinMode(17, OUTPUT);
-//  digitalWrite(17, 1);
+  //  pinMode(17, OUTPUT);
+  //  digitalWrite(17, 1);
 
-  
-//  timer1_set_write_protected();
-//  analogWriteFrequency(16, 100);
-//  analogWrite(16, 64);
 
-/*
+  //  timer1_set_write_protected();
+  //  analogWriteFrequency(16, 100);
+  //  analogWrite(16, 64);
+
+  /*
   // PORTD_PCR1 = PORT_PCR_MUX(2);
   // PORTD_PCR2 = PORT_PCR_MUX(2);
   // PORTD_PCR3 = PORT_PCR_MUX(2);
@@ -257,7 +256,7 @@ void ftm0_isr(void) {
     digitalWrite(ledPin, led_on);
     led_on = (led_on + 1) & 1;
     // We have exclusive access to the event buffer while in the ISR.
-    event_buffer.Write(Event{.type = kLeftWheelTick, .ticks = (timer0_num_overflows << 16) | (FTM0_C0V & 0xffff)});
+    event_buffer.Write(Event{ .type = kLeftWheelTick, .ticks = (timer0_num_overflows << 16) | (FTM0_C0V & 0xffff) });
     FTM0_C0SC &= ~FTM_CSC_CHF;
     return;
   }
@@ -266,7 +265,7 @@ void ftm0_isr(void) {
     digitalWrite(ledPin, led_on);
     led_on = (led_on + 1) & 1;
     // We have exclusive access to the event buffer while in the ISR.
-    event_buffer.Write(Event{.type = kRightWheelTick, .ticks = (timer0_num_overflows << 16) | (FTM0_C1V & 0xffff)});
+    event_buffer.Write(Event{ .type = kRightWheelTick, .ticks = (timer0_num_overflows << 16) | (FTM0_C1V & 0xffff) });
     FTM0_C1SC &= ~FTM_CSC_CHF;
     return;
   }
@@ -274,7 +273,12 @@ void ftm0_isr(void) {
 
 //char format_buffer[32];
 
-enum { INIT, CIRCLING_LEFT, CIRCLING_RIGHT, WAIT_FOR_INPUT, SEND_TRAJECTORY, DONE } state = INIT;
+enum { INIT,
+       CIRCLING_LEFT,
+       CIRCLING_RIGHT,
+       WAIT_FOR_INPUT,
+       SEND_TRAJECTORY,
+       DONE } state = INIT;
 int64_t cycles = 0;
 
 #define kWaitCycles 100
@@ -287,7 +291,7 @@ typedef struct {
   float angle;
 } TrajectoryPoint;
 
-#define kMaxTrajectoryPoints  3000
+#define kMaxTrajectoryPoints 3000
 int cur_trajectory_point = 0;
 TrajectoryPoint trajectory[kMaxTrajectoryPoints];
 int send_index = 0;
@@ -299,7 +303,7 @@ StatusOr<P2PMutablePacketView> current_packet_view(kUnavailableError);
 
 void loop() {
   if (current_packet_view.ok()) {
-    while (Serial.available() > 0) {  
+    while (Serial.available() > 0) {
       char c = Serial.read();
       if (c == 0x13) {
         p2p_output_stream.Commit();
@@ -316,8 +320,7 @@ void loop() {
     }
   }
 
-  while(p2p_input_stream.OldestPacket().ok()) {
-  Serial.println("heelo");
+  while (p2p_input_stream.OldestPacket().ok()) {
     // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
     for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
       Serial.printf("0x%x ", p2p_input_stream.OldestPacket()->content()[i]);
@@ -330,7 +333,7 @@ void loop() {
   p2p_output_stream.Run();
 
   return;
-/*
+  /*
  if (SPI.pinIsChipSelect(2)) { Serial.println("2 is CS"); }
   else { Serial.println("2 is NOT CS");}
   if (SPI.pinIsSCK(14)) { Serial.println("14 is SCK"); }
@@ -357,7 +360,7 @@ void loop() {
     delay(5000);
     return;
 */
-/*
+  /*
     Serial1.write(a);
     a++;
     if (a > 'z') { a = '0'; }
@@ -369,7 +372,7 @@ void loop() {
   return;
   */
 
-/*  if (event_buffer.NumEvents() > 0) {
+  /*  if (event_buffer.NumEvents() > 0) {
     const Event event = event_buffer.Read();
     Uint64ToString(event.ticks, format_buffer);
     switch(event.type) {
@@ -384,15 +387,15 @@ void loop() {
   }
 */
 
-/*  static float t = 0; 
+  /*  static float t = 0; 
   float left_command = -sin(2*3.14159f*0.1*t);
   float right_command = sin(2*3.14159f*0.1*t); 
   set_duty_cycle_left(left_command);
   set_duty_cycle_right(right_command);
   t += 0.00005f;
 */
-  
-  switch(state) {
+
+  switch (state) {
     case INIT:
       set_duty_cycle_left(kInnerDutyCycle);
       set_duty_cycle_right(1.0);
@@ -400,7 +403,7 @@ void loop() {
       state = CIRCLING_LEFT;
       break;
     case CIRCLING_LEFT:
-      if (cycles > kWaitCycles) { 
+      if (cycles > kWaitCycles) {
         set_duty_cycle_left(1.0);
         set_duty_cycle_right(kInnerDutyCycle);
         cycles = 0;
@@ -408,7 +411,7 @@ void loop() {
       }
       break;
     case CIRCLING_RIGHT:
-      if (cycles > kWaitCycles) { 
+      if (cycles > kWaitCycles) {
         set_duty_cycle_left(0);
         set_duty_cycle_right(0);
         cycles = 0;
@@ -444,7 +447,7 @@ void loop() {
       NVIC_DISABLE_IRQ(IRQ_FTM0);
       const Event event = event_buffer.Read();
       NVIC_ENABLE_IRQ(IRQ_FTM0);
-      switch(event.type) {
+      switch (event.type) {
         case kLeftWheelTick:
           ++left_ticks;
           robot_state.NotifyWheelTicks(left_ticks, right_ticks);
@@ -474,6 +477,6 @@ void loop() {
     }
   }
 
-//  set_duty_cycle_left(1.0f);
-//  set_duty_cycle_right(1.0f);
+  //  set_duty_cycle_left(1.0f);
+  //  set_duty_cycle_right(1.0f);
 }
