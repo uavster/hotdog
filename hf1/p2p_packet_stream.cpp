@@ -3,13 +3,18 @@
 
 P2PChecksumType P2PPacket::CalculateChecksum() const {
   P2PChecksumType sum = 0;
+  for (unsigned int i = 0; i < sizeof(data_.header); ++i) {
+    sum += reinterpret_cast<const uint8_t *>(&data_.header)[i];
+  }
   for (int i = 0; i < length(); ++i) {
     sum += content()[i];
   }
-  return sum;
+  sum -= kP2PStartToken;
+  return sum % kP2PChecksumModulo;
 }
 
 bool P2PPacket::PrepareToRead() {
+  Serial.printf("%d == %d\n", CalculateChecksum(), checksum());
   if (CalculateChecksum() != checksum()) {
     return false;
   }
@@ -45,6 +50,7 @@ bool P2PPacket::PrepareToRead() {
 bool P2PPacket::PrepareToSend() {
   int read_index = 0;
   int write_index = 0;
+  header()->start_token = kP2PStartToken;
   while(read_index < length()) {
     content()[write_index] = content()[read_index];
     ++read_index;

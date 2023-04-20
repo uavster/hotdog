@@ -26,25 +26,48 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         break;
 
       case kReadingHeader:
-        current_field_read_bytes_ += byte_stream_.Read(packet_buffer_.NewValue().header(), sizeof(P2PHeader) - current_field_read_bytes_);
-        Serial.printf("3: %d\n", (int)current_field_read_bytes_);
         if (current_field_read_bytes_ == sizeof(P2PHeader)) {          
         Serial.println("4");
           state_ = kReadingContent;
           current_field_read_bytes_ = 0;
+        } else {
+          current_field_read_bytes_ += byte_stream_.Read(packet_buffer_.NewValue().header(), sizeof(P2PHeader) - current_field_read_bytes_);
+          Serial.printf("3: %d\n", (int)current_field_read_bytes_);
         }
         break;
       
       case kReadingContent:
-        Serial.printf("5: %d\n", packet_buffer_.NewValue().length());
-        current_field_read_bytes_ += byte_stream_.Read(packet_buffer_.NewValue().content(), packet_buffer_.NewValue().length() - current_field_read_bytes_);
-        if (current_field_read_bytes_ == packet_buffer_.NewValue().length()) {
+        if (current_field_read_bytes_ >= packet_buffer_.NewValue().length()) {
         Serial.printf("6: %d\n", current_field_read_bytes_);
           state_ = kReadingFooter;
           current_field_read_bytes_ = 0;
+        } else {
+          Serial.printf("5: %d\n", packet_buffer_.NewValue().length());
+          current_field_read_bytes_ += byte_stream_.Read(&packet_buffer_.NewValue().content()[current_field_read_bytes_], 1);
+          if (packet_buffer_.NewValue().content()[current_field_read_bytes_ - 1] == kP2PStartToken) {
+            // It could be a start token, if the next byte is not a special token.
+            state_ = kDisambiguatingStartTokenInContent;
+          }
         }
         break;
       
+      case kDisambiguatingStartTokenInContent:
+        // Read next byte and check if it's a special token.
+        // No need to check if we reached the content length here, as a content byte matching the start token should always be followed by a special token.
+        current_field_read_bytes_ += byte_stream_.Read(&packet_buffer_.NewValue().content()[current_field_read_bytes_], 1);
+        if (packet_buffer_.NewValue().content()[current_field_read_bytes_ - 1] == kP2PSpecialToken) {
+          // Not a start token, but a content byte.
+          state_ = kReadingContent;
+        } else {
+          Serial.println("start token within the content");
+          // Must be a start token. Restart the state to re-synchronize with minimal latency.
+          state_ = kReadingHeader;
+          current_field_read_bytes_ = 2;
+          packet_buffer_.NewValue().header()->start_token = kP2PStartToken;
+          reinterpret_cast<uint8_t *>(packet_buffer_.NewValue().header())[1] = packet_buffer_.NewValue().content()[current_field_read_bytes_ - 1];
+        }
+        break;
+
       case kReadingFooter:
         Serial.printf("7: %d\n", (int)(sizeof(P2PFooter) - current_field_read_bytes_));
         current_field_read_bytes_ += byte_stream_.Read(packet_buffer_.NewValue().content() + packet_buffer_.NewValue().length(), sizeof(P2PFooter) - current_field_read_bytes_);

@@ -27,11 +27,13 @@ public:
   const uint8_t *content() const { return data_.content_and_footer; }
   uint8_t *content() { return data_.content_and_footer; }
 
-  // Encodes the content in place and updates the length accordingly. Returns true if success, or false if error.
+  // Decodes the content in place and updates the length accordingly. 
+  // Returns true if success, or false if error.
   // An error will occur if the encoded content is malformed.
   bool PrepareToRead();
 
-  // Decodes the content in place and updates the length and checksum accordingly. Returns true if success, or false if error.
+  // Encodes the content in place and updates the length and checksum accordingly.
+  // Returns true if success, or false if error.
   // An error will occur if the encoded content surpasses the maximum content length. 
   bool PrepareToSend();
 
@@ -145,7 +147,7 @@ private:
   RingBuffer<P2PPacket, kCapacity> packet_buffer_;
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
   unsigned int current_field_read_bytes_;
-  enum State { kWaitingForPacket, kVerifyingStartToken, kReadingHeader, kReadingContent, kReadingFooter } state_;
+  enum State { kWaitingForPacket, kVerifyingStartToken, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
 };
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketOutputStream {

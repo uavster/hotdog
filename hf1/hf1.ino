@@ -318,7 +318,10 @@ void loop() {
 
   while(p2p_input_stream.OldestPacket().ok()) {
   Serial.println("heelo");
-    Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
+    // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
+    for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
+      Serial.printf("0x%x ", p2p_input_stream.OldestPacket()->content()[i]);
+    }
     Serial.println();
     p2p_input_stream.Consume();
   }
