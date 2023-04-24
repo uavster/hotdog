@@ -112,7 +112,9 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         }
 
         if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
+          // Fix endianness.
           packet_buffer_.NewValue().checksum() = NetworkToLocal<LocalEndianness>(packet_buffer_.NewValue().checksum());
+          packet_buffer_.NewValue().length() = NetworkToLocal<LocalEndianness>(packet_buffer_.NewValue().length());
           if (packet_buffer_.NewValue().PrepareToRead()) {
             packet_buffer_.Commit();
           }

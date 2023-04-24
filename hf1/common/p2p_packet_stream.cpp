@@ -43,6 +43,7 @@ bool P2PPacket::PrepareToRead() {
     }
   }
   length() = write_index;
+
   return true;
 }
 
@@ -61,5 +62,6 @@ bool P2PPacket::PrepareToSend() {
   }
   length() = write_index;
   checksum() = CalculateChecksum();
+
   return true;
 }

@@ -154,6 +154,10 @@ public:
   // Afterwards, NewPacket() returns a new value.
   bool Commit() {
     if (!packet_buffer_.NewValue().PrepareToSend()) { return false; }
+    // Fix endianness.
+    packet_buffer_.NewValue().checksum() = LocalToNetwork<LocalEndianness>(packet_buffer_.NewValue().checksum());
+    packet_buffer_.NewValue().length() = LocalToNetwork<LocalEndianness>(packet_buffer_.NewValue().length());
+    
     packet_buffer_.Commit();
     return true;
   }
