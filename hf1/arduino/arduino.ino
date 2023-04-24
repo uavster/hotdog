@@ -340,10 +340,18 @@ char tmp[128];
 StatusOr<P2PMutablePacketView> current_packet_view(kUnavailableError);
 
 void loop() {
+    static uint8_t count = 0;
+    current_packet_view = p2p_output_stream.NewPacket();
+    if (current_packet_view.ok()) {
+        *reinterpret_cast<uint8_t *>(current_packet_view->content()) = count++;
+        current_packet_view->length() = sizeof(uint8_t);
+        p2p_output_stream.Commit();
+    }
+  
   if (current_packet_view.ok()) {
     while (Serial.available() > 0) {
       char c = Serial.read();
-      if (c == 0x13) {
+      if (c == 0xa) {
         p2p_output_stream.Commit();
         current_packet_view = StatusOr<P2PMutablePacketView>(kUnavailableError);
       } else {
@@ -359,7 +367,7 @@ void loop() {
   }
 
   while (p2p_input_stream.OldestPacket().ok()) {
-    // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
+    Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
     Serial.print("p: ");
     for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
       Serial.printf("%x ", p2p_input_stream.OldestPacket()->content()[i]);
