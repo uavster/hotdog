@@ -157,7 +157,7 @@ P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
 void setup() {
   pinMode(ledPin, OUTPUT);
 
-  Serial1.begin(9600, SERIAL_8N2);
+  Serial1.begin(115200, SERIAL_8N2);
   Serial.begin(115200);
 
   timer0_num_overflows = 0;
