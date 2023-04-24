@@ -1,44 +1,18 @@
 template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run() {
     switch(state_) {
       case kWaitingForPacket: {
-        // Serial.println("a");
         uint8_t *start_token = &packet_buffer_.NewValue().header()->start_token;
         if (byte_stream_.Read(start_token, 1) < 1) {
           break;
         }
         if (*start_token == kP2PStartToken) {
-          // Serial.println("start");
           state_ = kReadingHeader;
           current_field_read_bytes_ = 1;
-        } else {
-          Serial.printf("|0x%x ", *start_token);
         }
         break;
       }
 
-/*      case kVerifyingStartToken: {
-        // Serial.println("b");
-        uint8_t *byte_after_start = &reinterpret_cast<uint8_t *>(&packet_buffer_.NewValue().header()->start_token)[sizeof(packet_buffer_.NewValue().header()->start_token)];
-        // The token is only an actual start token if the following byte is not a special token.
-        current_field_read_bytes_ += byte_stream_.Read(byte_after_start, 1); // Read only 1 regardless of field size.
-        if (current_field_read_bytes_ >= 1) {
-          if (*byte_after_start == kP2PSpecialToken) {
-            // Not a new packet, but part of the content of an ongoing packet: skip.
-            state_ = kWaitingForPacket;
-          } else if (*byte_after_start == kP2PStartToken) {
-            // New beginning.
-            state_ = kVerifyingStartToken;
-            current_field_read_bytes_ = 1;
-          } else {
-            // New packet: keep reading.
-            state_ = kReadingHeader;
-          }
-        }
-        break;
-      }*/
-
       case kReadingHeader: {
-        // Serial.println("c");
         if (current_field_read_bytes_ >= sizeof(P2PHeader)) {
           state_ = kReadingContent;
           current_field_read_bytes_ = 0;
@@ -62,7 +36,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
       }
       
       case kReadingContent: {
-        // Serial.println("d");
         if (current_field_read_bytes_ >= packet_buffer_.NewValue().length()) {
           state_ = kReadingFooter;
           current_field_read_bytes_ = 0;
@@ -90,7 +63,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
       }
       
       case kDisambiguatingStartTokenInContent: {
-        // Serial.println("e");
         // Read next byte and check if it's a special token.
         // No need to check if we reached the content length here, as a content byte matching the start token should always be followed by a special token.
         uint8_t *next_content_byte = &packet_buffer_.NewValue().content()[current_field_read_bytes_];
@@ -100,7 +72,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         }
         current_field_read_bytes_ += read_bytes;
         if (*next_content_byte == kP2PSpecialToken) {
-        Serial.println("e.1");
           // Not a start token, but a content byte.
           state_ = kReadingContent;
         } else {
@@ -115,13 +86,11 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             packet_buffer_.NewValue().header()->start_token = kP2PStartToken;
             reinterpret_cast<uint8_t *>(packet_buffer_.NewValue().header())[1] = *next_content_byte;
             current_field_read_bytes_ = 2;
-        Serial.printf("e.2: %x\n", packet_buffer_.NewValue().length());
           }
         }}
         break;
 
       case kReadingFooter:
-        // Serial.println("f");
         if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
           state_ = kWaitingForPacket;
           break;
@@ -146,12 +115,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           packet_buffer_.NewValue().checksum() = NetworkToLocal<LocalEndianness>(packet_buffer_.NewValue().checksum());
           if (packet_buffer_.NewValue().PrepareToRead()) {
             packet_buffer_.Commit();
-          } else {
-            Serial.printf("bad packet, 0x%x != 0x%x, 0x%x 0x%x ", packet_buffer_.NewValue().checksum(), packet_buffer_.NewValue().CalculateChecksum(), kP2PStartToken, packet_buffer_.NewValue().length());
-            for (int i = 0; i < packet_buffer_.NewValue().length() + 1; ++i) {
-              Serial.printf("0x%x ", packet_buffer_.NewValue().content()[i]);
-            }
-            Serial.println("");
           }
           state_ = kWaitingForPacket;
         }
