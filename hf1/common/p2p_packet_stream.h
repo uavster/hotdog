@@ -43,7 +43,7 @@ public:
 
   int TotalLength() const { return sizeof(P2PHeader) + length() + sizeof(P2PFooter); }
 
-protected:
+// protected:
   P2PChecksumType CalculateChecksum() const; 
 
 private:
@@ -52,6 +52,7 @@ private:
     P2PHeader header;
     uint8_t content_and_footer[kP2PMaxContentLength + sizeof(P2PFooter)];
   } data_;
+  //__attribute__ ((aligned (4)));  // Aligning the memory ensures that we can access it as a byte array.
 #pragma pack(pop)
 };
 
@@ -129,7 +130,7 @@ private:
   RingBuffer<P2PPacket, kCapacity> packet_buffer_;
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
   unsigned int current_field_read_bytes_;
-  enum State { kWaitingForPacket, kVerifyingStartToken, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
+  enum State { kWaitingForPacket, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
 };
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketOutputStream {

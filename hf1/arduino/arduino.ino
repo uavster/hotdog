@@ -151,16 +151,14 @@ void set_duty_cycle_left(float s) {
 }
 
 P2PByteStreamArduino byte_stream(&Serial1);
-P2PPacketInputStream<3, kLittleEndian> p2p_input_stream(&byte_stream);
-P2PPacketOutputStream<3, kLittleEndian> p2p_output_stream(&byte_stream);
+P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
+P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
 
 void setup() {
   pinMode(ledPin, OUTPUT);
 
-  Serial.begin(9600);
-  Serial1.begin(115200);
-
-  Serial1.attachRts(2);
+  Serial1.begin(9600, SERIAL_8N2);
+  Serial.begin(115200);
 
   timer0_num_overflows = 0;
 
@@ -210,6 +208,45 @@ void setup() {
   NVIC_ENABLE_IRQ(IRQ_FTM0);
 
   init_motor_control();
+
+  // uint32_t start_time = timer_ticks();
+  // while(timer_ticks() - start_time < 8000) {}
+
+  // Serial1.begin(2000000, SERIAL_8N1);
+// delay(1000);  
+  // noInterrupts();
+  // Prevent FE from being set.
+  // Serial1.begin(9600, SERIAL_8N2);
+  // UART0_C2 &= (~UART_C2_ILIE);
+  // UART0_S2 |= UART_S2_LBKDE;
+// delay(1000);  
+  // Clear FE.
+  // uint8_t uart_s1 = UART0_S1;  
+  // ++uart_s1;
+  // uint8_t uart_d = UART0_D;
+  // ++uart_d;
+  // interrupts();
+// delay(1000);  
+  Serial.println("Started.");  
+  // if (UART0_RCFIFO == 0) {
+  //   Serial.println("no chars");
+  // } else {
+  //   Serial.println("chars!");
+  // }
+  Serial.printf("c1=%x c2=%x c3=%x c4=%x c5=%x\n", UART0_C1, UART0_C2, UART0_C3, UART0_C4, UART0_C5);
+  Serial.printf("s1=%x s2=%x\n", UART0_S1, UART0_S2);
+
+  // UART0_S2 |= UART_S2_LBKDE;
+  // Clear FE.
+  // noInterrupts();
+  // uint8_t uart_s1 = UART0_S1;  
+  // ++uart_s1;
+  // uint8_t uart_d = UART0_D;
+  // ++uart_d;
+  // interrupts();
+  // Serial.println("After clear");
+  // Serial.printf("c1=%x c2=%x c3=%x c4=%x c5=%x\n", UART0_C1, UART0_C2, UART0_C3, UART0_C4, UART0_C5);
+  // Serial.printf("s1=%x s2=%x\n", UART0_S1, UART0_S2);
 
   //  timer0_set_write_protected();
   /*
@@ -323,8 +360,9 @@ void loop() {
 
   while (p2p_input_stream.OldestPacket().ok()) {
     // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
+    Serial.print("p: ");
     for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
-      Serial.printf("0x%x ", p2p_input_stream.OldestPacket()->content()[i]);
+      Serial.printf("%x ", p2p_input_stream.OldestPacket()->content()[i]);
     }
     Serial.println();
     p2p_input_stream.Consume();
