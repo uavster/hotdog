@@ -51,15 +51,13 @@ bool P2PPacket::PrepareToSend() {
   int write_index = 0;
   header()->start_token = kP2PStartToken;
   while(read_index < length()) {
-    content()[write_index] = content()[read_index];
-    ++read_index;
-    ++write_index;
+    content()[write_index++] = content()[read_index];
     if (write_index > kP2PMaxContentLength) { return false; }
     if (content()[read_index] == kP2PStartToken || content()[read_index] == kP2PSpecialToken) {
-      content()[write_index] = kP2PSpecialToken;
-      ++write_index;
+      content()[write_index++] = kP2PSpecialToken;
       if (write_index > kP2PMaxContentLength) { return false; }
     }
+    ++read_index;
   }
   length() = write_index;
   checksum() = CalculateChecksum();
