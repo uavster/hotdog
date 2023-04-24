@@ -4,17 +4,12 @@
 P2PChecksumType P2PPacket::CalculateChecksum() const {
   P2PChecksumType sum = 0;
   for (unsigned int i = 0; i < sizeof(data_.header); ++i) {
-    Serial.printf("%x ", sum);
     sum += reinterpret_cast<const uint8_t *>(&data_.header)[i];
   }
   for (int i = 0; i < length(); ++i) {
-    Serial.printf("%x ", sum);
     sum += content()[i];
   }
-    Serial.printf("%x ", sum);
   sum -= kP2PStartToken;
-    Serial.printf("%x ", sum);
-  Serial.printf(" - "); 
   return sum % kP2PChecksumModulo;
 }
 
