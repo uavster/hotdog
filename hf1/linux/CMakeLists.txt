@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 2.4)
-project(HF1)
-add_executable(hf1 hf1.cpp)
-include_directories(~/bansai/hf1/common)
+include_directories(${HF1_SOURCE_DIR}/common)
+link_directories(${HF1_SOURCE_DIR}/common)
+add_executable(hf1 hf1.cpp p2p_byte_stream_linux.cpp)
+target_link_libraries(hf1 common)
