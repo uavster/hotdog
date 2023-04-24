@@ -15,9 +15,10 @@
 #include <chrono>
 
 #define kSerialPath "/dev/ttyTHS1"
-//#define kBaudRate B115200
+#define kBaudRate B115200
 //#define kBaudRate B2000000
-#define kBaudRate B9600
+//#define kBaudRate B9600
+//#define kBaudRate B1000000
 
 bool doLoop = true;
 int serial_fd = -1;
