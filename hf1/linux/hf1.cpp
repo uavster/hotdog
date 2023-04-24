@@ -1,4 +1,6 @@
 #include "p2p_packet_stream.h"
+#include "p2p_byte_stream_linux.h"
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <iostream>
@@ -82,6 +84,10 @@ int main() {
 	serial_poll.events |= POLLIN;
 	serial_poll.events |= POLLOUT;
 
+	P2PByteStreamLinux byte_stream(serial_fd);
+	P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
+	P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
+
 
 	int write_index = 0;
 #pragma pack(push, 1)
@@ -96,6 +102,14 @@ int main() {
 			perror("poll() error");
 		} else if (retval != 0) {
 			if (serial_poll.revents & POLLIN) {
+				p2p_input_stream.Run();
+				if (p2p_input_stream.OldestPacket().ok()) {
+					for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
+						printf("%x ", p2p_input_stream.OldestPacket()->content()[i]);
+					}
+					std::cout << std::endl;
+					p2p_input_stream.Consume();
+				}
 			}
 
 			if (serial_poll.revents & POLLOUT) {
