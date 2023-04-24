@@ -131,7 +131,8 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketOutputStream<k
       if (packet_buffer_.OldestValue() != NULL) {
         state_ = kSendingPacket;
         const P2PPacket *packet = packet_buffer_.OldestValue();
-        pending_packet_bytes = packet->TotalLength() - byte_stream_.Write(packet->header(), packet->TotalLength());
+        int total_length = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(packet->length()) + sizeof(P2PFooter);
+        pending_packet_bytes = total_length - byte_stream_.Write(packet->header(), total_length);
       }
       break;
     }

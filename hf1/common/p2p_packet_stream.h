@@ -41,9 +41,7 @@ public:
   P2PChecksumType checksum() const { return *reinterpret_cast<const P2PChecksumType *>(&data_.content_and_footer[length() + offsetof(P2PFooter, checksum)]); }
   P2PChecksumType &checksum() { return *reinterpret_cast<P2PChecksumType *>(&data_.content_and_footer[length() + offsetof(P2PFooter, checksum)]); }
 
-  int TotalLength() const { return sizeof(P2PHeader) + length() + sizeof(P2PFooter); }
-
-// protected:
+protected:
   P2PChecksumType CalculateChecksum() const; 
 
 private:
@@ -157,7 +155,7 @@ public:
     // Fix endianness.
     packet_buffer_.NewValue().checksum() = LocalToNetwork<LocalEndianness>(packet_buffer_.NewValue().checksum());
     packet_buffer_.NewValue().length() = LocalToNetwork<LocalEndianness>(packet_buffer_.NewValue().length());
-    
+
     packet_buffer_.Commit();
     return true;
   }
