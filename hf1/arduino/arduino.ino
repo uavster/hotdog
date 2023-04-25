@@ -7,6 +7,7 @@ uint8_t led_on = 1;
 #include "utils.h"
 #include "p2p_byte_stream_arduino.h"
 #include "p2p_packet_stream.h"
+#include "motor_control.h"
 // #include <SPI.h>
 
 // ------------ Event ring buffer ------------
@@ -46,108 +47,11 @@ void timer0_clear_write_protected() {
   }
 }
 
-bool timer1_is_write_protected() {
-  return FTM1_FMS & FTM_FMS_WPEN;
-}
-
-void timer1_set_write_protected() {
-  // WPEN = 1 (write protection enabled)
-  FTM1_FMS |= FTM_FMS_WPEN;
-}
-
-void timer1_clear_write_protected() {
-  // First, read WPEN
-  if (timer1_is_write_protected()) {
-    // WPDIS = 1 (write protection disable)
-    FTM1_MODE |= FTM_MODE_WPDIS;
-  }
-}
-
 uint32_t timer_ticks() {
   NVIC_DISABLE_IRQ(IRQ_FTM0);
   uint32_t cur_time = (timer0_num_overflows << 16) | (FTM0_CNT & 0xffff);
   NVIC_ENABLE_IRQ(IRQ_FTM0);
   return cur_time;
-}
-
-void init_motor_control() {
-#define kPWMFrequencyHz 20
-#define kPWMPeriodTicks ((16000000 / 32) / kPWMFrequencyHz)
-  FTM1_SC = 0;
-  FTM1_CNT = 0;
-  FTM1_MOD = kPWMPeriodTicks - 1;
-  FTM1_SC = FTM_SC_CLKS(1) | FTM_SC_PS(5);  // CPWMS=0, CLKS=System clock, PS=Divide clock by 32
-  // Set edge-aligned PWM
-  // Enable with QUADEN=0, DECAPEN=0, COMBINE=0, CPWMS=0, MSnB=1
-  FTM1_QDCTRL = 0;
-  FTM1_COMBINE = 0;
-  // CH1IE = 0 (interrupt disabled), MS1B:MS0A = 2 and ELS1B:ELS1A = 2 (high-true pulses)
-  FTM1_C0SC = FTM_CSC_MSB | FTM_CSC_ELSB;
-
-  FTM1_CNTIN = 0;
-
-  set_duty_cycle_left(0);
-  set_duty_cycle_right(0);
-}
-
-void set_duty_cycle_right(float s) {
-  if (s > 0) {
-    pinMode(16, OUTPUT);
-    digitalWrite(16, 0);
-    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
-    PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
-    // Disable the IRQ while writing to the event buffer to avoid a race.
-    NVIC_DISABLE_IRQ(IRQ_FTM0);
-    event_buffer.Write(Event{ .type = kRightWheelForwardCommand, .ticks = timer_ticks() });
-    NVIC_ENABLE_IRQ(IRQ_FTM0);
-  } else if (s < 0) {
-    pinMode(3, OUTPUT);
-    digitalWrite(3, 0);
-    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
-    PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
-    // Disable the IRQ while writing to the event buffer to avoid a race.
-    NVIC_DISABLE_IRQ(IRQ_FTM0);
-    event_buffer.Write(Event{ .type = kRightWheelBackwardCommand, .ticks = timer_ticks() });
-    NVIC_ENABLE_IRQ(IRQ_FTM0);
-  } else {
-    FTM1_C0V = 0;
-    pinMode(3, OUTPUT);
-    digitalWrite(3, 0);
-    pinMode(16, OUTPUT);
-    digitalWrite(16, 0);
-  }
-}
-
-void set_duty_cycle_left(float s) {
-  if (s > 0) {
-    pinMode(4, OUTPUT);
-    digitalWrite(4, 0);
-    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
-    PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
-    // Disable the IRQ while writing to the event buffer to avoid a race.
-    NVIC_DISABLE_IRQ(IRQ_FTM0);
-    event_buffer.Write(Event{ .type = kLeftWheelForwardCommand, .ticks = timer_ticks() });
-    NVIC_ENABLE_IRQ(IRQ_FTM0);
-  } else if (s < 0) {
-    pinMode(17, OUTPUT);
-    digitalWrite(17, 0);
-    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
-    PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
-    // Disable the IRQ while writing to the event buffer to avoid a race.
-    NVIC_DISABLE_IRQ(IRQ_FTM0);
-    event_buffer.Write(Event{ .type = kLeftWheelBackwardCommand, .ticks = timer_ticks() });
-    NVIC_ENABLE_IRQ(IRQ_FTM0);
-  } else {
-    FTM1_C1V = 0;
-    pinMode(17, OUTPUT);
-    digitalWrite(17, 0);
-    pinMode(4, OUTPUT);
-    digitalWrite(4, 0);
-  }
 }
 
 P2PByteStreamArduino byte_stream(&Serial1);
@@ -210,34 +114,9 @@ void setup() {
   Serial1.begin(1000000, SERIAL_8N1);
   Serial.begin(115200);
 
-  init_motor_control();
+  InitMotors();
 
-  // uint32_t start_time = timer_ticks();
-  // while(timer_ticks() - start_time < 8000) {}
-
-  // Serial1.begin(2000000, SERIAL_8N1);
-// delay(1000);  
-  // noInterrupts();
-  // Prevent FE from being set.
-  // Serial1.begin(9600, SERIAL_8N2);
-  // UART0_C2 &= (~UART_C2_ILIE);
-  // UART0_S2 |= UART_S2_LBKDE;
-// delay(1000);  
-  // Clear FE.
-  // uint8_t uart_s1 = UART0_S1;  
-  // ++uart_s1;
-  // uint8_t uart_d = UART0_D;
-  // ++uart_d;
-  // interrupts();
-// delay(1000);  
   Serial.println("Started.");  
-  // if (UART0_RCFIFO == 0) {
-  //   Serial.println("no chars");
-  // } else {
-  //   Serial.println("chars!");
-  // }
-  // Serial.printf("c1=%x c2=%x c3=%x c4=%x c5=%x\n", UART0_C1, UART0_C2, UART0_C3, UART0_C4, UART0_C5);
-  // Serial.printf("s1=%x s2=%x\n", UART0_S1, UART0_S2);
 
   last_msg_time = timer_ticks();
 
@@ -482,23 +361,33 @@ void loop() {
 
   switch (state) {
     case INIT:
-      set_duty_cycle_left(kInnerDutyCycle);
-      set_duty_cycle_right(1.0);
+      SetLeftMotorDutyCycle(kInnerDutyCycle);
+      SetRightMotorDutyCycle(1.0);
+      // Disable the IRQ while writing to the event buffer to avoid a race.
+      NVIC_DISABLE_IRQ(IRQ_FTM0);
+      event_buffer.Write(Event{ .type = kInnerDutyCycle >= 0 ? kLeftWheelForwardCommand : kLeftWheelBackwardCommand, .ticks = timer_ticks() });
+      event_buffer.Write(Event{ .type = kRightWheelForwardCommand, .ticks = timer_ticks() });
+      NVIC_ENABLE_IRQ(IRQ_FTM0);
       cycles = 0;
       state = CIRCLING_LEFT;
       break;
     case CIRCLING_LEFT:
       if (cycles > kWaitCycles) {
-        set_duty_cycle_left(1.0);
-        set_duty_cycle_right(kInnerDutyCycle);
+        SetLeftMotorDutyCycle(1.0);
+        SetRightMotorDutyCycle(kInnerDutyCycle);
+        // Disable the IRQ while writing to the event buffer to avoid a race.
+        NVIC_DISABLE_IRQ(IRQ_FTM0);
+        event_buffer.Write(Event{ .type = kLeftWheelForwardCommand, .ticks = timer_ticks() });
+        event_buffer.Write(Event{ .type = kInnerDutyCycle >= 0 ? kRightWheelForwardCommand : kRightWheelBackwardCommand, .ticks = timer_ticks() });
+        NVIC_ENABLE_IRQ(IRQ_FTM0);
         cycles = 0;
         state = CIRCLING_RIGHT;
       }
       break;
     case CIRCLING_RIGHT:
       if (cycles > kWaitCycles) {
-        set_duty_cycle_left(0);
-        set_duty_cycle_right(0);
+        SetLeftMotorDutyCycle(0);
+        SetRightMotorDutyCycle(0);
         cycles = 0;
         state = WAIT_FOR_INPUT;
       }
