@@ -17,10 +17,10 @@
 #include <chrono>
 
 #define kSerialPath "/dev/ttyTHS1"
-#define kBaudRate B115200
+//#define kBaudRate B115200
 //#define kBaudRate B2000000
 //#define kBaudRate B9600
-//#define kBaudRate B1000000
+#define kBaudRate B1000000
 
 bool doLoop = true;
 int serial_fd = -1;
@@ -66,64 +66,90 @@ int main() {
 	newtio.c_oflag = 0;
 	newtio.c_lflag = 0;
 	
-	newtio.c_cflag |= CSTOPB;
+//	newtio.c_cflag |= CSTOPB;
 
-	// block for up till 128 characters
-	newtio.c_cc[VMIN] = 128;
+	// Minimum number of chacters for read to return (as long as it is lower than the count passed to the call). 
+	newtio.c_cc[VMIN] = 0; // 128;
 
-	// 0.5 seconds read timeout
-	newtio.c_cc[VTIME] = 5;
+	// Intercharacter timeout. Read returns no matter what after this time (reset at every character).
+	newtio.c_cc[VTIME] = 0; // 5;
 
-	// now clean the modem line and activate the settings for the port
+	// Discard everything in input and output buffers.
 	tcflush(serial_fd, TCIOFLUSH);
+	// Set the new config.
 	tcsetattr(serial_fd, TCSANOW, &newtio);
 
 
 	struct pollfd serial_poll;
 	serial_poll.fd = serial_fd;
-	serial_poll.events |= POLLIN;
-	serial_poll.events |= POLLOUT;
+	serial_poll.events = POLLIN | POLLOUT;
+	serial_poll.revents = 0;
 
 	P2PByteStreamLinux byte_stream(serial_fd);
 	P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
 	P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
 
 
-	int write_index = 0;
-#pragma pack(push, 1)
-	uint8_t write_packet[] = { 0xaa, 0x1, 0x40, 0x41 };
-#pragma pack(pop)
-
 	int sent_packets = 0;
+	int received_packets = 0;
 	auto start = std::chrono::system_clock::now();
+	int last_sent_packets = 0;
+	int last_received_packets = 0;
+	int last_received_packet_value = -1;
+	int lost_packets = 0;
+	std::chrono::time_point<std::chrono::system_clock> last_sent_packet_time;
 	while(doLoop) {
-		int retval = poll(&serial_poll, 1, 1000);
+
+		auto now = std::chrono::system_clock::now();
+                std::chrono::duration<double, std::chrono::seconds::period> elapsed_seconds = now-start;
+
+		int retval = poll(&serial_poll, 1, 100);
 		if (retval == -1) {
 			perror("poll() error");
 		} else if (retval != 0) {
 			if (serial_poll.revents & POLLIN) {
 				p2p_input_stream.Run();
 				if (p2p_input_stream.OldestPacket().ok()) {
+					/*
+					std::cout << "packet: ";
 					for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
 						printf("%x ", p2p_input_stream.OldestPacket()->content()[i]);
 					}
 					std::cout << std::endl;
+					*/
+					++received_packets;
+					if (last_received_packet_value >= 0) {
+						int diff = p2p_input_stream.OldestPacket()->content()[0] - last_received_packet_value;
+						if (diff > 0) lost_packets += diff - 1;
+						else lost_packets += 256 + diff - 1;
+					}
+					last_received_packet_value = p2p_input_stream.OldestPacket()->content()[0];
 					p2p_input_stream.Consume();
 				}
 			}
 
 			if (serial_poll.revents & POLLOUT) {
-				write_index += write(serial_fd, &write_packet[write_index], sizeof(write_packet) - write_index);
-				if (write_index == sizeof(write_packet)) { ++sent_packets; write_index = 0; }
+				StatusOr<P2PMutablePacketView> current_packet_view = p2p_output_stream.NewPacket();
+    				if (current_packet_view.ok()) {
+					if (sent_packets == 0 || now - last_sent_packet_time > std::chrono::microseconds(87)) {
+        					*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets;
+        					current_packet_view->length() = sizeof(uint8_t);
+        					p2p_output_stream.Commit();
+						last_sent_packet_time = now;
+						++sent_packets;
+					}
+    				}
+				p2p_output_stream.Run();
 			}
 		}
-		auto now = std::chrono::system_clock::now();
-		std::chrono::duration<double> elapsed_seconds = now-start;
+		
 		if (elapsed_seconds >= std::chrono::seconds(1)) {
 			start = now;
-			std::cout << "packets: " << sent_packets << "\r" << std::flush;
+			printf("tx:%.2f packets/s, rx:%.2f packets/s, lost packets:%d      \r", (sent_packets - last_sent_packets) / elapsed_seconds.count(), (received_packets - last_received_packets) / elapsed_seconds.count(), lost_packets);
+			std::cout << std::flush;
+			last_sent_packets = sent_packets;
+			last_received_packets = received_packets;
 		}
-
 	}
 
 	CleanUp();
