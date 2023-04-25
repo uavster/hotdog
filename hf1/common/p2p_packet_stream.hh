@@ -128,20 +128,22 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
 template<int kCapacity, Endianness LocalEndianness> void P2PPacketOutputStream<kCapacity, LocalEndianness>::Run() {
   switch(state_) {
     case kGettingNextPacket: {
-      if (packet_buffer_.OldestValue() != NULL) {
-        state_ = kSendingPacket;
-        const P2PPacket *packet = packet_buffer_.OldestValue();
-        int total_length = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(packet->length()) + sizeof(P2PFooter);
-        pending_packet_bytes = total_length - byte_stream_.Write(packet->header(), total_length);
+      if (packet_buffer_.OldestValue() == NULL) {
+        break;
       }
+      state_ = kSendingPacket;
+      const P2PPacket *packet = packet_buffer_.OldestValue();
+      int total_length = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(packet->length()) + sizeof(P2PFooter);
+      pending_packet_bytes = total_length - byte_stream_.Write(packet->header(), total_length);
       break;
     }
     case kSendingPacket: {
-      pending_packet_bytes -= byte_stream_.Write(packet_buffer_.OldestValue()->header(), pending_packet_bytes);
-      if (pending_packet_bytes <= 0) {
-        packet_buffer_.Consume();
-        state_ = kGettingNextPacket;
+      if (pending_packet_bytes > 0) {
+        pending_packet_bytes -= byte_stream_.Write(packet_buffer_.OldestValue()->header(), pending_packet_bytes);
+        break;
       }
+      packet_buffer_.Consume();
+      state_ = kGettingNextPacket;
       break;
     }
   }
