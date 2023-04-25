@@ -66,7 +66,7 @@ void timer1_clear_write_protected() {
 uint32_t timer_ticks() {
   NVIC_DISABLE_IRQ(IRQ_FTM0);
   uint32_t cur_time = (timer0_num_overflows << 16) | (FTM0_CNT & 0xffff);
-  NVIC_DISABLE_IRQ(IRQ_FTM0);
+  NVIC_ENABLE_IRQ(IRQ_FTM0);
   return cur_time;
 }
 
@@ -154,11 +154,10 @@ P2PByteStreamArduino byte_stream(&Serial1);
 P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
 P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
 
+uint32_t last_msg_time = 0;
+
 void setup() {
   pinMode(ledPin, OUTPUT);
-
-  Serial1.begin(115200, SERIAL_8N2);
-  Serial.begin(115200);
 
   timer0_num_overflows = 0;
 
@@ -207,6 +206,10 @@ void setup() {
 
   NVIC_ENABLE_IRQ(IRQ_FTM0);
 
+  // Serial1.begin(115200, SERIAL_8N2);
+  Serial1.begin(1000000, SERIAL_8N1);
+  Serial.begin(115200);
+
   init_motor_control();
 
   // uint32_t start_time = timer_ticks();
@@ -233,8 +236,10 @@ void setup() {
   // } else {
   //   Serial.println("chars!");
   // }
-  Serial.printf("c1=%x c2=%x c3=%x c4=%x c5=%x\n", UART0_C1, UART0_C2, UART0_C3, UART0_C4, UART0_C5);
-  Serial.printf("s1=%x s2=%x\n", UART0_S1, UART0_S2);
+  // Serial.printf("c1=%x c2=%x c3=%x c4=%x c5=%x\n", UART0_C1, UART0_C2, UART0_C3, UART0_C4, UART0_C5);
+  // Serial.printf("s1=%x s2=%x\n", UART0_S1, UART0_S2);
+
+  last_msg_time = timer_ticks();
 
   // UART0_S2 |= UART_S2_LBKDE;
   // Clear FE.
@@ -284,7 +289,7 @@ void setup() {
 void ftm0_isr(void) {
   if (FTM0_SC & FTM_SC_TOF) {
     // The timer 0 counter overflowed
-    timer0_num_overflows++;
+    ++timer0_num_overflows;
     // Reset overflow flag (read SC and write 0 to TOF)
     FTM0_SC &= ~0x80;
     return;
@@ -339,14 +344,39 @@ char tmp[128];
 
 StatusOr<P2PMutablePacketView> current_packet_view(kUnavailableError);
 
+uint32_t last_packet_send_time = 0;
+int last_received_packet_value = -1;
+int received_packets = 0;
+int sent_packets = 0;
+int last_received_packets = 0;
+int last_sent_packets = 0;
+int lost_packets = 0;
+
 void loop() {
-    static uint8_t count = 0;
+  
+  static uint8_t count = 0;
+  uint32_t now = timer_ticks();
+  // Working values:
+  // 9600 bps -> 230
+  // 115200 bps -> 18
+  // 1000000 bps -> 2
+  if (now - last_packet_send_time >= 2) {
+    last_packet_send_time = now;
     current_packet_view = p2p_output_stream.NewPacket();
     if (current_packet_view.ok()) {
         *reinterpret_cast<uint8_t *>(current_packet_view->content()) = count++;
         current_packet_view->length() = sizeof(uint8_t);
-        p2p_output_stream.Commit();
+        p2p_output_stream.Commit(); 
+        ++sent_packets;
     }
+  }
+  
+  if (now - last_msg_time >= 16000000/512) {
+    Serial.printf("tx:%d packets/s, rx:%d packets/s, lost packets:%d\n", sent_packets - last_sent_packets, received_packets - last_received_packets, lost_packets);
+    last_msg_time = now;
+    last_sent_packets = sent_packets;
+    last_received_packets = received_packets;
+  }
   
   if (current_packet_view.ok()) {
     while (Serial.available() > 0) {
@@ -367,12 +397,20 @@ void loop() {
   }
 
   while (p2p_input_stream.OldestPacket().ok()) {
-    Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
-    Serial.print("p: ");
-    for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
-      Serial.printf("%x ", p2p_input_stream.OldestPacket()->content()[i]);
+    // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
+    // Serial.print("p: ");
+    // for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
+    //   Serial.printf("%x ", p2p_input_stream.OldestPacket()->content()[i]);
+    // }
+    // Serial.println();
+    
+    ++received_packets;
+    if (last_received_packet_value >= 0) {
+      int diff = p2p_input_stream.OldestPacket()->content()[0] - last_received_packet_value;
+      if (diff > 0) lost_packets += diff - 1;
+      else lost_packets += 256 + diff - 1;
     }
-    Serial.println();
+    last_received_packet_value = p2p_input_stream.OldestPacket()->content()[0];
     p2p_input_stream.Consume();
   }
 
