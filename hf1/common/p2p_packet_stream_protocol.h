@@ -1,13 +1,15 @@
-// Protocol to transfers variable length packets through a possibly unstable point-to-point link.
+// Protocol to transfer variable-length packets through a possibly unstable point-to-point link.
 //
 // Both ends may be physically connected to the medium at different times, and the medium may experience
 // interruptions. The protocol increases the probability that received packets are actual packets and
 // their content is as sent.
 //
-// The first layer of the protocol implements synchronization via signaling to minimize fake packets
-// (sequences in a packet's content looking like complete packets themselves), and minimizes latency
-// of re-synchronization after link glitches. The second layer maximizes packet integrity with length
-// and checksum fields.
+// The first layer of the protocol implements byte-level synchronization via signaling to minimize
+// fake packets (sequences in a packet's content looking like complete packets themselves), and
+// minimizes latency of re-synchronization after link glitches. It relies on the lower level of the
+// communication stack to provide bit-level synchronization (e.g. UART).
+//
+// The second layer maximizes packet integrity with length and checksum fields.
 //
 // Packets begin with a start token. A special token is appended to content bytes matching the start
 // and special tokens. Non-content bytes cannot match either token. This ensures that the protocol
@@ -29,7 +31,7 @@
 // And, so, we pay a price in error detection power; especially, if we have to optimize the modulo
 // operation by choosing an M that is a power of 2. In that situation, however, we have a wider range
 // to choose from for the token values, and may use the opportunity to pick a start token value that
-// is infrequent among erroneous bytes (due to bit-level desynchronization, for instance).
+// is infrequent among erroneous bytes.
 
 #ifndef P2P_PROTOCOL__
 #define P2P_PROTOCOL__
