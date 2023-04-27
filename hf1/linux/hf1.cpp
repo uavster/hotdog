@@ -66,7 +66,7 @@ int main() {
 	newtio.c_oflag = 0;
 	newtio.c_lflag = 0;
 	
-//	newtio.c_cflag |= CSTOPB;
+	//newtio.c_cflag |= CSTOPB;
 
 	// Minimum number of chacters for read to return (as long as it is lower than the count passed to the call). 
 	newtio.c_cc[VMIN] = 0; // 128;
@@ -131,9 +131,10 @@ int main() {
 			if (serial_poll.revents & POLLOUT) {
 				StatusOr<P2PMutablePacketView> current_packet_view = p2p_output_stream.NewPacket();
     				if (current_packet_view.ok()) {
-					if (sent_packets == 0 || now - last_sent_packet_time > std::chrono::microseconds(87)) {
+					int len = 84;
+					if (sent_packets == 0 || now - last_sent_packet_time > std::chrono::microseconds((len+3)*28)) {
         					*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets;
-        					current_packet_view->length() = sizeof(uint8_t);
+        					current_packet_view->length() = len; //sizeof(uint8_t);
         					p2p_output_stream.Commit();
 						last_sent_packet_time = now;
 						++sent_packets;
