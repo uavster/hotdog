@@ -2,7 +2,7 @@
 // 
 // The Each pair of 
 
-#include "p2p_packet_stream_protocol.h"
+#include "p2p_packet_protocol.h"
 #include "p2p_byte_stream_interface.h"
 #include "ring_buffer.h"
 #include "status_or.h"
