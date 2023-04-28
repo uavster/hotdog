@@ -23,9 +23,9 @@ int P2PByteStreamArduino::Read(void *buffer, int length) {
 }
 
 int P2PByteStreamArduino::GetBurstMaxLength() {
-  return 56;
+  return 1024;
 }
 
 int P2PByteStreamArduino::GetBurstIngestionNanosecondsPerByte() {
-  return 64000;
+  return 0;
 }
