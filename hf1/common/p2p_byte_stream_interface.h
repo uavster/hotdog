@@ -29,6 +29,12 @@ public:
   // Attempts to receive a maximum of `length` bytes in the buffer through the link, and returns the 
   // number of bytes actually received. This call never blocks.
   virtual int Read(void *buffer, int length) = 0;
+
+  // Returns the nanoseconds it takes for the other end to move each byte of a 
+  // transmission burst out of the reception buffer. When sending, this value is used to
+  // calculate the time to wait before sending the next burst, to avoid saturating the
+  // receiver and losing packets.
+  virtual int GetBurstIngestionNanosecondsPerByte() = 0;
     
   uint8_t ReadByteOrDefault(uint8_t default_output = 0xff) { 
     uint8_t c;

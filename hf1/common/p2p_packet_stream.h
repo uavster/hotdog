@@ -160,13 +160,15 @@ public:
     return true;
   }
 
-  void Run();
+  void Run(uint64_t timestamp_ns);
 
 private:
   RingBuffer<P2PPacket, kCapacity> packet_buffer_;
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
-  int pending_packet_bytes;
-  enum State { kGettingNextPacket, kSendingPacket } state_;  
+  int total_packet_length_;
+  int pending_packet_bytes_;
+  uint64_t burst_end_timestamp_ns_;
+  enum State { kGettingNextPacket, kSendingPacket, kWaitingForOtherEnd } state_;  
 };
 
 // template<int kCapacity, Endianness LocalEndianness> class P2PPacketStream {

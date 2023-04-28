@@ -51,14 +51,18 @@ bool P2PPacket::PrepareToSend() {
   int read_index = 0;
   int write_index = 0;
   header()->start_token = kP2PStartToken;
+  uint8_t encoded_content[kP2PMaxContentLength];
   while(read_index < length()) {
-    content()[write_index++] = content()[read_index];
-    if (write_index > kP2PMaxContentLength) { return false; }
+    if (write_index >= kP2PMaxContentLength) { return false; }
+    encoded_content[write_index++] = content()[read_index];
     if (content()[read_index] == kP2PStartToken || content()[read_index] == kP2PSpecialToken) {
-      content()[write_index++] = kP2PSpecialToken;
-      if (write_index > kP2PMaxContentLength) { return false; }
+      if (write_index >= kP2PMaxContentLength) { return false; }
+      encoded_content[write_index++] = kP2PSpecialToken;
     }
     ++read_index;
+  }
+  for (int i = 0; i < write_index; ++i) {
+    content()[i] = encoded_content[i];
   }
   length() = write_index;
   checksum() = CalculateChecksum();

@@ -21,3 +21,7 @@ int P2PByteStreamArduino::Read(void *buffer, int length) {
   interrupts();
   return stream().readBytes(static_cast<uint8_t *>(buffer), std::min(length, stream().available()));
 }
+
+int P2PByteStreamArduino::GetBurstIngestionNanosecondsPerByte() {
+  return 64000;
+}

@@ -47,11 +47,11 @@
 #endif
 
 #if (kP2PStartToken < kP2PChecksumModulo)
-#error "The checksum may match the start token, which is forbidden. Please make kP2PStartToken greater than kP2PStartToken."
+#error "The checksum might match the start token, which is forbidden. Please make kP2PStartToken greater than kP2PStartToken."
 #endif
 
 #if (kP2PSpecialToken < kP2PChecksumModulo)
-#error "The checksum may match the start token, which is forbidden. Please make kP2PSpecialToken greater than kP2PStartToken."
+#error "The checksum might match the start token, which is forbidden. Please make kP2PSpecialToken greater than kP2PStartToken."
 #endif
 
 #if (kP2PStartToken < kP2PSpecialToken)

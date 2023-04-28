@@ -50,7 +50,7 @@ P2PByteStreamArduino byte_stream(&Serial1);
 P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
 P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
 
-uint32_t last_msg_time = 0;
+uint64_t last_msg_time = 0;
 
 // uint8_t rx_buffer[256];
 
@@ -150,7 +150,7 @@ char tmp[128];
 
 StatusOr<P2PMutablePacketView> current_packet_view(kUnavailableError);
 
-uint32_t last_packet_send_time = 0;
+// uint32_t last_packet_send_time = 0;
 int last_received_packet_value = -1;
 int received_packets = 0;
 int sent_packets = 0;
@@ -160,21 +160,24 @@ int lost_packets = 0;
 
 void loop() {
   static uint8_t count = 0;
-  uint32_t now = GetTimerTicks();
+  uint64_t now = GetTimerTicks();
   // Working values:
   // 9600 bps -> 230
   // 115200 bps -> 18
   // 1000000 bps -> 2
-  unsigned int len = 29;
+  int len = 29; //0xa8;
   current_packet_view = p2p_output_stream.NewPacket();
   if (current_packet_view.ok()) {
-    if (now - last_packet_send_time >= (2*(len+3))) {
-      last_packet_send_time = now;
+    // if (now - last_packet_send_time >= (2*(len+3))) {
+      // last_packet_send_time = now;
+      for (int i = 0; i < len; ++i) {
+        reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
+      }
       *reinterpret_cast<uint8_t *>(current_packet_view->content()) = count++;
       current_packet_view->length() = len; //sizeof(uint8_t);
-      p2p_output_stream.Commit(); 
+      ASSERT(p2p_output_stream.Commit()); 
       ++sent_packets;
-    }
+    // }
   }
   
   if (now - last_msg_time >= 16000000/512) {
@@ -221,7 +224,7 @@ void loop() {
   }
 
   p2p_input_stream.Run();
-  p2p_output_stream.Run();
+  p2p_output_stream.Run(GetTimerNanoseconds());
 
   return;
   /*

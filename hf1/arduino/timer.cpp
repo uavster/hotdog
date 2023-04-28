@@ -4,12 +4,8 @@
 #define kMaxIsrs 4
 
 bool timer_initialized = false;
-uint32_t timer0_num_overflows;
+uint64_t timer0_num_overflows;
 TimerISR isr[kMaxIsrs];
-
-static bool IsTimerInit() {
-  return timer0_num_overflows >= 0;
-}
 
 void InitTimer() {
   ASSERT(!timer_initialized);
@@ -76,11 +72,21 @@ void ftm0_isr(void) {
   }
 }
 
-uint32_t GetTimerTicks() {
+uint64_t GetTimerTicks() {
   NO_TIMER_IRQ {
     return (timer0_num_overflows << 16) | (FTM0_CNT & 0xffff);
   }
   return 0;
+}
+
+uint64_t NanosFromTimerTicks(uint64_t ticks) {
+  // This is valid for 37 years.
+  // NanosFromTimerTicks(ticks) - NanosFromTimerTicks(ticks + 1) = 32000 nanos = 1 tick.
+  return ((ticks * 500000ULL) / kTimerTicksPerSecond) * 2000;
+}
+
+uint64_t GetTimerNanoseconds() {
+  return NanosFromTimerTicks(GetTimerTicks());
 }
 
 static int FindIsr(TimerISR isr_to_find) {
@@ -93,7 +99,7 @@ static int FindIsr(TimerISR isr_to_find) {
 }
 
 void AddTimerIsr(TimerISR custom_isr) {
-  ASSERT(IsTimerInit());
+  ASSERT(timer_initialized);
   NO_TIMER_IRQ {
     int slot_index = FindIsr(NULL);
     ASSERTM(slot_index >= 0, "No more available timer ISRs.");
@@ -102,7 +108,7 @@ void AddTimerIsr(TimerISR custom_isr) {
 }
 
 void RemoveTimerIsr(TimerISR custom_isr) {
-  ASSERT(IsTimerInit());
+  ASSERT(timer_initialized);
   NO_TIMER_IRQ {
     int slot_index = FindIsr(custom_isr);
     ASSERTM(false, "ISR not found.");
