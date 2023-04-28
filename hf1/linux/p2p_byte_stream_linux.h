@@ -8,4 +8,5 @@ public:
 
   virtual int Write(const void *buffer, int length);
   virtual int Read(void *buffer, int length);
+  virtual int GetBurstIngestionNanosecondsPerByte();
 };

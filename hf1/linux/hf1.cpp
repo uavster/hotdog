@@ -97,7 +97,7 @@ int main() {
 	int last_received_packets = 0;
 	int last_received_packet_value = -1;
 	int lost_packets = 0;
-	std::chrono::time_point<std::chrono::system_clock> last_sent_packet_time;
+	//std::chrono::time_point<std::chrono::system_clock> last_sent_packet_time;
 	while(doLoop) {
 
 		auto now = std::chrono::system_clock::now();
@@ -131,16 +131,17 @@ int main() {
 			if (serial_poll.revents & POLLOUT) {
 				StatusOr<P2PMutablePacketView> current_packet_view = p2p_output_stream.NewPacket();
     				if (current_packet_view.ok()) {
-					int len = 84;
-					if (sent_packets == 0 || now - last_sent_packet_time > std::chrono::microseconds((len+3)*28)) {
-        					*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets;
-        					current_packet_view->length() = len; //sizeof(uint8_t);
-        					p2p_output_stream.Commit();
-						last_sent_packet_time = now;
-						++sent_packets;
+					int len = 0xa8;
+					for (int i = 0; i < len; ++i) {
+						current_packet_view->content()[i] = 0;
 					}
+        				*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets;
+        				current_packet_view->length() = len; //sizeof(uint8_t);
+        				assert(p2p_output_stream.Commit());
+					++sent_packets;
     				}
-				p2p_output_stream.Run();
+				uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				p2p_output_stream.Run(now_ns);
 			}
 		}
 		
