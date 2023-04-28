@@ -80,11 +80,6 @@ int main() {
 	tcsetattr(serial_fd, TCSANOW, &newtio);
 
 
-	struct pollfd serial_poll;
-	serial_poll.fd = serial_fd;
-	serial_poll.events = POLLIN | POLLOUT;
-	serial_poll.revents = 0;
-
 	P2PByteStreamLinux byte_stream(serial_fd);
 	P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
 	P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
@@ -102,6 +97,11 @@ int main() {
 
 		auto now = std::chrono::system_clock::now();
                 std::chrono::duration<double, std::chrono::seconds::period> elapsed_seconds = now-start;
+
+		struct pollfd serial_poll;
+        	serial_poll.fd = serial_fd;
+        	serial_poll.events = POLLIN | POLLOUT;
+	        serial_poll.revents = 0;
 
 		int retval = poll(&serial_poll, 1, 100);
 		if (retval == -1) {
@@ -131,7 +131,7 @@ int main() {
 			if (serial_poll.revents & POLLOUT) {
 				StatusOr<P2PMutablePacketView> current_packet_view = p2p_output_stream.NewPacket();
     				if (current_packet_view.ok()) {
-					int len = 0xa8;
+					static int len = 1; //0xa8;
 					for (int i = 0; i < len; ++i) {
 						current_packet_view->content()[i] = 0;
 					}
@@ -139,6 +139,8 @@ int main() {
         				current_packet_view->length() = len; //sizeof(uint8_t);
         				assert(p2p_output_stream.Commit());
 					++sent_packets;
+					++len;
+					if (len == 0xa9) { len = 1; }
     				}
 				uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 				p2p_output_stream.Run(now_ns);
