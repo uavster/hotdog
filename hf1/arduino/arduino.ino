@@ -165,7 +165,7 @@ void loop() {
   // 9600 bps -> 230
   // 115200 bps -> 18
   // 1000000 bps -> 2
-  int len = 56; //0xa8;
+  int len = 0xa8;
   current_packet_view = p2p_output_stream.NewPacket();
   if (current_packet_view.ok()) {
     // if (now - last_packet_send_time >= (2*(len+3))) {
