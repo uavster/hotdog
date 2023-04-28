@@ -1,3 +1,5 @@
+#include <algorithm>
+
 template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run() {
   switch (state_) {
     case kWaitingForPacket:
