@@ -167,8 +167,9 @@ private:
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
   int total_packet_length_;
   int pending_packet_bytes_;
+  int pending_burst_bytes_;
   uint64_t burst_end_timestamp_ns_;
-  enum State { kGettingNextPacket, kSendingPacket, kWaitingForOtherEnd } state_;  
+  enum State { kGettingNextPacket, kSendingBurst, kWaitingForBurstIngestion } state_;  
 };
 
 // template<int kCapacity, Endianness LocalEndianness> class P2PPacketStream {

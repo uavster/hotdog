@@ -135,32 +135,64 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketOutputStream<k
       {
         const P2PPacket *packet = packet_buffer_.OldestValue();
         if (packet == NULL) {
+          // No more packets to send: keep waiting for one.
           break;
         }
-        state_ = kSendingPacket;
+
+        // Start sending the new packet.
+        state_ = kSendingBurst;
         total_packet_length_ = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(packet->length()) + sizeof(P2PFooter);
-        burst_end_timestamp_ns_ = total_packet_length_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
-        pending_packet_bytes_ = total_packet_length_ - byte_stream_.Write(packet->header(), total_packet_length_);        
+
+        // Send first burst.
+        // First write in the state transition so that burst_end_timestamp_ns_ is calculated
+        // as close as possible to it.
+        int burst_length = std::min(total_packet_length_, byte_stream_.GetBurstMaxLength());
+        burst_end_timestamp_ns_ = timestamp_ns + burst_length * byte_stream_.GetBurstIngestionNanosecondsPerByte();
+        int written_bytes = byte_stream_.Write(packet->header(), burst_length);
+        pending_packet_bytes_ = total_packet_length_ - written_bytes;
+        pending_burst_bytes_ = burst_length - written_bytes;
+        
         break;
       }
-
-    case kSendingPacket:
+    
+    case kSendingBurst:
       {
-        if (pending_packet_bytes_ <= 0) {
-          packet_buffer_.Consume();
-          state_ = kWaitingForOtherEnd;
-          burst_end_timestamp_ns_ += timestamp_ns;
+        if (pending_burst_bytes_ <= 0) {
+          // Burst fully sent: wait for other end to ingest.
+          state_ = kWaitingForBurstIngestion;
           break;
         }
-        pending_packet_bytes_ -= byte_stream_.Write(&packet_buffer_.OldestValue()->header()[total_packet_length_ - pending_packet_bytes_], pending_packet_bytes_);
+        int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(packet_buffer_.OldestValue()->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
+        pending_packet_bytes_ -= written_bytes;
+        pending_burst_bytes_ -= written_bytes;
+
         break;
       }
 
-    case kWaitingForOtherEnd:
+    case kWaitingForBurstIngestion:
       if (timestamp_ns < burst_end_timestamp_ns_) {
+        // Ingestion time not expired: keep waiting.
         break;
       }
-      state_ = kGettingNextPacket;
+
+      // Burst should have been ingested by the other end.
+      if (pending_packet_bytes_ <= 0) {
+        // No more bursts: next packet.
+        packet_buffer_.Consume();
+        state_ = kGettingNextPacket;
+        break;
+      }
+
+      // Send next burst.
+      // First write in the state transition so that burst_end_timestamp_ns_ is calculated
+      // as close as possible to it.
+      state_ = kSendingBurst;
+      pending_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
+      burst_end_timestamp_ns_ = timestamp_ns + pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
+      int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(packet_buffer_.OldestValue()->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
+      pending_packet_bytes_ -= written_bytes;
+      pending_burst_bytes_ -= written_bytes;
+
       break;
   }
 }

@@ -30,6 +30,11 @@ public:
   // number of bytes actually received. This call never blocks.
   virtual int Read(void *buffer, int length) = 0;
 
+  // Returns the maximum number of characters that the other end can process at once (burst).
+  // After one burst, the sender must wait for GetBurstIngestionNanosecondsPerByte() before
+  // sending the next burst.
+  virtual int GetBurstMaxLength() = 0;
+
   // Returns the nanoseconds it takes for the other end to move each byte of a 
   // transmission burst out of the reception buffer. When sending, this value is used to
   // calculate the time to wait before sending the next burst, to avoid saturating the
