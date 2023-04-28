@@ -165,11 +165,9 @@ void loop() {
   // 9600 bps -> 230
   // 115200 bps -> 18
   // 1000000 bps -> 2
-  int len = 0xa8;
+  static int len = 1;
   current_packet_view = p2p_output_stream.NewPacket();
   if (current_packet_view.ok()) {
-    // if (now - last_packet_send_time >= (2*(len+3))) {
-      // last_packet_send_time = now;
       for (int i = 0; i < len; ++i) {
         reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
       }
@@ -177,7 +175,8 @@ void loop() {
       current_packet_view->length() = len; //sizeof(uint8_t);
       ASSERT(p2p_output_stream.Commit()); 
       ++sent_packets;
-    // }
+      ++len;
+      if (len == 0xa9) { len = 1; }
   }
   
   if (now - last_msg_time >= 16000000/512) {
