@@ -12,10 +12,10 @@ int P2PByteStreamLinux::Read(void *buffer, int length) {
 }
 
 int P2PByteStreamLinux::GetBurstMaxLength() {
-  return 58;
+  return 42;
 }
 
 int P2PByteStreamLinux::GetBurstIngestionNanosecondsPerByte() {
-	return 27000;
+	return 40000;
 }
 
