@@ -160,7 +160,10 @@ public:
     return true;
   }
 
-  void Run(uint64_t timestamp_ns);
+  // Runs the stream and returns the minimum number of microseconds the caller may wait
+  // until calling Run() again. Multi-threaded platforms can use this value to yield time
+  // to other threads.
+  uint64_t Run(uint64_t timestamp_ns);
 
 private:
   RingBuffer<P2PPacket, kCapacity> packet_buffer_;
