@@ -163,7 +163,6 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         if (pending_burst_bytes_ <= 0) {
           // Burst fully sent: wait for other end to ingest.
           state_ = kWaitingForBurstIngestion;
-          time_until_next_event = burst_end_timestamp_ns_ - timestamp_ns;
           break;
         }
         int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(packet_buffer_.OldestValue()->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
