@@ -129,7 +129,8 @@ int main() {
 			}
 
 			if (serial_poll.revents & POLLOUT) {
-				StatusOr<P2PMutablePacketView> current_packet_view = p2p_output_stream.NewPacket();
+				P2PPriority priority = P2PPriority::Level::kMedium;
+				StatusOr<P2PMutablePacketView> current_packet_view = p2p_output_stream.NewPacket(priority);
     				if (current_packet_view.ok()) {
 					static int len = 1; //0xa8;
 					for (int i = 0; i < len; ++i) {
@@ -137,7 +138,7 @@ int main() {
 					}
         				*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets;
         				current_packet_view->length() = len; //sizeof(uint8_t);
-        				assert(p2p_output_stream.Commit());
+        				assert(p2p_output_stream.Commit(priority));
 					++sent_packets;
 					++len;
 					if (len == 0xa9) { len = 1; }
