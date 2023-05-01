@@ -50,7 +50,7 @@ P2PByteStreamArduino byte_stream(&Serial1);
 P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
 P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
 
-uint64_t last_msg_time = 0;
+TimerNanosType last_msg_time_ns = 0;
 
 // uint8_t rx_buffer[256];
 
@@ -73,7 +73,7 @@ void setup() {
 
   Serial.println("Started.");  
 
-  last_msg_time = GetTimerTicks();
+  last_msg_time_ns = GetTimerNanoseconds();
 
   // UART0_S2 |= UART_S2_LBKDE;
   // Clear FE.
@@ -160,7 +160,7 @@ int lost_packets = 0;
 
 void loop() {
   static uint8_t count = 0;
-  uint64_t now = GetTimerTicks();
+  TimerNanosType now_ns = GetTimerNanoseconds();
   // Working values:
   // 9600 bps -> 230
   // 115200 bps -> 18
@@ -180,9 +180,9 @@ void loop() {
       if (len == 0xa9) { len = 1; }
   }
   
-  if (now - last_msg_time >= 16000000/512) {
+  if (now_ns - last_msg_time_ns >= 1e9) {
     Serial.printf("tx:%d packets/s, rx:%d packets/s, lost packets:%d\n", sent_packets - last_sent_packets, received_packets - last_received_packets, lost_packets);
-    last_msg_time = now;
+    last_msg_time_ns = now_ns;
     last_sent_packets = sent_packets;
     last_received_packets = received_packets;
   }

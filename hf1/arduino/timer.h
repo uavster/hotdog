@@ -26,16 +26,19 @@ bool PauseTimerIrq();
 // Restores the timer IRQ to `previous_state`.
 void RestoreTimerIrq(bool previous_state);
 
+typedef uint64_t TimerTicksType;
+typedef uint64_t TimerNanosType;
+
 // Returns the timer ticks since the CPU started.
 // The tick count increments at a rate of kTimerTicksPerSecond.
-uint64_t GetTimerTicks();
+TimerTicksType GetTimerTicks();
 
 // Returns the number of nanoseconds elapsed for the given number of timer ticks.
-uint64_t NanosFromTimerTicks(uint64_t ticks);
+TimerNanosType NanosFromTimerTicks(TimerTicksType ticks);
 
 // Returns the number of nanoseconds since the CPU started, with a resolution of
 // 1e9 / kTimerTicksPerSecond.
-uint64_t GetTimerNanoseconds();
+TimerNanosType GetTimerNanoseconds();
 
 typedef void (*TimerISR)(void);
 

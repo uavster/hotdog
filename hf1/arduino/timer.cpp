@@ -72,20 +72,20 @@ void ftm0_isr(void) {
   }
 }
 
-uint64_t GetTimerTicks() {
+TimerTicksType GetTimerTicks() {
   NO_TIMER_IRQ {
     return (timer0_num_overflows << 16) | (FTM0_CNT & 0xffff);
   }
   return 0;
 }
 
-uint64_t NanosFromTimerTicks(uint64_t ticks) {
+TimerNanosType NanosFromTimerTicks(TimerTicksType ticks) {
   // This is valid for 37 years.
   // NanosFromTimerTicks(ticks) - NanosFromTimerTicks(ticks + 1) = 32000 nanos = 1 tick.
   return ((ticks * 500000ULL) / kTimerTicksPerSecond) * 2000;
 }
 
-uint64_t GetTimerNanoseconds() {
+TimerNanosType GetTimerNanoseconds() {
   return NanosFromTimerTicks(GetTimerTicks());
 }
 
