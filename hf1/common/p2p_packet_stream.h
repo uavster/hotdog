@@ -4,7 +4,7 @@
 
 #include "p2p_packet_protocol.h"
 #include "p2p_byte_stream_interface.h"
-#include "ring_buffer.h"
+#include "priority_ring_buffer.h"
 #include "status_or.h"
 #ifdef ARDUINO
 #include <DebugLog.h>
@@ -12,6 +12,28 @@
 #else
 #include <assert.h>
 #endif
+
+class P2PPriority {
+public:
+  enum Level { kLow = 0, kMedium, kHigh, kNumLevels };
+
+  P2PPriority(Level level) : level_(level) {}  
+
+  P2PPriority(int numeric_priority) : level_(static_cast<Level>(numeric_priority)) {
+    assert(level_ < kNumLevels);
+  }
+  virtual operator int() const { return static_cast<int>(level_); }
+
+  bool operator==(const P2PPriority &other) { return static_cast<int>(*this) == static_cast<int>(other); }
+  bool operator!=(const P2PPriority &other) { return !(*this == other); }
+  bool operator<(const P2PPriority &other) { return static_cast<int>(*this) > static_cast<int>(other); }
+  bool operator<=(const P2PPriority &other) { return *this < other || *this == other; }
+  bool operator>(const P2PPriority &other) { return !(*this <= other); }
+  bool operator>=(const P2PPriority &other) { return !(*this < other); }
+
+private:
+  Level level_;
+};
 
 class P2PPacket {
 public:
@@ -64,13 +86,30 @@ public:
     assert(packet_ != NULL);
     return packet_->length();
   }
-  const uint8_t *content() {
+  const uint8_t *content() const {
     assert(packet_ != NULL);
     return packet_->content();
+  }
+  P2PPriority priority() const {
+    assert(packet_ != NULL);
+    return P2PPriority(packet_->header()->priority);
   }
 
 private:
   const P2PPacket *packet_;
+};
+
+class P2PMutablePriorityView : public P2PPriority {
+public:
+  P2PMutablePriorityView(P2PHeader *header) : P2PPriority(header->priority), header_(header) {}
+  P2PMutablePriorityView &operator=(P2PPriority priority) {
+    header_->priority = static_cast<int>(priority);
+    return *this;
+  }
+  virtual operator int() const { return static_cast<int>(header_->priority); }
+
+private:
+  P2PHeader *header_;
 };
 
 class P2PMutablePacketView {
@@ -97,6 +136,15 @@ public:
     return packet_->content();
   }
 
+  P2PPriority priority() const {
+    assert(packet_ != NULL);
+    return P2PPriority(packet_->header()->priority);
+  }
+  P2PMutablePriorityView priority() {
+    assert(packet_ != NULL);
+    return P2PMutablePriorityView(packet_->header());
+  }
+
 private:
   P2PPacket *packet_;
 };
@@ -107,10 +155,10 @@ public:
   P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream) : byte_stream_(*byte_stream), state_(kWaitingForPacket) {}
 
   // Returns the number of times that Consume() can be called without OldestPacket() returning NULL.
-  int NumAvailablePackets() { return packet_buffer_.Size(); }
+  int NumAvailablePackets(P2PPriority priority) const { return packet_buffer_[priority].Size(); }
 
   // Returns a view to the oldest packet in the stream, or kUnavailableError if empty.
-  StatusOr<P2PPacketView> OldestPacket() { 
+  StatusOr<P2PPacketView> OldestPacket() const { 
     const P2PPacket *packet = packet_buffer_.OldestValue();
     if (packet == NULL) {
       return Status::kUnavailableError;
@@ -118,17 +166,18 @@ public:
     return P2PPacketView(packet);
   }
 
-  // Consumes the oldest packet in the stream. Afterwards, OldestPacket() returns a new value.
-  // Returns false, if there is no packet to consume.
+  // Consumes the oldest packet with highest priority in the stream. Afterwards, OldestPacket() returns a new
+  // value. Returns false, if there is no packet to consume.
   bool Consume() { return packet_buffer_.Consume(); }
 
   void Run();
 
 private:
-  RingBuffer<P2PPacket, kCapacity> packet_buffer_;
+  PriorityRingBuffer<P2PPacket, kCapacity, P2PPriority> packet_buffer_;
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
   unsigned int current_field_read_bytes_;
   enum State { kWaitingForPacket, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
+  P2PHeader incoming_header_;
 };
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketOutputStream {
@@ -137,26 +186,30 @@ public:
   P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream) : byte_stream_(*byte_stream), state_(kGettingNextPacket) {}
 
   // Returns the number of packet slots available for writing in the stream.
-  int NumAvailableSlots() { return packet_buffer_.Capacity() - packet_buffer_.Size(); }
+  int NumAvailableSlots(P2PPriority priority) const {
+    return packet_buffer_.Capacity(priority) - packet_buffer_.Size(priority);
+  }
 
-  // Returns a view to a new packet in the stream, or kUnavailableError if no space is available in the stream.
-  // Commit() must be called for the packet to be finalized.
-  StatusOr<P2PMutablePacketView> NewPacket() { 
-    if (NumAvailableSlots() == 0) {
+  // Returns a view to a new packet with `priority` in the stream, or kUnavailableError if no space is available
+  // in the stream for the given priority. Commit() must be called for the packet to be finalized.
+  StatusOr<P2PMutablePacketView> NewPacket(P2PPriority priority) { 
+    if (NumAvailableSlots(priority) == 0) {
       return Status::kUnavailableError;
     }
-    return P2PMutablePacketView(&packet_buffer_.NewValue());
+    return P2PMutablePacketView(&packet_buffer_.NewValue(priority));
   }
 
   // Commits changes to the new packet. Must be called for the packet to be sent.
   // Afterwards, NewPacket() returns a new value.
-  bool Commit() {
-    if (!packet_buffer_.NewValue().PrepareToSend()) { return false; }
+  bool Commit(P2PPriority priority) {
+    P2PPacket &packet = packet_buffer_.NewValue(priority);
+    packet.header()->priority = priority;
+    if (!packet.PrepareToSend()) { return false; }
     // Fix endianness.
-    packet_buffer_.NewValue().checksum() = LocalToNetwork<LocalEndianness>(packet_buffer_.NewValue().checksum());
-    packet_buffer_.NewValue().length() = LocalToNetwork<LocalEndianness>(packet_buffer_.NewValue().length());
+    packet.checksum() = LocalToNetwork<LocalEndianness>(packet.checksum());
+    packet.length() = LocalToNetwork<LocalEndianness>(packet.length());
 
-    packet_buffer_.Commit();
+    packet_buffer_.Commit(priority);
     return true;
   }
 
@@ -166,9 +219,10 @@ public:
   uint64_t Run(uint64_t timestamp_ns);
 
 private:
-  RingBuffer<P2PPacket, kCapacity> packet_buffer_;
+  PriorityRingBuffer<P2PPacket, kCapacity, P2PPriority> packet_buffer_;
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
   int total_packet_length_;
+  const P2PPacket *current_packet_;
   int pending_packet_bytes_;
   int pending_burst_bytes_;
   uint64_t burst_end_timestamp_ns_;

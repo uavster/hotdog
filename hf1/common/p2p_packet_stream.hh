@@ -4,11 +4,10 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
   switch (state_) {
     case kWaitingForPacket:
       {
-        uint8_t *start_token = &packet_buffer_.NewValue().header()->start_token;
-        if (byte_stream_.Read(start_token, 1) < 1) {
+        if (byte_stream_.Read(&incoming_header_.start_token, 1) < 1) {
           break;
         }
-        if (*start_token == kP2PStartToken) {
+        if (incoming_header_.start_token == kP2PStartToken) {
           state_ = kReadingHeader;
           current_field_read_bytes_ = 1;
         }
@@ -18,11 +17,15 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
     case kReadingHeader:
       {
         if (current_field_read_bytes_ >= sizeof(P2PHeader)) {
+          // Put the received header in a new packet at the given priority.
+          for (unsigned int i = 0; i < sizeof(P2PHeader); ++i) {
+            reinterpret_cast<uint8_t *>(&packet_buffer_.NewValue(incoming_header_.priority))[i] = reinterpret_cast<uint8_t *>(&incoming_header_)[i];
+          }
           state_ = kReadingContent;
           current_field_read_bytes_ = 0;
           break;
         }
-        uint8_t *current_byte = &reinterpret_cast<uint8_t *>(packet_buffer_.NewValue().header())[current_field_read_bytes_];
+        uint8_t *current_byte = &reinterpret_cast<uint8_t *>(&incoming_header_)[current_field_read_bytes_];
         int read_bytes = byte_stream_.Read(current_byte, 1);
         if (read_bytes < 1) {
           break;
@@ -41,19 +44,20 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
 
     case kReadingContent:
       {
-        if (current_field_read_bytes_ >= packet_buffer_.NewValue().length()) {
+        P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
+        if (current_field_read_bytes_ >= packet.length()) {
           state_ = kReadingFooter;
           current_field_read_bytes_ = 0;
           break;
         }
-        uint8_t *next_content_byte = &packet_buffer_.NewValue().content()[current_field_read_bytes_];
+        uint8_t *next_content_byte = &packet.content()[current_field_read_bytes_];
         int read_bytes = byte_stream_.Read(next_content_byte, 1);
         if (read_bytes < 1) {
           break;
         }
         current_field_read_bytes_ += read_bytes;
         if (*next_content_byte == kP2PStartToken) {
-          if (current_field_read_bytes_ < packet_buffer_.NewValue().length()) {
+          if (current_field_read_bytes_ < packet.length()) {
             // It could be a start token, if the next byte is not a special token.
             state_ = kDisambiguatingStartTokenInContent;
           } else {
@@ -69,9 +73,10 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
 
     case kDisambiguatingStartTokenInContent:
       {
+        P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
         // Read next byte and check if it's a special token.
         // No need to check if we reached the content length here, as a content byte matching the start token should always be followed by a special token.
-        uint8_t *next_content_byte = &packet_buffer_.NewValue().content()[current_field_read_bytes_];
+        uint8_t *next_content_byte = &packet.content()[current_field_read_bytes_];
         int read_bytes = byte_stream_.Read(next_content_byte, 1);
         if (read_bytes < 1) {
           break;
@@ -89,8 +94,8 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           } else {
             // Must be a start token. Restart the state to re-synchronize with minimal latency.
             state_ = kReadingHeader;
-            packet_buffer_.NewValue().header()->start_token = kP2PStartToken;
-            reinterpret_cast<uint8_t *>(packet_buffer_.NewValue().header())[1] = *next_content_byte;
+            packet.header()->start_token = kP2PStartToken;
+            reinterpret_cast<uint8_t *>(packet.header())[1] = *next_content_byte;
             current_field_read_bytes_ = 2;
           }
         }
@@ -98,34 +103,37 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
       break;
 
     case kReadingFooter:
-      if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
-        state_ = kWaitingForPacket;
-        break;
-      }
-      uint8_t *current_byte = packet_buffer_.NewValue().content() + packet_buffer_.NewValue().length() + current_field_read_bytes_;
-      int read_bytes = byte_stream_.Read(current_byte, 1);
-      if (read_bytes < 1) {
-        break;
-      }
-      current_field_read_bytes_ += read_bytes;
-
-      if (*current_byte == kP2PStartToken) {
-        state_ = kReadingHeader;
-        current_field_read_bytes_ = 1;
-        break;
-      }
-      if (*current_byte == kP2PSpecialToken) {
-        state_ = kWaitingForPacket;
-      }
-
-      if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
-        // Fix endianness.
-        packet_buffer_.NewValue().checksum() = NetworkToLocal<LocalEndianness>(packet_buffer_.NewValue().checksum());
-        packet_buffer_.NewValue().length() = NetworkToLocal<LocalEndianness>(packet_buffer_.NewValue().length());
-        if (packet_buffer_.NewValue().PrepareToRead()) {
-          packet_buffer_.Commit();
+      {
+        P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
+        if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
+          state_ = kWaitingForPacket;
+          break;
         }
-        state_ = kWaitingForPacket;
+        uint8_t *current_byte = packet.content() + packet.length() + current_field_read_bytes_;
+        int read_bytes = byte_stream_.Read(current_byte, 1);
+        if (read_bytes < 1) {
+          break;
+        }
+        current_field_read_bytes_ += read_bytes;
+
+        if (*current_byte == kP2PStartToken) {
+          state_ = kReadingHeader;
+          current_field_read_bytes_ = 1;
+          break;
+        }
+        if (*current_byte == kP2PSpecialToken) {
+          state_ = kWaitingForPacket;
+        }
+
+        if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
+          // Fix endianness.
+          packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
+          packet.length() = NetworkToLocal<LocalEndianness>(packet.length());
+          if (packet.PrepareToRead()) {
+            packet_buffer_.Commit(incoming_header_.priority);
+          }
+          state_ = kWaitingForPacket;
+        }
       }
       break;
   }
@@ -136,28 +144,28 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
   switch (state_) {
     case kGettingNextPacket:
       {
-        const P2PPacket *packet = packet_buffer_.OldestValue();
-        if (packet == NULL) {
+        current_packet_ = packet_buffer_.OldestValue();
+        if (current_packet_ == NULL) {
           // No more packets to send: keep waiting for one.
           break;
         }
 
         // Start sending the new packet.
         state_ = kSendingBurst;
-        total_packet_length_ = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(packet->length()) + sizeof(P2PFooter);
+        total_packet_length_ = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
 
         // Send first burst.
-        // First write in the state transition so that burst_end_timestamp_ns_ is calculated
-        // as close as possible to it.
+        // The first write is in the state transition so that burst_end_timestamp_ns_ is
+        // calculated as close as possible to it.
         int burst_length = std::min(total_packet_length_, byte_stream_.GetBurstMaxLength());
         burst_end_timestamp_ns_ = timestamp_ns + burst_length * byte_stream_.GetBurstIngestionNanosecondsPerByte();
-        int written_bytes = byte_stream_.Write(packet->header(), burst_length);
+        int written_bytes = byte_stream_.Write(current_packet_->header(), burst_length);
         pending_packet_bytes_ = total_packet_length_ - written_bytes;
         pending_burst_bytes_ = burst_length - written_bytes;
         
         break;
       }
-    
+
     case kSendingBurst:
       {
         if (pending_burst_bytes_ <= 0) {
@@ -165,7 +173,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           state_ = kWaitingForBurstIngestion;
           break;
         }
-        int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(packet_buffer_.OldestValue()->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
+        int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
         pending_packet_bytes_ -= written_bytes;
         pending_burst_bytes_ -= written_bytes;
 
@@ -188,12 +196,12 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
       }
 
       // Send next burst.
-      // First write in the state transition so that burst_end_timestamp_ns_ is calculated
-      // as close as possible to it.
+      // The first write is in the state transition so that burst_end_timestamp_ns_ is
+      // calculated as close as possible to it.
       state_ = kSendingBurst;
       pending_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
       burst_end_timestamp_ns_ = timestamp_ns + pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
-      int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(packet_buffer_.OldestValue()->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
+      int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
       pending_packet_bytes_ -= written_bytes;
       pending_burst_bytes_ -= written_bytes;
 

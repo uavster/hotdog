@@ -65,10 +65,19 @@ typedef uint8_t P2PChecksumType;
 #pragma pack(push, 1)
 
 typedef struct {
+  // Must be kP2PStartToken.
   uint8_t start_token;
+  // Allocation of bits is implementation-dependent. Care must be taken to ensure that the following bit fields
+  // are packed from most to least significant in all platforms.
+  // The reserved field must not match the corresponding bits in either token.
+  uint8_t reserved: 5;
+  // If 1, the packet is the continuation of a previous packet that was interrupted by a higher priority packet.
+  // In that case, the length field is the remaining length, and the offset of the content bytes is
+  // legth_of_original_packet - length_of_continuation_packet.
+  uint8_t is_continuation: 1;
+  // Priority of the packet (0 is highest).
+  uint8_t priority: 2;
   // Number of content bytes, including special characters. Cannot match the special token.
-  // If a larger type is needed, make the byte following start_token reserved,
-  // and set it to something different from the start and special tokens.
   uint8_t length;
 } P2PHeader;
 

@@ -166,14 +166,15 @@ void loop() {
   // 115200 bps -> 18
   // 1000000 bps -> 2
   static int len = 1;
-  current_packet_view = p2p_output_stream.NewPacket();
+  P2PPriority priority = P2PPriority::Level::kMedium;
+  current_packet_view = p2p_output_stream.NewPacket(priority);
   if (current_packet_view.ok()) {
       for (int i = 0; i < len; ++i) {
         reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
       }
       *reinterpret_cast<uint8_t *>(current_packet_view->content()) = count++;
       current_packet_view->length() = len; //sizeof(uint8_t);
-      ASSERT(p2p_output_stream.Commit()); 
+      ASSERT(p2p_output_stream.Commit(priority)); 
       ++sent_packets;
       ++len;
       if (len == 0xa9) { len = 1; }
@@ -186,11 +187,12 @@ void loop() {
     last_received_packets = received_packets;
   }
   
+  priority = P2PPriority::Level::kMedium;
   if (current_packet_view.ok()) {
     while (Serial.available() > 0) {
       char c = Serial.read();
       if (c == 0xa) {
-        p2p_output_stream.Commit();
+        p2p_output_stream.Commit(priority);
         current_packet_view = StatusOr<P2PMutablePacketView>(kUnavailableError);
       } else {
         current_packet_view->content()[current_packet_view->length()] = c;
@@ -198,7 +200,7 @@ void loop() {
       }
     }
   } else {
-    current_packet_view = p2p_output_stream.NewPacket();
+    current_packet_view = p2p_output_stream.NewPacket(priority);
     if (current_packet_view.ok()) {
       current_packet_view->length() = 0;
     }

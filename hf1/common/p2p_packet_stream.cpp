@@ -51,6 +51,7 @@ bool P2PPacket::PrepareToSend() {
   int read_index = 0;
   int write_index = 0;
   header()->start_token = kP2PStartToken;
+  header()->reserved = 0; // Should never match the corresponding bits in either token.
   uint8_t encoded_content[kP2PMaxContentLength];
   while(read_index < length()) {
     if (write_index >= kP2PMaxContentLength) { return false; }

@@ -13,7 +13,7 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     }
 
     // Returns the number of values in the buffer.
-    inline int Size() {
+    inline int Size() const {
       return size_;
     }
 
@@ -22,7 +22,7 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     // returned by NewValue(). If an IRQ calls does that, the caller should either copy the 
     // value or extend mutual exclusion throughout value access.
     // This function does not block. 
-    const ValueType *OldestValue() {
+    const ValueType *OldestValue() const {
       if (Size() == 0) return NULL;
       return &values_[read_index_];
     }
@@ -60,7 +60,7 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     }
 
     const ValueType Read() {
-      ValueType value = *OldestValue();
+      const ValueType value = *OldestValue();
       Consume();
       return value;
     }
