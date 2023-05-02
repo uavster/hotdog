@@ -5,8 +5,7 @@
 
 template<typename ValueType, int kCapacity> class RingBuffer {
   public:
-    RingBuffer() : read_index_(0), write_index_(0), size_(0) {
-    }
+    RingBuffer() : read_index_(0), write_index_(0), size_(0) {}
 
     inline int Capacity() const {
       return kCapacity;

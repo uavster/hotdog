@@ -231,7 +231,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
       // Burst should have been ingested by the other end.
       if (pending_packet_bytes_ <= 0) {
         // No more bursts: next packet.
-        packet_buffer_.Consume();
+        packet_buffer_.Consume(current_packet_->header()->priority);
         state_ = kGettingNextPacket;
         break;
       }

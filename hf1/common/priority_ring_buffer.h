@@ -12,14 +12,8 @@ public:
     return NULL;
   }
 
-  bool Consume() {
-    for (int i = 0; i < PriorityType::kNumLevels; ++i) {
-      const ValueType *value = buffer_[i].OldestValue();
-      if (value != NULL) {
-        return buffer_[i].Consume();
-      }
-    }
-    return false;
+  bool Consume(PriorityType priority) {
+    return buffer_[priority].Consume();
   }
 
   ValueType &NewValue(PriorityType priority) {
@@ -27,7 +21,7 @@ public:
   }
   
   void Commit(PriorityType priority) {
-    return buffer_[priority].Commit();
+    buffer_[static_cast<int>(priority)].Commit();
   }
 
   int Size(PriorityType priority) const {

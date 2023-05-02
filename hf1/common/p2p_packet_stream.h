@@ -172,7 +172,7 @@ public:
 
   // Consumes the oldest packet with highest priority in the stream. Afterwards, OldestPacket() returns a new
   // value. Returns false, if there is no packet to consume.
-  bool Consume() { return packet_buffer_.Consume(); }
+  bool Consume(P2PPriority priority) { return packet_buffer_.Consume(priority); }
 
   void Run();
 
@@ -229,6 +229,7 @@ public:
         break;
       }
     }
+
     packet_buffer_.Commit(priority);
     return true;
   }
