@@ -36,6 +36,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
                 remaining_length > packet.length()) {
               // This continuation does not belong to the packet we have in store. There must
               // have been a link interruption: reset the state machine.
+              Serial.println("bad continuation");
               state_ = kWaitingForPacket;
               break;
             }
@@ -57,10 +58,12 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           state_ = kReadingHeader;
           incoming_header_.start_token = kP2PStartToken;
           current_field_read_bytes_ = 1;
+          Serial.println("new packet when reading header");
           break;
         }
         if (*current_byte == kP2PSpecialToken) {
           // Malformed packet.
+          Serial.println("malformed packet when reading header");
           state_ = kWaitingForPacket;
         }
         break;
@@ -82,6 +85,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         current_field_read_bytes_ += read_bytes;
         if (*next_content_byte == kP2PStartToken) {
           if (current_field_read_bytes_ < packet.length()) {
+          Serial.println("new start token when reading content");
             // It could be a start token, if the next byte is not a special token.
             state_ = kDisambiguatingStartTokenInContent;
           } else {
@@ -89,6 +93,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             // it could either be a malformed packet or a new packet start. Assume the other
             // end will form correct packets. The start token may then be due to a new packet
             // after a link interruption, or a packet with higher priority.
+          Serial.println("new packet when reading content");
             state_ = kReadingHeader;
             incoming_header_.start_token = kP2PStartToken;
             current_field_read_bytes_ = 1;
@@ -110,16 +115,19 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         current_field_read_bytes_ += read_bytes;
         if (*next_content_byte == kP2PSpecialToken) {
           // Not a start token, but a content byte.
+          Serial.println("start token was a content byte");
           state_ = kReadingContent;
         } else {
           if (*next_content_byte == kP2PStartToken) {
             // Either a malformed packet, or a new packet after link reestablished, or a
             // higher priority packet.
             // Assume well designed transmitter and try the latter.
+          Serial.println("new packet after start token when reading content");
             state_ = kReadingHeader;
             incoming_header_.start_token = kP2PStartToken;
             current_field_read_bytes_ = 1;
           } else {
+          Serial.println("start token was a new packet");
             // Must be a start token. Restart the state to re-synchronize with minimal latency.
             state_ = kReadingHeader;
             incoming_header_.start_token = kP2PStartToken;
@@ -146,6 +154,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
 
         if (*current_byte == kP2PStartToken) {
           // New packet after interrupts, as no priority takeover is allowed mid-footer.
+          Serial.println("new packet when reading footer");
           state_ = kReadingHeader;
           incoming_header_.start_token = kP2PStartToken;
           current_field_read_bytes_ = 1;
@@ -153,6 +162,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         }
         if (*current_byte == kP2PSpecialToken) {
           // Malformed packet.
+          Serial.println("malformed packet when reading footer");
           state_ = kWaitingForPacket;
         }
 

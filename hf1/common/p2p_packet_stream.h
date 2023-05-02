@@ -218,7 +218,17 @@ public:
     packet.length() = LocalToNetwork<LocalEndianness>(packet.length());
     packet.sequence_number() = LocalToNetwork<LocalEndianness>(packet.sequence_number());
 
-    ++current_sequence_number_;
+    // Increment the sequence with every byte module kP2PLowestToken, so that no byte
+    // equals a token.
+    // WARNING: this assumes the network order is little-endian.
+    // We should protect that pre-condition with a test.
+    for (unsigned int i = 0; i < sizeof(current_sequence_number_); ++i) {
+      ++reinterpret_cast<uint8_t *>(&current_sequence_number_)[i];
+      reinterpret_cast<uint8_t *>(&current_sequence_number_)[i] %= kP2PLowestToken;
+      if (reinterpret_cast<uint8_t *>(&current_sequence_number_)[i] > 0) {
+        break;
+      }
+    }
     packet_buffer_.Commit(priority);
     return true;
   }

@@ -55,15 +55,18 @@
 #endif
 
 #if (kP2PStartToken < kP2PSpecialToken)
-#define kP2PMaxContentLength static_cast<uint8_t>(kP2PStartToken - 1)
+#define kP2PLowestToken kP2PStartToken
 #else
-#define kP2PMaxContentLength static_cast<uint8_t>(kP2PSpecialToken - 1)
+#define kP2PLowestToken kP2PSpecialToken
 #endif
+
+#define kP2PMaxContentLength static_cast<uint8_t>(kP2PLowestToken - 1)
 
 typedef uint8_t P2PChecksumType;
 
-// This type must be chosen so that the sequence number period is always below the packet
-// timeout or link watchdog.
+// This type must be chosen so that the highest sequence number period is always below the
+// packet timeout or link watchdog. The highest period is:
+// maximum_packet_frequency * (kP2PLowestToken * kP2PLowestToken)
 typedef uint16_t P2PSequenceNumberType;
 
 #pragma pack(push, 1)
@@ -86,8 +89,10 @@ typedef struct {
   uint8_t priority: 2;
 
   // The sequence number increments monotonically with each data packet. Each priority
-  // level has its own sequence number. It is used to pair each continuation and ACK with
+  // level has its own sequence number. It is used to pair every continuation and ACK with
   // the original packet.
+  // No byte in this field can match a token, so the total representable values is
+  // kP2PLowestToken * kP2PLowestToken.
   P2PSequenceNumberType sequence_number;
 
   // Number of content bytes, including special characters. Cannot match any token.
