@@ -15,7 +15,7 @@
 
 class P2PPriority {
 public:
-  enum Level { kLow = 0, kMedium, kHigh, kNumLevels };
+  enum Level { kHigh = 0, kMedium, kLow, kNumLevels };
 
   P2PPriority(Level level) : level_(level) {}  
 
@@ -245,7 +245,7 @@ private:
   const P2PPacket *current_packet_;
   int pending_packet_bytes_;
   int pending_burst_bytes_;
-  uint64_t burst_end_timestamp_ns_;
+  uint64_t after_burst_wait_end_timestamp_ns_;
   P2PSequenceNumberType current_sequence_number_; 
   enum State { kGettingNextPacket, kSendingBurst, kWaitingForBurstIngestion } state_;  
 };

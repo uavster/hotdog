@@ -191,17 +191,10 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         }
 
         // Start sending the new packet.
-        state_ = kSendingBurst;
-        total_packet_length_ = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
+        pending_packet_bytes_ = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
 
-        // Send first burst.
-        // The first write is in the state transition so that burst_end_timestamp_ns_ is
-        // calculated as close as possible to it.
-        int burst_length = std::min(total_packet_length_, byte_stream_.GetBurstMaxLength());
-        burst_end_timestamp_ns_ = timestamp_ns + burst_length * byte_stream_.GetBurstIngestionNanosecondsPerByte();
-        int written_bytes = byte_stream_.Write(current_packet_->header(), burst_length);
-        pending_packet_bytes_ = total_packet_length_ - written_bytes;
-        pending_burst_bytes_ = burst_length - written_bytes;
+        state_ = kSendingBurst;
+        pending_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
         
         break;
       }
@@ -213,17 +206,24 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           state_ = kWaitingForBurstIngestion;
           break;
         }
-        int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
+        int total_packet_length = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
+        int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_length - pending_packet_bytes_], pending_burst_bytes_);
         pending_packet_bytes_ -= written_bytes;
         pending_burst_bytes_ -= written_bytes;
+        
+        if (pending_burst_bytes_ <= 0) {
+          // Burst fully sent: calculate when to start the next burst.
+          after_burst_wait_end_timestamp_ns_ = timestamp_ns + pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
+          state_ = kWaitingForBurstIngestion;
+        }
 
         break;
       }
 
     case kWaitingForBurstIngestion:
-      if (timestamp_ns < burst_end_timestamp_ns_) {
+      if (timestamp_ns < after_burst_wait_end_timestamp_ns_) {
         // Ingestion time not expired: keep waiting.
-        time_until_next_event = burst_end_timestamp_ns_ - timestamp_ns;
+        time_until_next_event = after_burst_wait_end_timestamp_ns_ - timestamp_ns;
         break;
       }
 
@@ -235,15 +235,9 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         break;
       }
 
-      // Send next burst.
-      // The first write is in the state transition so that burst_end_timestamp_ns_ is
-      // calculated as close as possible to it.
       state_ = kSendingBurst;
       pending_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
-      burst_end_timestamp_ns_ = timestamp_ns + pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
-      int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_length_ - pending_packet_bytes_], pending_burst_bytes_);
-      pending_packet_bytes_ -= written_bytes;
-      pending_burst_bytes_ -= written_bytes;
+      after_burst_wait_end_timestamp_ns_ = timestamp_ns + pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
 
       break;
   }
