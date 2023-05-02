@@ -54,6 +54,13 @@ TimerNanosType last_msg_time_ns = 0;
 
 // uint8_t rx_buffer[256];
 
+int last_received_packet_value[P2PPriority::kNumLevels];
+int received_packets[P2PPriority::kNumLevels];
+int sent_packets[P2PPriority::kNumLevels];
+int last_received_packets[P2PPriority::kNumLevels];
+int last_sent_packets[P2PPriority::kNumLevels];
+int lost_packets[P2PPriority::kNumLevels];
+
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
   Serial.begin(115200);
@@ -74,6 +81,15 @@ void setup() {
   Serial.println("Started.");  
 
   last_msg_time_ns = GetTimerNanoseconds();
+
+  for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+    last_received_packet_value[i] = -1;
+    received_packets[i] = 0;
+    sent_packets[i] = 0;
+    last_received_packets[i] = 0;
+    last_sent_packets[i] = 0;
+    lost_packets[i] = 0;
+  }
 
   // UART0_S2 |= UART_S2_LBKDE;
   // Clear FE.
@@ -151,42 +167,74 @@ char tmp[128];
 StatusOr<P2PMutablePacketView> current_packet_view(kUnavailableError);
 
 // uint32_t last_packet_send_time = 0;
-int last_received_packet_value = -1;
-int received_packets = 0;
-int sent_packets = 0;
-int last_received_packets = 0;
-int last_sent_packets = 0;
-int lost_packets = 0;
+
+TimerNanosType last_sent_packet_nanos = 0;
 
 void loop() {
   static uint8_t count = 0;
   TimerNanosType now_ns = GetTimerNanoseconds();
+
   // Working values:
   // 9600 bps -> 230
   // 115200 bps -> 18
   // 1000000 bps -> 2
-  static int len = 1;
-  P2PPriority priority = P2PPriority::Level::kMedium;
-  current_packet_view = p2p_output_stream.NewPacket(priority);
-  if (current_packet_view.ok()) {
+
+  int len = 10;
+  if (now_ns - last_sent_packet_nanos >= 9000000) {
+    last_sent_packet_nanos = now_ns;
+    P2PPriority priority = P2PPriority::Level::kHigh;
+    current_packet_view = p2p_output_stream.NewPacket(priority);
+    if (current_packet_view.ok()) {
       for (int i = 0; i < len; ++i) {
         reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
       }
       *reinterpret_cast<uint8_t *>(current_packet_view->content()) = count++;
       current_packet_view->length() = len; //sizeof(uint8_t);
       ASSERT(p2p_output_stream.Commit(priority)); 
-      ++sent_packets;
-      ++len;
-      if (len == 0xa9) { len = 1; }
+
+      ++sent_packets[priority];
+      // ++len;
+      // if (len == 0xa9) { len = 1; }
+    }
   }
-  
+
+  len = 0xa8;
+  P2PPriority priority2 = P2PPriority::Level::kLow;
+  current_packet_view = p2p_output_stream.NewPacket(priority2);
+  if (current_packet_view.ok()) {
+    for (int i = 0; i < len; ++i) {
+      reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
+    }
+    *reinterpret_cast<uint8_t *>(current_packet_view->content()) = count++;
+    current_packet_view->length() = len; //sizeof(uint8_t);
+    ASSERT(p2p_output_stream.Commit(priority2)); 
+    ++sent_packets[priority2];
+    // ++len;
+    // if (len == 0xa9) { len = 1; }
+  }
+
   if (now_ns - last_msg_time_ns >= 1e9) {
-    Serial.printf("tx:%d packets/s, rx:%d packets/s, lost packets:%d\n", sent_packets - last_sent_packets, received_packets - last_received_packets, lost_packets);
+    Serial.print("tx:");
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      Serial.printf("%d ", sent_packets[i] - last_sent_packets[i]);
+    }
+    Serial.print(", rx:");
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      Serial.printf("%d ", received_packets[i] - last_received_packets[i]);
+    }
+    Serial.print(", lost:");
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      Serial.printf("%d ", lost_packets[i]);
+    }
+    Serial.println("");
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      last_sent_packets[i] = sent_packets[i];
+      last_received_packets[i] = received_packets[i];
+    }
     last_msg_time_ns = now_ns;
-    last_sent_packets = sent_packets;
-    last_received_packets = received_packets;
   }
   
+  /*
   priority = P2PPriority::Level::kMedium;
   if (current_packet_view.ok()) {
     while (Serial.available() > 0) {
@@ -204,7 +252,7 @@ void loop() {
     if (current_packet_view.ok()) {
       current_packet_view->length() = 0;
     }
-  }
+  }*/
 
   while (p2p_input_stream.OldestPacket().ok()) {
     // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
@@ -214,13 +262,14 @@ void loop() {
     // }
     // Serial.println();
     
-    ++received_packets;
-    if (last_received_packet_value >= 0) {
-      int diff = p2p_input_stream.OldestPacket()->content()[0] - last_received_packet_value;
-      if (diff > 0) lost_packets += diff - 1;
-      else lost_packets += 256 + diff - 1;
+    P2PPriority priority = p2p_input_stream.OldestPacket()->priority();
+    ++received_packets[priority];
+    if (last_received_packet_value[priority] >= 0) {
+      int diff = p2p_input_stream.OldestPacket()->content()[0] - last_received_packet_value[priority];
+      if (diff > 0) lost_packets[priority] += diff - 1;
+      else lost_packets[priority] += 256 + diff - 1;
     }
-    last_received_packet_value = p2p_input_stream.OldestPacket()->content()[0];
+    last_received_packet_value[priority] = p2p_input_stream.OldestPacket()->content()[0];
     p2p_input_stream.Consume();
   }
 
