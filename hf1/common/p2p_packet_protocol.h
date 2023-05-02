@@ -77,16 +77,17 @@ typedef struct {
 
   // Allocation of bits is implementation-dependent. Care must be taken to ensure that the following bit fields
   // are packed from least to most significant in all platforms.
-  // The reserved field must not match the corresponding bits in either token.
-  uint8_t reserved: 5;
+
+  // Priority of the packet (0 is highest).
+  uint8_t priority: 2;
 
   // If 1, the packet is the continuation of a previous packet that was interrupted by a higher priority packet.
   // In that case, the length field is the remaining length, and the offset of the content bytes is
   // legth_of_original_packet - length_of_continuation_packet.
   uint8_t is_continuation: 1;
 
-  // Priority of the packet (0 is highest).
-  uint8_t priority: 2;
+  // The reserved field must not match the corresponding bits in either token.
+  uint8_t reserved: 5;
 
   // The sequence number increments monotonically with each data packet. Each priority
   // level has its own sequence number. It is used to pair every continuation and ACK with
