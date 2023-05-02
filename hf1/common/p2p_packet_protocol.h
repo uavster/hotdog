@@ -76,7 +76,7 @@ typedef struct {
   uint8_t start_token;
 
   // Allocation of bits is implementation-dependent. Care must be taken to ensure that the following bit fields
-  // are packed from most to least significant in all platforms.
+  // are packed from least to most significant in all platforms.
   // The reserved field must not match the corresponding bits in either token.
   uint8_t reserved: 5;
 

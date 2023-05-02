@@ -171,7 +171,6 @@ StatusOr<P2PMutablePacketView> current_packet_view(kUnavailableError);
 TimerNanosType last_sent_packet_nanos = 0;
 
 void loop() {
-  static uint8_t count = 0;
   TimerNanosType now_ns = GetTimerNanoseconds();
 
   // Working values:
@@ -188,9 +187,9 @@ void loop() {
       for (int i = 0; i < len; ++i) {
         reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
       }
-      *reinterpret_cast<uint8_t *>(current_packet_view->content()) = count++;
+      *reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
       current_packet_view->length() = len; //sizeof(uint8_t);
-      ASSERT(p2p_output_stream.Commit(priority)); 
+      ASSERT(p2p_output_stream.Commit(priority));       
 
       ++sent_packets[priority];
       // ++len;
@@ -199,16 +198,16 @@ void loop() {
   }
 
   len = 0xa8;
-  P2PPriority priority2 = P2PPriority::Level::kLow;
-  current_packet_view = p2p_output_stream.NewPacket(priority2);
+  P2PPriority priority = P2PPriority::Level::kLow;
+  current_packet_view = p2p_output_stream.NewPacket(priority);
   if (current_packet_view.ok()) {
     for (int i = 0; i < len; ++i) {
       reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
     }
-    *reinterpret_cast<uint8_t *>(current_packet_view->content()) = count++;
+    *reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
     current_packet_view->length() = len; //sizeof(uint8_t);
-    ASSERT(p2p_output_stream.Commit(priority2)); 
-    ++sent_packets[priority2];
+    ASSERT(p2p_output_stream.Commit(priority)); 
+    ++sent_packets[priority];
     // ++len;
     // if (len == 0xa9) { len = 1; }
   }
@@ -254,7 +253,7 @@ void loop() {
     }
   }*/
 
-  while (p2p_input_stream.OldestPacket().ok()) {
+  if (p2p_input_stream.OldestPacket().ok()) {
     // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
     // Serial.print("p: ");
     // for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
@@ -270,7 +269,7 @@ void loop() {
       else lost_packets[priority] += 256 + diff - 1;
     }
     last_received_packet_value[priority] = p2p_input_stream.OldestPacket()->content()[0];
-    p2p_input_stream.Consume();
+    p2p_input_stream.Consume(priority);
   }
 
   p2p_input_stream.Run();
