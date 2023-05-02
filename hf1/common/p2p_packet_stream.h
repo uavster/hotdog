@@ -210,6 +210,7 @@ public:
   bool Commit(P2PPriority priority) {
     P2PPacket &packet = packet_buffer_.NewValue(priority);
     packet.header()->priority = priority;
+    packet.header()->is_continuation = 0;
     packet.sequence_number() = current_sequence_number_;
     if (!packet.PrepareToSend()) { return false; }
     // Fix endianness.
