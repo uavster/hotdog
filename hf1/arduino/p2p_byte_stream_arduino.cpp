@@ -29,3 +29,7 @@ int P2PByteStreamArduino::GetBurstMaxLength() {
 int P2PByteStreamArduino::GetBurstIngestionNanosecondsPerByte() {
   return 0;
 }
+
+int P2PByteStreamArduino::GetAtomicSendMaxLength() {
+  return 4;
+}

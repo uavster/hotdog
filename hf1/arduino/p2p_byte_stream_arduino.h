@@ -11,6 +11,7 @@ public:
   virtual int Read(void *buffer, int length);
   virtual int GetBurstMaxLength();
   virtual int GetBurstIngestionNanosecondsPerByte();
+  virtual int GetAtomicSendMaxLength();
 
 protected:
   Stream &stream() const;

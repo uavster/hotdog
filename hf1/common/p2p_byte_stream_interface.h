@@ -40,6 +40,13 @@ public:
   // calculate the time to wait before sending the next burst, to avoid saturating the
   // receiver and losing packets.
   virtual int GetBurstIngestionNanosecondsPerByte() = 0;
+
+  // Returns the maximum number of bytes that will be sent atomically before checking for
+  // packets in higher priority queues. The lower this value, the sooner a low priority 
+  // packet will be interrupted to send a higher priority on (lower latency). The higher
+  // this value, the less overhead in calls to the Write(), which might be considerable
+  // in some platforms (higher throughput).
+  virtual int GetAtomicSendMaxLength() = 0;
     
   uint8_t ReadByteOrDefault(uint8_t default_output = 0xff) { 
     uint8_t c;

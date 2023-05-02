@@ -208,7 +208,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           break;
         }
         int total_packet_length = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
-        int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_length - pending_packet_bytes_], pending_burst_bytes_);
+        int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_length - pending_packet_bytes_], byte_stream_.GetAtomicSendMaxLength());
         pending_packet_bytes_ -= written_bytes;
         pending_burst_bytes_ -= written_bytes;
         
