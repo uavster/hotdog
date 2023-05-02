@@ -195,7 +195,8 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
 
         state_ = kSendingBurst;
         pending_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
-        
+        // Add timestamp later, right after sending the burst.
+        after_burst_wait_end_timestamp_ns_ = pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
         break;
       }
 
@@ -213,7 +214,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         
         if (pending_burst_bytes_ <= 0) {
           // Burst fully sent: calculate when to start the next burst.
-          after_burst_wait_end_timestamp_ns_ = timestamp_ns + pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
+          after_burst_wait_end_timestamp_ns_ += timestamp_ns;
           state_ = kWaitingForBurstIngestion;
         }
 
