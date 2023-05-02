@@ -137,7 +137,7 @@ int main() {
 						//std::cout << "diff:"<<diff<<" p:"<<priority<<" lost:"<<lost_packets[priority] << std::endl;
 					}
 					last_received_packet_value[priority] = p2p_input_stream.OldestPacket()->content()[0];
-					p2p_input_stream.Consume();
+					p2p_input_stream.Consume(priority);
 				}
 			}
 
