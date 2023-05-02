@@ -85,14 +85,24 @@ int main() {
 	P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
 
 
-	int sent_packets = 0;
-	int received_packets = 0;
+	int sent_packets[P2PPriority::kNumLevels];
+	int received_packets[P2PPriority::kNumLevels];
 	auto start = std::chrono::system_clock::now();
-	int last_sent_packets = 0;
-	int last_received_packets = 0;
-	int last_received_packet_value = -1;
-	int lost_packets = 0;
+	int last_sent_packets[P2PPriority::kNumLevels];
+	int last_received_packets[P2PPriority::kNumLevels];
+	int last_received_packet_value[P2PPriority::kNumLevels];
+	int lost_packets[P2PPriority::kNumLevels];
 	//std::chrono::time_point<std::chrono::system_clock> last_sent_packet_time;
+
+	for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+    		last_received_packet_value[i] = -1;
+    		received_packets[i] = 0;
+    		sent_packets[i] = 0;
+    		last_received_packets[i] = 0;
+    		last_sent_packets[i] = 0;
+    		lost_packets[i] = 0;
+	}
+
 	while(doLoop) {
 
 		auto now = std::chrono::system_clock::now();
@@ -117,13 +127,16 @@ int main() {
 					}
 					std::cout << std::endl;
 					*/
-					++received_packets;
-					if (last_received_packet_value >= 0) {
-						int diff = p2p_input_stream.OldestPacket()->content()[0] - last_received_packet_value;
-						if (diff > 0) lost_packets += diff - 1;
-						else lost_packets += 256 + diff - 1;
+					P2PPriority priority = p2p_input_stream.OldestPacket()->priority();
+					++received_packets[priority];
+					if (last_received_packet_value[priority] >= 0) {
+						int diff = p2p_input_stream.OldestPacket()->content()[0] - last_received_packet_value[priority];
+						if (diff > 0) lost_packets[priority] += diff - 1;
+						else lost_packets[priority] += 256 + diff - 1;
+						//printf("new:%d old:%d ", p2p_input_stream.OldestPacket()->content()[0], last_received_packet_value[priority]);
+						//std::cout << "diff:"<<diff<<" p:"<<priority<<" lost:"<<lost_packets[priority] << std::endl;
 					}
-					last_received_packet_value = p2p_input_stream.OldestPacket()->content()[0];
+					last_received_packet_value[priority] = p2p_input_stream.OldestPacket()->content()[0];
 					p2p_input_stream.Consume();
 				}
 			}
@@ -136,10 +149,10 @@ int main() {
 					for (int i = 0; i < len; ++i) {
 						current_packet_view->content()[i] = 0;
 					}
-        				*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets;
+        				*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
         				current_packet_view->length() = len; //sizeof(uint8_t);
         				assert(p2p_output_stream.Commit(priority));
-					++sent_packets;
+					++sent_packets[priority];
 					++len;
 					if (len == 0xa9) { len = 1; }
     				}
@@ -150,10 +163,23 @@ int main() {
 		
 		if (elapsed_seconds >= std::chrono::seconds(1)) {
 			start = now;
-			printf("tx:%.2f packets/s, rx:%.2f packets/s, lost packets:%d      \r", (sent_packets - last_sent_packets) / elapsed_seconds.count(), (received_packets - last_received_packets) / elapsed_seconds.count(), lost_packets);
-			std::cout << std::flush;
-			last_sent_packets = sent_packets;
-			last_received_packets = received_packets;
+			printf("tx:");
+    			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      				printf("%d ", sent_packets[i] - last_sent_packets[i]);
+    			}
+    			printf(", rx:");
+    			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      				printf("%d ", received_packets[i] - last_received_packets[i]);
+    			}
+    			printf(", lost:");
+    			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      				printf("%d ", lost_packets[i]);
+    			}
+			std::cout << "\r" << std::flush;
+    			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      				last_sent_packets[i] = sent_packets[i];
+      				last_received_packets[i] = received_packets[i];
+    			}
 		}
 	}
 
