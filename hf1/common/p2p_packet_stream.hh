@@ -16,13 +16,32 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
 
     case kReadingHeader:
       {
-        if (current_field_read_bytes_ >= sizeof(P2PHeader)) {
-          // Put the received header in a new packet at the given priority.
-          for (unsigned int i = 0; i < sizeof(P2PHeader); ++i) {
-            reinterpret_cast<uint8_t *>(&packet_buffer_.NewValue(incoming_header_.priority))[i] = reinterpret_cast<uint8_t *>(&incoming_header_)[i];
+        if (current_field_read_bytes_ >= sizeof(P2PHeader)) {          
+          // If it's a new packet, put the received header in a new slot at the given
+          // priority. If it's a continuation of a previous packet, the header is already
+          // there.
+          P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
+          if (!packet.header()->is_continuation) {
+            for (unsigned int i = 0; i < sizeof(P2PHeader); ++i) {
+              reinterpret_cast<uint8_t *>(&packet)[i] = reinterpret_cast<uint8_t *>(&incoming_header_)[i];
+            }
+            // Fix endianness of header fields, so they can be used locally in next states.
+            packet.length() = NetworkToLocal<LocalEndianness>(packet.length());
+            current_field_read_bytes_ = 0;
+          } else {
+            // The length field for a packet continuation is the remaining length.
+            int remaining_length = NetworkToLocal<LocalEndianness>(incoming_header_.length);
+            if (NetworkToLocal<LocalEndianness>(incoming_header_.sequence_number) != packet.header()->sequence_number ||
+                remaining_length > packet.length()) {
+              // This continuation does not belong to the packet we have in store. There must
+              // have been a link interruption: reset the state machine.
+              state_ = kWaitingForPacket;
+              break;
+            }
+            // Keep receiving content where we left off. 
+            current_field_read_bytes_ = packet.length() - remaining_length;
           }
           state_ = kReadingContent;
-          current_field_read_bytes_ = 0;
           break;
         }
         uint8_t *current_byte = &reinterpret_cast<uint8_t *>(&incoming_header_)[current_field_read_bytes_];
@@ -62,8 +81,9 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             state_ = kDisambiguatingStartTokenInContent;
           } else {
             // If there can't be a special token next because this is the last content byte,
-            // it could either be a malformed packet or a new packet start after the link
-            // was reestablished. Assume the former will not happen and try the latter.
+            // it could either be a malformed packet or a new packet start. Assume the other
+            // end will form correct packets. The start token may then be due to a new packet
+            // after a link interruption, or a packet with higher priority.
             state_ = kReadingHeader;
             current_field_read_bytes_ = 1;
           }
@@ -87,15 +107,16 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           state_ = kReadingContent;
         } else {
           if (*next_content_byte == kP2PStartToken) {
-            // Either a malformed packet or a new packet start after link reestablished.
+            // Either a malformed packet, or a new packet after link reestablished, or a
+            // higher priority packet.
             // Assume well designed transmitter and try the latter.
             state_ = kReadingHeader;
             current_field_read_bytes_ = 1;
           } else {
             // Must be a start token. Restart the state to re-synchronize with minimal latency.
             state_ = kReadingHeader;
-            packet.header()->start_token = kP2PStartToken;
-            reinterpret_cast<uint8_t *>(packet.header())[1] = *next_content_byte;
+            incoming_header_.start_token = kP2PStartToken;
+            reinterpret_cast<uint8_t *>(&incoming_header_)[1] = *next_content_byte;
             current_field_read_bytes_ = 2;
           }
         }
@@ -117,18 +138,19 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         current_field_read_bytes_ += read_bytes;
 
         if (*current_byte == kP2PStartToken) {
+          // New packet after interrupts, as no priority takeover is allowed mid-footer.
           state_ = kReadingHeader;
           current_field_read_bytes_ = 1;
           break;
         }
         if (*current_byte == kP2PSpecialToken) {
+          // Malformed packet.
           state_ = kWaitingForPacket;
         }
 
         if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
-          // Fix endianness.
+          // Fix endianness of footer fields.
           packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
-          packet.length() = NetworkToLocal<LocalEndianness>(packet.length());
           if (packet.PrepareToRead()) {
             packet_buffer_.Commit(incoming_header_.priority);
           }

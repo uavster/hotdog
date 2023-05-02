@@ -50,6 +50,9 @@ public:
   const uint8_t *content() const { return data_.content_and_footer; }
   uint8_t *content() { return data_.content_and_footer; }
 
+  P2PSequenceNumberType sequence_number() const { return data_.header.sequence_number; }
+  P2PSequenceNumberType &sequence_number() { return data_.header.sequence_number; }
+
   // Decodes the content in place and updates the length accordingly. 
   // Returns true if success, or false if error.
   // An error will occur if the encoded content is malformed.
@@ -152,6 +155,7 @@ private:
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketInputStream {
 public:
   // Does not take ownership of the byte stream, which must outlive this object.
+  // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream) : byte_stream_(*byte_stream), state_(kWaitingForPacket) {}
 
   // Returns the number of times that Consume() can be called without OldestPacket() returning NULL.
@@ -183,7 +187,9 @@ private:
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketOutputStream {
 public:
   // Does not take ownership of the byte stream, which must outlive this object.
-  P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream) : byte_stream_(*byte_stream), state_(kGettingNextPacket) {}
+  // Only one packet stream can be associated to each byte stream at a time.
+  P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream)
+    : byte_stream_(*byte_stream), current_sequence_number_(0), state_(kGettingNextPacket) {}
 
   // Returns the number of packet slots available for writing in the stream.
   int NumAvailableSlots(P2PPriority priority) const {
@@ -204,11 +210,14 @@ public:
   bool Commit(P2PPriority priority) {
     P2PPacket &packet = packet_buffer_.NewValue(priority);
     packet.header()->priority = priority;
+    packet.sequence_number() = current_sequence_number_;
     if (!packet.PrepareToSend()) { return false; }
     // Fix endianness.
     packet.checksum() = LocalToNetwork<LocalEndianness>(packet.checksum());
     packet.length() = LocalToNetwork<LocalEndianness>(packet.length());
+    packet.sequence_number() = LocalToNetwork<LocalEndianness>(packet.sequence_number());
 
+    ++current_sequence_number_;
     packet_buffer_.Commit(priority);
     return true;
   }
@@ -226,6 +235,7 @@ private:
   int pending_packet_bytes_;
   int pending_burst_bytes_;
   uint64_t burst_end_timestamp_ns_;
+  P2PSequenceNumberType current_sequence_number_; 
   enum State { kGettingNextPacket, kSendingBurst, kWaitingForBurstIngestion } state_;  
 };
 

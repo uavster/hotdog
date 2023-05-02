@@ -62,27 +62,41 @@
 
 typedef uint8_t P2PChecksumType;
 
+// This type must be chosen so that the sequence number period is always below the packet
+// timeout or link watchdog.
+typedef uint16_t P2PSequenceNumberType;
+
 #pragma pack(push, 1)
 
 typedef struct {
   // Must be kP2PStartToken.
   uint8_t start_token;
+
   // Allocation of bits is implementation-dependent. Care must be taken to ensure that the following bit fields
   // are packed from most to least significant in all platforms.
   // The reserved field must not match the corresponding bits in either token.
   uint8_t reserved: 5;
+
   // If 1, the packet is the continuation of a previous packet that was interrupted by a higher priority packet.
   // In that case, the length field is the remaining length, and the offset of the content bytes is
   // legth_of_original_packet - length_of_continuation_packet.
   uint8_t is_continuation: 1;
+
   // Priority of the packet (0 is highest).
   uint8_t priority: 2;
-  // Number of content bytes, including special characters. Cannot match the special token.
+
+  // The sequence number increments monotonically with each data packet. Each priority
+  // level has its own sequence number. It is used to pair each continuation and ACK with
+  // the original packet.
+  P2PSequenceNumberType sequence_number;
+
+  // Number of content bytes, including special characters. Cannot match any token.
   uint8_t length;
 } P2PHeader;
 
 typedef struct {
   // checksum  = modulo(sum(content_bytes) + sum(header_bytes) - kP2PStartToken, kP2PChecksumModulo)
+  // It can't match any token.
   P2PChecksumType checksum;
 } P2PFooter;
 
