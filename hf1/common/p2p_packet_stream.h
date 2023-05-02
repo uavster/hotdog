@@ -162,7 +162,7 @@ public:
   int NumAvailablePackets(P2PPriority priority) const { return packet_buffer_[priority].Size(); }
 
   // Returns a view to the oldest packet in the stream, or kUnavailableError if empty.
-  StatusOr<P2PPacketView> OldestPacket() const { 
+  StatusOr<const P2PPacketView> OldestPacket() const { 
     const P2PPacket *packet = packet_buffer_.OldestValue();
     if (packet == NULL) {
       return Status::kUnavailableError;
@@ -242,13 +242,14 @@ public:
 private:
   PriorityRingBuffer<P2PPacket, kCapacity, P2PPriority> packet_buffer_;
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
-  int total_packet_length_;
-  const P2PPacket *current_packet_;
+  P2PPacket *current_packet_;
+  int total_packet_bytes_[P2PPriority::kNumLevels];
   int pending_packet_bytes_;
-  int pending_burst_bytes_;
+  int total_burst_bytes_;
+  int pending_burst_bytes_;  
   uint64_t after_burst_wait_end_timestamp_ns_;
   P2PSequenceNumberType current_sequence_number_; 
-  enum State { kGettingNextPacket, kSendingBurst, kWaitingForBurstIngestion } state_;  
+  enum State { kGettingNextPacket, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
 };
 
 // template<int kCapacity, Endianness LocalEndianness> class P2PPacketStream {

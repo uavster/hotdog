@@ -191,12 +191,19 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         }
 
         // Start sending the new packet.
-        pending_packet_bytes_ = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
+        P2PPriority priority = current_packet_->header()->priority;        
+        if (current_packet_->header()->is_continuation) {
+          // Remaining packet length.
+          pending_packet_bytes_ = NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
+        } else {          
+          // Full packet length.
+          pending_packet_bytes_ = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
+          total_packet_bytes_[priority] = pending_packet_bytes_;
+        }
 
-        state_ = kSendingBurst;
-        pending_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
-        // Add timestamp later, right after sending the burst.
-        after_burst_wait_end_timestamp_ns_ = pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
+        state_ = kSendingBurst;        
+        total_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
+        pending_burst_bytes_ = total_burst_bytes_;
         break;
       }
 
@@ -207,16 +214,34 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           state_ = kWaitingForBurstIngestion;
           break;
         }
-        int total_packet_length = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
-        int written_bytes = byte_stream_.Write(&reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_length - pending_packet_bytes_], byte_stream_.GetAtomicSendMaxLength());
+        
+        P2PPriority priority = current_packet_->header()->priority;
+        int written_bytes = byte_stream_.Write(
+          &reinterpret_cast<const uint8_t *>(current_packet_->header())[total_packet_bytes_[priority] - pending_packet_bytes_],
+          std::min(byte_stream_.GetAtomicSendMaxLength(), pending_packet_bytes_));
         pending_packet_bytes_ -= written_bytes;
         pending_burst_bytes_ -= written_bytes;
         
         if (pending_burst_bytes_ <= 0) {
           // Burst fully sent: calculate when to start the next burst.
-          after_burst_wait_end_timestamp_ns_ += timestamp_ns;
+          after_burst_wait_end_timestamp_ns_ = timestamp_ns + total_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
           state_ = kWaitingForBurstIngestion;
+          break;
         }
+
+        if (static_cast<unsigned int>(pending_packet_bytes_) < total_packet_bytes_[priority] - sizeof(P2PHeader)) {
+          // Header has been sent already: we can break the transfer for a higher priority
+          // packet now.
+          const P2PPacket *maybe_higher_priority_packet = packet_buffer_.OldestValue();
+          if (maybe_higher_priority_packet != NULL && maybe_higher_priority_packet != current_packet_) {
+            // There is a higher priority packet waiting: mark the current one as needing
+            // continuation.
+            current_packet_->header()->is_continuation = 1;
+            current_packet_->length() = LocalToNetwork<LocalEndianness>(pending_packet_bytes_ - sizeof(P2PFooter));
+            after_burst_wait_end_timestamp_ns_ = timestamp_ns + (total_burst_bytes_ - pending_burst_bytes_) * byte_stream_.GetBurstIngestionNanosecondsPerByte();
+            state_ = kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket;
+          }
+        }  
 
         break;
       }
@@ -237,9 +262,19 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
       }
 
       state_ = kSendingBurst;
-      pending_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
+      total_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
+      pending_burst_bytes_ = total_burst_bytes_;
       after_burst_wait_end_timestamp_ns_ = pending_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
 
+      break;
+
+    case kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket:
+      if (timestamp_ns < after_burst_wait_end_timestamp_ns_) {
+        // Ingestion time not expired: keep waiting.
+        time_until_next_event = after_burst_wait_end_timestamp_ns_ - timestamp_ns;
+        break;
+      }
+      state_ = kGettingNextPacket;
       break;
   }
   return time_until_next_event;

@@ -2,7 +2,17 @@
 
 template<typename ValueType, int kCapacity, typename PriorityType> class PriorityRingBuffer {
 public:
-  const ValueType *OldestValue() const {    
+  ValueType *OldestValue() {
+    for (int i = 0; i < PriorityType::kNumLevels; ++i) {
+      ValueType *value = buffer_[i].OldestValue();
+      if (value != NULL) {
+        return value;
+      }
+    }
+    return NULL;
+  }
+
+  const ValueType *OldestValue() const {
     for (int i = 0; i < PriorityType::kNumLevels; ++i) {
       const ValueType *value = buffer_[i].OldestValue();
       if (value != NULL) {

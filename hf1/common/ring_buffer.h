@@ -21,6 +21,10 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     // returned by NewValue(). If an IRQ calls does that, the caller should either copy the 
     // value or extend mutual exclusion throughout value access.
     // This function does not block. 
+    ValueType *OldestValue() {
+      if (Size() == 0) return NULL;
+      return &values_[read_index_];
+    }
     const ValueType *OldestValue() const {
       if (Size() == 0) return NULL;
       return &values_[read_index_];
