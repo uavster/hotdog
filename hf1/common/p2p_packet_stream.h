@@ -6,6 +6,7 @@
 #include "p2p_byte_stream_interface.h"
 #include "priority_ring_buffer.h"
 #include "status_or.h"
+#include "timer_interface.h"
 #ifdef ARDUINO
 #include <DebugLog.h>
 #define assert ASSERT
@@ -66,10 +67,14 @@ public:
   P2PChecksumType checksum() const { return *reinterpret_cast<const P2PChecksumType *>(&data_.content_and_footer[length() + offsetof(P2PFooter, checksum)]); }
   P2PChecksumType &checksum() { return *reinterpret_cast<P2PChecksumType *>(&data_.content_and_footer[length() + offsetof(P2PFooter, checksum)]); }
 
+  uint64_t &commit_time_ns() { return commit_time_ns_; }
+  uint64_t commit_time_ns() const { return commit_time_ns_; }
+
 protected:
   P2PChecksumType CalculateChecksum() const; 
 
 private:
+  uint64_t commit_time_ns_;
 #pragma pack(push, 1)
   struct {
     P2PHeader header;
@@ -186,10 +191,10 @@ private:
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketOutputStream {
 public:
-  // Does not take ownership of the byte stream, which must outlive this object.
+  // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
-  P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream)
-    : byte_stream_(*byte_stream), current_sequence_number_(0), state_(kGettingNextPacket) {}
+  P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
+    : byte_stream_(*byte_stream), timer_(*timer), current_sequence_number_(0), state_(kGettingNextPacket) {}
 
   // Returns the number of packet slots available for writing in the stream.
   int NumAvailableSlots(P2PPriority priority) const {
@@ -230,6 +235,7 @@ public:
       }
     }
 
+    packet.commit_time_ns() = timer_.GetSystemNanoseconds();
     packet_buffer_.Commit(priority);
     return true;
   }
@@ -237,11 +243,46 @@ public:
   // Runs the stream and returns the minimum number of microseconds the caller may wait
   // until calling Run() again. Multi-threaded platforms can use this value to yield time
   // to other threads.
-  uint64_t Run(uint64_t timestamp_ns);
+  uint64_t Run();
+
+  class Stats {
+    friend class P2PPacketOutputStream;
+  public:
+    Stats() { 
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packets_[i] = 0; }
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packet_delay_ns_[i] = 0; }
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packet_delay_per_byte_ns_[i] = 0; }
+    }
+    
+    // Total number of packets per priority level.
+    uint64_t total_packets(P2PPriority priority) const { return total_packets_[priority]; }
+
+    // Average delay between a packet is committed and its last byte gets in the platform's
+    // byte stream. There is a value for every priority level. It is -1 if not packet has
+    // been sent since the stats started.
+    uint64_t average_packet_delay_ns(P2PPriority priority) const {
+      return total_packets_[priority] > 0 ? total_packet_delay_ns_[priority] / total_packets_[priority] : -1;      
+    }
+
+    // The same as average_packet_delay_ns(), but with every packet delay normalized by the
+    // number of packet bytes. In this way, values for packets of different lengths are
+    // comparable.
+    uint64_t average_packet_delay_per_byte_ns(P2PPriority priority) const {
+      return total_packets_[priority] > 0 ? total_packet_delay_per_byte_ns_[priority] / total_packets_[priority] : -1;
+    }
+
+    private:
+      uint64_t total_packets_[P2PPriority::kNumLevels];
+      uint64_t total_packet_delay_ns_[P2PPriority::kNumLevels];
+      uint64_t total_packet_delay_per_byte_ns_[P2PPriority::kNumLevels];
+  };
+
+  const Stats &stats() const { return stats_; }
 
 private:
   PriorityRingBuffer<P2PPacket, kCapacity, P2PPriority> packet_buffer_;
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
+  TimerInterface &timer_;
   P2PPacket *current_packet_;
   int total_packet_bytes_[P2PPriority::kNumLevels];
   int pending_packet_bytes_;
@@ -250,6 +291,8 @@ private:
   uint64_t after_burst_wait_end_timestamp_ns_;
   P2PSequenceNumberType current_sequence_number_; 
   enum State { kGettingNextPacket, kSendingHeaderBurst, kWaitingForHeaderBurstIngestion, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
+
+  Stats stats_;
 };
 
 // template<int kCapacity, Endianness LocalEndianness> class P2PPacketStream {

@@ -4,11 +4,10 @@
 #include <stdint.h>
 #include "network.h"
 
-// Interface to send and receive byte strings over a point-to-point link.
-// Must be implemented on each platform.
-
 #define kMaxPortNameLength 64
 
+// Interface to send and receive byte strings over a point-to-point link.
+// Must be implemented on each platform.
 template<Endianness LocalEndianness> class P2PByteStreamInterface {
 public:
   typedef union {
@@ -47,7 +46,7 @@ public:
   // this value, the less overhead in calls to the Write(), which might be considerable
   // in some platforms (higher throughput).
   virtual int GetAtomicSendMaxLength() = 0;
-    
+  
   uint8_t ReadByteOrDefault(uint8_t default_output = 0xff) { 
     uint8_t c;
     return Read(&c, 1) == 1 ? c : default_output;

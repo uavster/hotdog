@@ -10,6 +10,7 @@ uint8_t led_on = 1;
 #include "motor_control.h"
 #include "timer.h"
 #include "encoders.h"
+#include "timer_arduino.h"
 
 // #include <SPI.h>
 
@@ -47,8 +48,9 @@ void RightEncoderIsr(uint32_t timer_ticks) {
 }
 
 P2PByteStreamArduino byte_stream(&Serial1);
+TimerArduino timer;
 P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
-P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
+P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
 
 TimerNanosType last_msg_time_ns = 0;
 
@@ -225,6 +227,17 @@ void loop() {
     for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       Serial.printf("%d ", lost_packets[i]);
     }
+    Serial.print(", delay(ns):");
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      uint64_t delay = p2p_output_stream.stats().average_packet_delay_per_byte_ns(i);
+      if (delay != -1ULL) {
+        char str[24];
+        Uint64ToString(p2p_output_stream.stats().average_packet_delay_per_byte_ns(i), str);
+        Serial.printf("%s ", str);
+      } else {
+        Serial.printf("? ");
+      }
+    }
     Serial.println("");
     for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       last_sent_packets[i] = sent_packets[i];
@@ -273,7 +286,7 @@ void loop() {
   }
 
   p2p_input_stream.Run();
-  p2p_output_stream.Run(GetTimerNanoseconds());
+  p2p_output_stream.Run();
 
   return;
   /*
