@@ -15,6 +15,9 @@
 #include <string.h>
 
 #include <chrono>
+#include <inttypes.h>
+
+#include "timer_linux.h"
 
 #define kSerialPath "/dev/ttyTHS1"
 //#define kBaudRate B115200
@@ -80,10 +83,10 @@ int main() {
 	tcsetattr(serial_fd, TCSANOW, &newtio);
 
 
+	TimerLinux timer;
 	P2PByteStreamLinux byte_stream(serial_fd);
 	P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
-	P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream);
-
+	P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
 
 	int sent_packets[P2PPriority::kNumLevels];
 	int received_packets[P2PPriority::kNumLevels];
@@ -157,7 +160,7 @@ int main() {
 					if (len == 0xa9) { len = 1; }
     				}
 				uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-				p2p_output_stream.Run(now_ns);
+				p2p_output_stream.Run();
 			}
 		}
 		
@@ -175,6 +178,15 @@ int main() {
     			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       				printf("%d ", lost_packets[i]);
     			}
+			printf(", delay(ns):");
+			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+				uint64_t delay = p2p_output_stream.stats().average_packet_delay_per_byte_ns(i);
+      				if (delay != -1ULL) {
+                                	printf("%" PRIu64 " ", delay);
+				} else {
+					printf("? ");
+				}
+                        }
 			std::cout << "\r" << std::flush;
     			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       				last_sent_packets[i] = sent_packets[i];
