@@ -85,7 +85,7 @@ int main() {
 
 	TimerLinux timer;
 	P2PByteStreamLinux byte_stream(serial_fd);
-	P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream);
+	P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
 	P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
 
 	int sent_packets[P2PPriority::kNumLevels];
