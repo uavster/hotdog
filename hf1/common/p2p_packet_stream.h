@@ -38,7 +38,7 @@ private:
 
 class P2PPacket {
 public:
-  P2PPacket() {
+  P2PPacket() : commit_time_ns_(-1ULL) {
     data_.header.start_token = kP2PStartToken;
   }
 
@@ -162,18 +162,26 @@ private:
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketInputStream {
 public:
-  // Does not take ownership of the byte stream, which must outlive this object.
+  // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
-  P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream) : byte_stream_(*byte_stream), state_(kWaitingForPacket) {}
+  P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer) : byte_stream_(*byte_stream), timer_(*timer), state_(kWaitingForPacket) {}
 
   // Returns the number of times that Consume() can be called without OldestPacket() returning NULL.
   int NumAvailablePackets(P2PPriority priority) const { return packet_buffer_[priority].Size(); }
 
   // Returns a view to the oldest packet in the stream, or kUnavailableError if empty.
-  StatusOr<const P2PPacketView> OldestPacket() const { 
-    const P2PPacket *packet = packet_buffer_.OldestValue();
+  StatusOr<const P2PPacketView> OldestPacket() { 
+    P2PPacket *packet = packet_buffer_.OldestValue();
     if (packet == NULL) {
       return Status::kUnavailableError;
+    }
+    if (packet->commit_time_ns() != -1ULL) {
+      uint64_t delay_ns = timer_.GetSystemNanoseconds() - packet->commit_time_ns();
+      ++stats_.total_packets_[packet->header()->priority];
+      stats_.total_packet_delay_ns_[packet->header()->priority] += delay_ns;
+      stats_.total_packet_delay_ns_[packet->header()->priority] += delay_ns / packet->length();
+      // Mute stats update as this function may be called multiple times for a packet.
+      packet->commit_time_ns() = -1ULL;
     }
     return P2PPacketView(packet);
   }
@@ -182,14 +190,53 @@ public:
   // value. Returns false, if there is no packet to consume.
   bool Consume(P2PPriority priority) { return packet_buffer_.Consume(priority); }
 
+  // Runs the stream logic. Must be called from a run loop continuously, or when there is
+  // data available in the byte stream.
   void Run();
+
+  class Stats {
+    friend class P2PPacketInputStream;
+  public:
+    Stats() { 
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packets_[i] = 0; }
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packet_delay_ns_[i] = 0; }
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packet_delay_per_byte_ns_[i] = 0; }
+    }
+    
+    // Total number of packets received per priority level.
+    uint64_t total_packets(P2PPriority priority) const { return total_packets_[priority]; }
+
+    // Average delay between a packet is fully received and it is retrieved by the caller
+    // with OldestPacket(). There is one value for every priority level. It is -1 if no
+    // packet has been sent since the stats started.
+    uint64_t average_packet_delay_ns(P2PPriority priority) const {
+      return total_packets_[priority] > 0 ? total_packet_delay_ns_[priority] / total_packets_[priority] : -1;      
+    }
+
+    // The same as average_packet_delay_ns(), but with every packet delay normalized by the
+    // number of packet bytes. In this way, values for packets of different lengths are
+    // comparable.
+    uint64_t average_packet_delay_per_byte_ns(P2PPriority priority) const {
+      return total_packets_[priority] > 0 ? total_packet_delay_per_byte_ns_[priority] / total_packets_[priority] : -1;
+    }
+
+    private:
+      uint64_t total_packets_[P2PPriority::kNumLevels];
+      uint64_t total_packet_delay_ns_[P2PPriority::kNumLevels];
+      uint64_t total_packet_delay_per_byte_ns_[P2PPriority::kNumLevels];
+  };
+
+  const Stats &stats() const { return stats_; }
 
 private:
   PriorityRingBuffer<P2PPacket, kCapacity, P2PPriority> packet_buffer_;
   P2PByteStreamInterface<LocalEndianness> &byte_stream_;
+  TimerInterface &timer_;
   unsigned int current_field_read_bytes_;
   enum State { kWaitingForPacket, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
   P2PHeader incoming_header_;
+
+  Stats stats_;
 };
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketOutputStream {
@@ -257,11 +304,11 @@ public:
       for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packet_delay_per_byte_ns_[i] = 0; }
     }
     
-    // Total number of packets per priority level.
+    // Total number of sent packets per priority level.
     uint64_t total_packets(P2PPriority priority) const { return total_packets_[priority]; }
 
     // Average delay between a packet is committed and its last byte gets in the platform's
-    // byte stream. There is a value for every priority level. It is -1 if no packet has
+    // byte stream. There is one value for every priority level. It is -1 if no packet has
     // been sent since the stats started.
     uint64_t average_packet_delay_ns(P2PPriority priority) const {
       return total_packets_[priority] > 0 ? total_packet_delay_ns_[priority] / total_packets_[priority] : -1;      
