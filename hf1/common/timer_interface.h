@@ -1,6 +1,8 @@
 #ifndef TIMER_INTERFACE_
 #define TIMER_INTERFACE_
 
+#include <stdint.h>
+
 // Interface offering timer services.
 // Must be implemented on each platform.
 class TimerInterface {
