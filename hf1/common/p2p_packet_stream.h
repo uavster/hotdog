@@ -78,7 +78,7 @@ private:
   struct {
     P2PHeader header;
     uint8_t content_and_footer[kP2PMaxContentLength + sizeof(P2PFooter)];
-  } data_
+  } data_;
   // __attribute__ ((aligned (4)));  // Aligning the memory ensures that we can access it as a byte array.
 #pragma pack(pop)
 
