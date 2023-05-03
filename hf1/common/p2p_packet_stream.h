@@ -249,7 +249,7 @@ private:
   int pending_burst_bytes_;  
   uint64_t after_burst_wait_end_timestamp_ns_;
   P2PSequenceNumberType current_sequence_number_; 
-  enum State { kGettingNextPacket, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
+  enum State { kGettingNextPacket, kSendingHeaderBurst, kWaitingForHeaderBurstIngestion, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
 };
 
 // template<int kCapacity, Endianness LocalEndianness> class P2PPacketStream {
