@@ -261,7 +261,7 @@ public:
     uint64_t total_packets(P2PPriority priority) const { return total_packets_[priority]; }
 
     // Average delay between a packet is committed and its last byte gets in the platform's
-    // byte stream. There is a value for every priority level. It is -1 if not packet has
+    // byte stream. There is a value for every priority level. It is -1 if no packet has
     // been sent since the stats started.
     uint64_t average_packet_delay_ns(P2PPriority priority) const {
       return total_packets_[priority] > 0 ? total_packet_delay_ns_[priority] / total_packets_[priority] : -1;      
