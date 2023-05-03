@@ -74,14 +74,17 @@ protected:
   P2PChecksumType CalculateChecksum() const; 
 
 private:
-  uint64_t commit_time_ns_;
 #pragma pack(push, 1)
   struct {
     P2PHeader header;
     uint8_t content_and_footer[kP2PMaxContentLength + sizeof(P2PFooter)];
-  } data_;
-  //__attribute__ ((aligned (4)));  // Aligning the memory ensures that we can access it as a byte array.
+  } data_
+  // __attribute__ ((aligned (4)));  // Aligning the memory ensures that we can access it as a byte array.
 #pragma pack(pop)
+
+  // Attention: keep all metadata under data_ to not mess with data_'s alignment. Otherwise,
+  // you may get lost packets. I have not been able to prevent that with attributes so far.
+  uint64_t commit_time_ns_;
 };
 
 class P2PPacketView {
