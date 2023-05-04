@@ -86,8 +86,11 @@ typedef struct {
   // legth_of_original_packet - length_of_continuation_packet.
   uint8_t is_continuation: 1;
 
+  // 0 = Data packet (data follows), 1 = ACK packet (no data follows).
+  uint8_t is_ack;
+
   // The reserved field must not match the corresponding bits in either token.
-  uint8_t reserved: 5;
+  uint8_t reserved: 4;
 
   // The sequence number increments monotonically with each data packet. Each priority
   // level has its own sequence number. It is used to pair every continuation and ACK with
