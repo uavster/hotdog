@@ -49,8 +49,8 @@ void RightEncoderIsr(uint32_t timer_ticks) {
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
-P2PPacketInputStream<4, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
-P2PPacketOutputStream<4, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
+P2PPacketInputStream<8, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
+P2PPacketOutputStream<1, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
 
 TimerNanosType last_msg_time_ns = 0;
 
