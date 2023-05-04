@@ -280,11 +280,17 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         pending_burst_bytes_ -= written_bytes;
 
         const uint64_t timestamp_ns = timer_.GetSystemNanoseconds();
-        if (pending_packet_bytes_ <= 0) {
+        if (pending_packet_bytes_ <= 0) {          
+          // Update stats.
           const uint64_t packet_delay = timestamp_ns - current_packet_->commit_time_ns();
           ++stats_.total_packets_[priority];
           stats_.total_packet_delay_ns_[priority] += packet_delay;
           stats_.total_packet_delay_per_byte_ns_[priority] += packet_delay / total_packet_bytes_[priority];
+
+          // All packet bytes sent. Consume the packet if no ACK required.
+          if (!current_packet_->header()->requires_ack || current_packet_->header()->is_ack) {
+            packet_buffer_.Consume(current_packet_->header()->priority);
+          }
 
           after_burst_wait_end_timestamp_ns_ = timestamp_ns + total_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
           state_ = kWaitingForBurstIngestion;
@@ -325,7 +331,6 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         // Burst should have been ingested by the other end.
         if (pending_packet_bytes_ <= 0) {
           // No more bursts: next packet.
-          packet_buffer_.Consume(current_packet_->header()->priority);
           state_ = kGettingNextPacket;
           break;
         }

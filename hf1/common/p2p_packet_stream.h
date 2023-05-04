@@ -147,14 +147,7 @@ public:
     return packet_->content();
   }
 
-  P2PPriority priority() const {
-    assert(packet_ != NULL);
-    return P2PPriority(packet_->header()->priority);
-  }
-  P2PMutablePriorityView priority() {
-    assert(packet_ != NULL);
-    return P2PMutablePriorityView(packet_->header());
-  }
+  void Invalidate() { packet_ = NULL; }
 
 private:
   P2PPacket *packet_;
@@ -251,8 +244,9 @@ public:
     return packet_buffer_.Capacity(priority) - packet_buffer_.Size(priority);
   }
 
-  // Returns a view to a new packet with `priority` in the stream, or kUnavailableError if no space is available
-  // in the stream for the given priority. Commit() must be called for the packet to be finalized.
+  // Returns a view to a new packet with `priority` in the stream, or kUnavailableError if no
+  // space is available in the stream for the given priority. Commit() must be called for the
+  // packet to be finalized.
   StatusOr<P2PMutablePacketView> NewPacket(P2PPriority priority) { 
     if (NumAvailableSlots(priority) == 0) {
       return Status::kUnavailableError;
@@ -261,11 +255,13 @@ public:
   }
 
   // Commits changes to the new packet. Must be called for the packet to be sent.
-  // Afterwards, NewPacket() returns a new value.
-  bool Commit(P2PPriority priority) {
+  // Afterwards, previous packet views returned by NewPacket() cannot be trusted to be valid,
+  // and NewPacket() returns a different view.
+  bool Commit(P2PPriority priority, bool guarantee_delivery) {
     P2PPacket &packet = packet_buffer_.NewValue(priority);
     packet.header()->priority = priority;
     packet.header()->is_continuation = 0;
+    packet.header()->is_ack = 0;
     packet.sequence_number() = current_sequence_number_;
     if (!packet.PrepareToSend()) { return false; }
     // Fix endianness.

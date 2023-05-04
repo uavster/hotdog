@@ -1,29 +1,36 @@
 // Protocol to transfer variable-length packets through a possibly unstable point-to-point link.
 //
-// Both ends may be physically connected to the medium at different times, and the medium may experience
-// interruptions. The protocol increases the probability that received packets are actual packets and
-// their content is as sent.
+// Both ends may be physically connected to the medium at different times, and the medium may
+// experience interruptions. The protocol increases the probability that received packets are
+// actual packets, and their content is as sent. Optionally, it can guarantee that sent packets are
+// received at the other end once the link is reestablished.
 //
-// The first layer of the protocol implements byte-level synchronization via signaling to minimize
-// fake packets (sequences in a packet's content looking like complete packets themselves), and
-// minimizes latency of re-synchronization after link glitches. It relies on the lower level of the
+// Packets can be prioritized according to the urgency of their content, in which case, the protocol
+// guarantees that higher priority packets will have minimal delay by preempting any lower level
+// packets in progress. 
+//
+// Synchronization
+// ---------------
+// The protocol implements byte-level synchronization via signaling to minimize fake packets
+// (sequences in a packet's content looking like complete packets themselves), and minimizes
+// latency of re-synchronization after link glitches. It relies on the lower level of the
 // communication stack to provide bit-level synchronization (e.g. UART).
-//
-// The second layer maximizes packet integrity with length and checksum fields.
 //
 // Packets begin with a start token. A special token is appended to content bytes matching the start
 // and special tokens. Non-content bytes cannot match either token. This ensures that the protocol
 // handling logic can identify the next packet with minimal latency after the link is reestablished.
+// Because of that, the ranges of the bytes in non-content fields are limited by the token values.
+// Therefore, choosing the tokens at either end of they byte range (0 or 0xff) keeps the range of
+// valid values continuous in byte fields, which simplifies handling.
 //
 // For instance, if ^ and \ are the start and special tokens, content bytes matching them would be
 // respectively encoded as ^\ and \\ before transmission. Starting a packet with ^\ would be illegal;
 // this avoids the ambiguity between a content symbol equal to the start token and an actual packet with
 // a length equal to the special token.
 //
-// Choosing the start and special tokens at either end of the length and checksum field bit depths
-// (0 or -1) maximizes the representable content length, and keeps the space of valid values of these
-// fields continuous, simplifying handling. Since the idle state of the channel is similar to
-// transmitting a 0, choosing -1 as special token should be more robust to link interruptions.
+// Data integrity
+// --------------
+// The protocol maximizes packet integrity with length and checksum fields.
 //
 // As a non-content field, the checksum cannot match either token, and so we must compute it as:
 // checksum  = modulo(sum(content_bytes) + sum(header_bytes) - start_token, M)
@@ -32,6 +39,26 @@
 // operation by choosing an M that is a power of 2. In that situation, however, we have a wider range
 // to choose from for the token values, and may use the opportunity to pick a start token value that
 // is infrequent among erroneous bytes.
+//
+// Priority
+// --------
+// A packet with a higher priority (lower value in priority field) will preempt a lower priority
+// packet being sent. Once the high priority packet is fully sent, the transmitter will resume
+// sending the preempted packet. At the receiver end, the high priority packet will be delivered to
+// the application before all lower priority packets.
+//
+// Guaranteed delivery
+// -------------------
+// If a packet is marked as reliable (requires_ack=1), the sender will peridically re-send it until
+// an acknowledge (is_ack == 1) from the other end is received. While waiting for an ACK for a
+// packet with priority P, packets with priority P-1 will still go throught the link, but packets
+// whose priority is >= P, will be blocked.
+//
+// ACK packets should have the priority of the original packet minus 1. This is to prevent a
+// deadlock when the two ends send reliable packets of the same priority at the same time.
+// In that case, each end will put one packet in its send queue and will wait for an ACK to remove
+// it from the queue, but that will never happen because the other end will put the ACK in the
+// send queue too, which will be blocked by the other packet waiting to be acknowledged. 
 
 #ifndef P2P_PROTOCOL__
 #define P2P_PROTOCOL__
@@ -78,19 +105,23 @@ typedef struct {
   // Allocation of bits is implementation-dependent. Care must be taken to ensure that the following bit fields
   // are packed from least to most significant in all platforms.
 
-  // Priority of the packet (0 is highest).
+  // Priority of the packet (0 is highest). In both link ends, a packet with higher priority will
+  // preempt packets of lower priority.
   uint8_t priority: 2;
 
-  // If 1, the packet is the continuation of a previous packet that was interrupted by a higher priority packet.
-  // In that case, the length field is the remaining length, and the offset of the content bytes is
-  // legth_of_original_packet - length_of_continuation_packet.
+  // If 1, the packet is the continuation of a previous packet that was preempted by a higher
+  // priority packet. In that case, the length field is the remaining length, and the offset of
+  // the content bytes is legth_of_original_packet - length_of_continuation_packet.
   uint8_t is_continuation: 1;
 
+  // 0 = no acknowledge needed, 1 = the packet must be acknowledged.
+  uint8_t requires_ack: 1;
+
   // 0 = Data packet (data follows), 1 = ACK packet (no data follows).
-  uint8_t is_ack;
+  uint8_t is_ack: 1;
 
   // The reserved field must not match the corresponding bits in either token.
-  uint8_t reserved: 4;
+  uint8_t reserved: 3;
 
   // The sequence number increments monotonically with each data packet. Each priority
   // level has its own sequence number. It is used to pair every continuation and ACK with

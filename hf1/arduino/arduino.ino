@@ -192,7 +192,7 @@ void loop() {
       }
       *reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
       current_packet_view->length() = len; //sizeof(uint8_t);
-      ASSERT(p2p_output_stream.Commit(priority));       
+      ASSERT(p2p_output_stream.Commit(priority, /*guarantee_delivery=*/false));       
 
       ++sent_packets[priority];
       // ++len;
@@ -209,7 +209,7 @@ void loop() {
     }
     *reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
     current_packet_view->length() = len; //sizeof(uint8_t);
-    ASSERT(p2p_output_stream.Commit(priority)); 
+    ASSERT(p2p_output_stream.Commit(priority, /*guarantee_delivery=*/false)); 
     ++sent_packets[priority];
     // ++len;
     // if (len == 0xa9) { len = 1; }
