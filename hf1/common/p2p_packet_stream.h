@@ -88,6 +88,7 @@ private:
 };
 
 class P2PPacketView {
+  template<int kCapacity, Endianness LocalEndianness> friend class P2PPacketOutputStream;
 public:
   // Does not take ownership of the packet, which must outlive this object.
   P2PPacketView(const P2PPacket *packet) : packet_(packet) {}
@@ -101,26 +102,15 @@ public:
     assert(packet_ != NULL);
     return packet_->content();
   }
-  P2PPriority priority() const {
-    assert(packet_ != NULL);
-    return P2PPriority(packet_->header()->priority);
+  int priority() const {
+    return packet_->header()->priority;
   }
 
 private:
+  const P2PPacket *packet() const {
+    return packet_;
+  }
   const P2PPacket *packet_;
-};
-
-class P2PMutablePriorityView : public P2PPriority {
-public:
-  P2PMutablePriorityView(P2PHeader *header) : P2PPriority(header->priority), header_(header) {}
-  P2PMutablePriorityView &operator=(P2PPriority priority) {
-    header_->priority = static_cast<int>(priority);
-    return *this;
-  }
-  virtual operator int() const { return static_cast<int>(header_->priority); }
-
-private:
-  P2PHeader *header_;
 };
 
 class P2PMutablePacketView {
@@ -146,8 +136,6 @@ public:
     assert(packet_ != NULL);
     return packet_->content();
   }
-
-  void Invalidate() { packet_ = NULL; }
 
 private:
   P2PPacket *packet_;
@@ -284,6 +272,20 @@ public:
     packet.commit_time_ns() = timer_.GetSystemNanoseconds();
     packet_buffer_.Commit(priority);
     return true;
+  }
+
+  void NotifyReceivedPacket(const P2PPacketView &packet_view) {
+    if (!packet_view.packet()->header()->is_ack) {
+      return;
+    }
+    const P2PPacket *oldest_packet = packet_buffer_.OldestValue();
+    if (packet_view.packet()->header()->priority() != oldest_packet->header()->priority || 
+        packet_view.packet()->sequence_number() != oldest_packet->sequence_number()) {
+          // The ACK does not match the pending packet at the priority queue. It could be 
+          // an old ACK received after a hardware reset.
+          return;
+        }
+    packet_buffer_.Consume(packet_view.packet()->header()->priority());
   }
 
   // Runs the stream and returns the minimum number of microseconds the caller may wait
