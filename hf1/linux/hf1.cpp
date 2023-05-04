@@ -86,7 +86,7 @@ int main() {
 	TimerLinux timer;
 	P2PByteStreamLinux byte_stream(serial_fd);
 	P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
-	P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
+	P2PPacketOutputStream<1, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
 
 	int sent_packets[P2PPriority::kNumLevels];
 	int received_packets[P2PPriority::kNumLevels];
@@ -154,7 +154,7 @@ int main() {
 					}
         				*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
         				current_packet_view->length() = len; //sizeof(uint8_t);
-        				assert(p2p_output_stream.Commit(priority));
+        				assert(p2p_output_stream.Commit(priority, /*guarantee_delivery=*/false));
 					++sent_packets[priority];
 					++len;
 					if (len == 0xa9) { len = 1; }
