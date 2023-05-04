@@ -178,7 +178,7 @@ int main() {
     			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       				printf("%d ", lost_packets[i]);
     			}
-			printf(", delay(ns):");
+			printf(", tx_delay(ns):");
 			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
 				uint64_t delay = p2p_output_stream.stats().average_packet_delay_per_byte_ns(i);
       				if (delay != -1ULL) {
@@ -187,6 +187,16 @@ int main() {
 					printf("? ");
 				}
                         }
+			printf(", rx_delay(ns):");
+                        for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+                                uint64_t delay = p2p_input_stream.stats().average_packet_delay_per_byte_ns(i);
+                                if (delay != -1ULL) {
+                                        printf("%" PRIu64 " ", delay);
+                                } else {
+                                        printf("? ");
+                                }
+                        }
+			std::cout << "                ";
 			std::cout << "\r" << std::flush;
     			for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       				last_sent_packets[i] = sent_packets[i];
