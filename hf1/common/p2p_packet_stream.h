@@ -179,7 +179,7 @@ public:
       uint64_t delay_ns = timer_.GetSystemNanoseconds() - packet->commit_time_ns();
       ++stats_.total_packets_[packet->header()->priority];
       stats_.total_packet_delay_ns_[packet->header()->priority] += delay_ns;
-      stats_.total_packet_delay_ns_[packet->header()->priority] += delay_ns / packet->length();
+      stats_.total_packet_delay_per_byte_ns_[packet->header()->priority] += delay_ns / (sizeof(P2PHeader) + packet->length() + sizeof(P2PFooter));
       // Mute stats update as this function may be called multiple times for a packet.
       packet->commit_time_ns() = -1ULL;
     }
