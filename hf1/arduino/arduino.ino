@@ -49,8 +49,8 @@ void RightEncoderIsr(uint32_t timer_ticks) {
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
-P2PPacketInputStream<16, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
-P2PPacketOutputStream<16, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
+P2PPacketInputStream<4, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
+P2PPacketOutputStream<4, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
 
 TimerNanosType last_msg_time_ns = 0;
 
@@ -228,12 +228,23 @@ void loop() {
     for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       Serial.printf("%d ", lost_packets[i]);
     }
-    Serial.print(", delay(ns):");
+    Serial.print(", tx_delay(ns):");
     for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       uint64_t delay = p2p_output_stream.stats().average_packet_delay_per_byte_ns(i);
       if (delay != -1ULL) {
         char str[24];
-        Uint64ToString(p2p_output_stream.stats().average_packet_delay_per_byte_ns(i), str);
+        Uint64ToString(delay, str);
+        Serial.printf("%s ", str);
+      } else {
+        Serial.printf("? ");
+      }
+    }
+    Serial.print(", rx_delay(ns):");
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      uint64_t delay = p2p_input_stream.stats().average_packet_delay_per_byte_ns(i);
+      if (delay != -1ULL) {
+        char str[24];
+        Uint64ToString(delay, str);
         Serial.printf("%s ", str);
       } else {
         Serial.printf("? ");
