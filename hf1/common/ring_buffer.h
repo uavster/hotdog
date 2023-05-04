@@ -16,18 +16,19 @@ template<typename ValueType, int kCapacity> class RingBuffer {
       return size_;
     }
 
-    // Returns a pointer to the oldest value in the buffer, or NULL if the buffer is empty.
+    // Returns a pointer to the i-th oldest value in the buffer, or NULL if there are not enough
+    // elements in the buffer.
     // The caller must consider that the pointee may mutate if someone edits the memory
     // returned by NewValue(). If an IRQ calls does that, the caller should either copy the 
     // value or extend mutual exclusion throughout value access.
     // This function does not block. 
-    ValueType *OldestValue() {
-      if (Size() == 0) return NULL;
-      return &values_[read_index_];
+    ValueType *OldestValue(int i = 0) {
+      if (Size() <= i) return NULL;
+      return &values_[(read_index_ + i) % kCapacity];
     }
-    const ValueType *OldestValue() const {
-      if (Size() == 0) return NULL;
-      return &values_[read_index_];
+    const ValueType *OldestValue(int i = 0) const {
+      if (Size() <= i) return NULL;
+      return &values_[(read_index_ + i) % kCapacity];
     }
 
     // Discards the oldest value in the buffer. Returns true is success, or false if there is

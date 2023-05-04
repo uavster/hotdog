@@ -178,8 +178,13 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           // Fix endianness of footer fields.
           packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
           if (packet.PrepareToRead()) {
-            packet.commit_time_ns() = timer_.GetSystemNanoseconds();
-            packet_buffer_.Commit(incoming_header_.priority);
+            // Discard retransmissions if we already got the packet.
+            const P2PPacket *latest_value = packet_buffer_.OldestValue(incoming_header_.priority, packet_buffer_.Size(incoming_header_.priority) - 1);
+            if (latest_value == NULL || latest_value->sequence_number() != packet.sequence_number()) {
+              // Not a retransmission: expose the packet to readers.
+              packet.commit_time_ns() = timer_.GetSystemNanoseconds();
+              packet_buffer_.Commit(incoming_header_.priority);
+            }
           }
           state_ = kWaitingForPacket;
         }
@@ -287,7 +292,8 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           stats_.total_packet_delay_ns_[priority] += packet_delay;
           stats_.total_packet_delay_per_byte_ns_[priority] += packet_delay / total_packet_bytes_[priority];
 
-          // All packet bytes sent. Consume the packet if no ACK required.
+          // All packet bytes sent. Discard the packet if no ACK required. Otherwise, the packet
+          // stays in the buffer and is retransmitted periodically.
           if (!current_packet_->header()->requires_ack || current_packet_->header()->is_ack) {
             packet_buffer_.Consume(current_packet_->header()->priority);
           }
