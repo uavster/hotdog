@@ -1,6 +1,6 @@
 #include <algorithm>
 
-template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run(P2PPacketView *last_received_packet_view) {
+template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run(P2PPacketView *just_received_packet_view) {
   switch (state_) {
     case kWaitingForPacket:
       {
@@ -180,8 +180,8 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             packet.commit_time_ns() = timer_.GetSystemNanoseconds();
             packet_buffer_.Commit(incoming_header_.priority);
 
-            if (last_received_packet_view != NULL) {
-              *last_received_packet_view = P2PPacketView(&packet);
+            if (just_received_packet_view != NULL) {
+              *just_received_packet_view = P2PPacketView(&packet);
             }
           }
           state_ = kWaitingForPacket;
@@ -191,7 +191,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
   }
 }
 
-template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStream<kCapacity, LocalEndianness>::Run(P2PPacketView *last_sent_packet_view) {
+template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStream<kCapacity, LocalEndianness>::Run(P2PPacketView *just_sent_packet_view) {
   uint64_t time_until_next_event = 0;
   switch (state_) {
     case kGettingNextPacket:
@@ -296,8 +296,8 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
             packet_buffer_.Consume(current_packet_->header()->priority);
           }
 
-          if (last_sent_packet_view != NULL) {
-            *last_sent_packet_view = P2PPacketView(current_packet_);
+          if (just_sent_packet_view != NULL) {
+            *just_sent_packet_view = P2PPacketView(current_packet_);
           }
 
           after_burst_wait_end_timestamp_ns_ = timestamp_ns + total_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();

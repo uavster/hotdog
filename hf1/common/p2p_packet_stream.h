@@ -181,9 +181,11 @@ public:
   bool Consume(P2PPriority priority) { return packet_buffer_.Consume(priority); }
 
   // Runs the stream logic. Must be called from a run loop continuously, or when there is
-  // data available in the byte stream. If last_received_packet_view is not NULL, it is filled
-  // with a view to the last received packet.
-  void Run(P2PPacketView *last_received_packet_view = NULL);
+  // data available in the byte stream.
+  // If just_received_packet_view is not NULL, it is filled with a view to the packet that Run()
+  // just finished receiving. The view in invalid if Run() did not finish receiving any packet
+  // within the call.
+  void Run(P2PPacketView *just_received_packet_view = NULL);
 
   class Stats {
     friend class P2PPacketInputStream;
@@ -277,9 +279,10 @@ public:
   // Runs the stream and returns the minimum number of microseconds the caller may wait
   // until calling Run() again. Multi-threaded platforms can use this value to yield time
   // to other threads.
-  // If last_sent_packet_view is not NULL, it is filled with a view to the last sent packet,
-  // which can be used to notify an input stream in case it is a signaling packet (e.g. ACK).
-  uint64_t Run(P2PPacketView *last_sent_packet_view = NULL);
+  // If just_sent_packet_view is not NULL, it is filled with a view to the packet that Run()
+  // just finished sending. The view is invalid, if Run() did not finish sending any packet
+  // within the call.
+  uint64_t Run(P2PPacketView *just_sent_packet_view = NULL);
 
   class Stats {
     friend class P2PPacketOutputStream;
