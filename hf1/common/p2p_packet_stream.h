@@ -51,21 +51,12 @@ public:
   const uint8_t *content() const { return data_.content_and_footer; }
   uint8_t *content() { return data_.content_and_footer; }
 
-  const uint64_t sequence_number() const { 
-    uint64_t n = 0;
-    uint64_t multiplier = 1;
-    for (int i = 0; i < kSequenceNumberNumBytes; ++i) {
-      n += data_.header.sequence_number[i] * multiplier;
-      multiplier *= kP2PLowestToken;
-    }
-    return n;
+  const P2PSequenceNumberType &sequence_number() const { 
+    return data_.header.sequence_number;
   }
-  void set_sequence_number(uint64_t n) { 
-    for (int i = 0; i < kSequenceNumberNumBytes; ++i) {
-      data_.header.sequence_number[i] = n % kP2PLowestToken;
-      n /= kP2PLowestToken;
-    }
-   }
+  P2PSequenceNumberType &sequence_number() { 
+    return data_.header.sequence_number;
+  }
 
   // Decodes the content in place and updates the length accordingly. 
   // Returns true if success, or false if error.
@@ -269,39 +260,18 @@ public:
     packet.header()->priority = priority;
     packet.header()->is_continuation = 0;
     packet.header()->is_ack = 0;
-    packet.set_sequence_number(current_sequence_number_);
+    packet.sequence_number() = current_sequence_number_;
     if (!packet.PrepareToSend()) { return false; }
     // Fix endianness.
     packet.checksum() = LocalToNetwork<LocalEndianness>(packet.checksum());
     packet.length() = LocalToNetwork<LocalEndianness>(packet.length());
 
-    // Increment the sequence with every byte module kP2PLowestToken, so that no byte
-    // equals a token.
-    for (unsigned int i = 0; i < sizeof(current_sequence_number_); ++i) {
-      ++reinterpret_cast<uint8_t *>(&current_sequence_number_)[i];
-      reinterpret_cast<uint8_t *>(&current_sequence_number_)[i] %= kP2PLowestToken;
-      if (reinterpret_cast<uint8_t *>(&current_sequence_number_)[i] > 0) {
-        break;
-      }
-    }
-
     packet.commit_time_ns() = timer_.GetSystemNanoseconds();
     packet_buffer_.Commit(priority);
-    return true;
-  }
 
-  void NotifyReceivedPacket(const P2PPacketView &packet_view) {
-    if (!packet_view.packet()->header()->is_ack) {
-      return;
-    }
-    const P2PPacket *oldest_packet = packet_buffer_.OldestValue();
-    if (packet_view.packet()->header()->priority() != oldest_packet->header()->priority || 
-        packet_view.packet()->sequence_number() != oldest_packet->sequence_number()) {
-          // The ACK does not match the pending packet at the priority queue. It could be 
-          // an old ACK received after a hardware reset.
-          return;
-        }
-    packet_buffer_.Consume(packet_view.packet()->header()->priority());
+    ++current_sequence_number_;
+
+    return true;
   }
 
   // Runs the stream and returns the minimum number of microseconds the caller may wait

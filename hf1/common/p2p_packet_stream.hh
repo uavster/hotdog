@@ -39,7 +39,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             //Serial.println("Packet continuation.");
             // The length field for a packet continuation is the remaining length.
             int remaining_length = NetworkToLocal<LocalEndianness>(incoming_header_.length);
-            if (NetworkToLocal<LocalEndianness>(incoming_header_.sequence_number) != packet.header()->sequence_number || 
+            if (incoming_header_.sequence_number != packet.sequence_number() || 
                 remaining_length > packet.length()) {
               // This continuation does not belong to the packet we have in store. There must
               // have been a link interruption: reset the state machine.

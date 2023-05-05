@@ -64,6 +64,7 @@
 #define P2P_PROTOCOL__
 
 #include <stdint.h>
+#include "packed_number.h"
 
 #define kP2PStartToken 0xaa
 #define kP2PSpecialToken 0xff
@@ -89,12 +90,13 @@
 
 #define kP2PMaxContentLength static_cast<uint8_t>(kP2PLowestToken - 1)
 
-typedef uint8_t P2PChecksumType;
-
 // This must be chosen so that the highest sequence number period is always below the packet
 // timeout or link watchdog. The highest period is:
 // maximum_packet_frequency * kP2PLowestToken^kSequenceNumberNumBytes
 #define kSequenceNumberNumBytes 3
+
+typedef uint8_t P2PChecksumType;
+typedef PackedInteger<kSequenceNumberNumBytes, kP2PLowestToken> P2PSequenceNumberType;
 
 #pragma pack(push, 1)
 
@@ -133,7 +135,7 @@ typedef struct {
   // No byte in this field can match a token, so the total representable values is
   // kP2PLowestToken^kSequenceNumberNumBytes
   // It is little-endian.
-  uint8_t sequence_number[kSequenceNumberNumBytes];
+  P2PSequenceNumberType sequence_number;
 
   // Number of content bytes, including special characters. Cannot match any token.
   uint8_t length;
