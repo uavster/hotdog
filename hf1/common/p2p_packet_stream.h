@@ -51,8 +51,21 @@ public:
   const uint8_t *content() const { return data_.content_and_footer; }
   uint8_t *content() { return data_.content_and_footer; }
 
-  P2PSequenceNumberType sequence_number() const { return data_.header.sequence_number; }
-  P2PSequenceNumberType &sequence_number() { return data_.header.sequence_number; }
+  const uint64_t sequence_number() const { 
+    uint64_t n = 0;
+    uint64_t multiplier = 1;
+    for (int i = 0; i < kSequenceNumberNumBytes; ++i) {
+      n += data_.header.sequence_number[i] * multiplier;
+      multiplier *= kP2PLowestToken;
+    }
+    return n;
+  }
+  void set_sequence_number(uint64_t n) { 
+    for (int i = 0; i < kSequenceNumberNumBytes; ++i) {
+      data_.header.sequence_number[i] = n % kP2PLowestToken;
+      n /= kP2PLowestToken;
+    }
+   }
 
   // Decodes the content in place and updates the length accordingly. 
   // Returns true if success, or false if error.
@@ -87,33 +100,8 @@ private:
   uint64_t commit_time_ns_;
 };
 
-class P2PPacketView {
-  template<int kCapacity, Endianness LocalEndianness> friend class P2PPacketOutputStream;
-public:
-  // Does not take ownership of the packet, which must outlive this object.
-  P2PPacketView(const P2PPacket *packet) : packet_(packet) {}
-  P2PPacketView() : P2PPacketView(NULL) {}
-
-  uint8_t length() const { 
-    assert(packet_ != NULL);
-    return packet_->length();
-  }
-  const uint8_t *content() const {
-    assert(packet_ != NULL);
-    return packet_->content();
-  }
-  int priority() const {
-    return packet_->header()->priority;
-  }
-
-private:
-  const P2PPacket *packet() const {
-    return packet_;
-  }
-  const P2PPacket *packet_;
-};
-
 class P2PMutablePacketView {
+  friend class P2PPacketView;
 public:
   // Does not take ownership of the packet, which must outlive this object.
   P2PMutablePacketView(P2PPacket *packet) : packet_(packet) {}
@@ -138,7 +126,37 @@ public:
   }
 
 private:
+  const P2PPacket *packet() const {
+    return packet_;
+  }
   P2PPacket *packet_;
+};
+
+class P2PPacketView {
+  template<int kCapacity, Endianness LocalEndianness> friend class P2PPacketOutputStream;
+public:
+  // Does not take ownership of the packet, which must outlive this object.
+  P2PPacketView(const P2PPacket *packet) : packet_(packet) {}
+  P2PPacketView(const P2PMutablePacketView &packet_view) : packet_(packet_view.packet_) {}
+  P2PPacketView() : P2PPacketView(NULL) {}
+
+  uint8_t length() const { 
+    assert(packet_ != NULL);
+    return packet_->length();
+  }
+  const uint8_t *content() const {
+    assert(packet_ != NULL);
+    return packet_->content();
+  }
+  int priority() const {
+    return packet_->header()->priority;
+  }
+
+private:
+  const P2PPacket *packet() const {
+    return packet_;
+  }
+  const P2PPacket *packet_;
 };
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketInputStream {
@@ -172,8 +190,9 @@ public:
   bool Consume(P2PPriority priority) { return packet_buffer_.Consume(priority); }
 
   // Runs the stream logic. Must be called from a run loop continuously, or when there is
-  // data available in the byte stream.
-  void Run();
+  // data available in the byte stream. If last_received_packet_view is not NULL, it is filled
+  // with a view to the last received packet.
+  void Run(P2PPacketView *last_received_packet_view = NULL);
 
   class Stats {
     friend class P2PPacketInputStream;
@@ -216,7 +235,7 @@ private:
   unsigned int current_field_read_bytes_;
   enum State { kWaitingForPacket, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
   P2PHeader incoming_header_;
-
+  
   Stats stats_;
 };
 
@@ -250,17 +269,14 @@ public:
     packet.header()->priority = priority;
     packet.header()->is_continuation = 0;
     packet.header()->is_ack = 0;
-    packet.sequence_number() = current_sequence_number_;
+    packet.set_sequence_number(current_sequence_number_);
     if (!packet.PrepareToSend()) { return false; }
     // Fix endianness.
     packet.checksum() = LocalToNetwork<LocalEndianness>(packet.checksum());
     packet.length() = LocalToNetwork<LocalEndianness>(packet.length());
-    packet.sequence_number() = LocalToNetwork<LocalEndianness>(packet.sequence_number());
 
     // Increment the sequence with every byte module kP2PLowestToken, so that no byte
     // equals a token.
-    // WARNING: this assumes the network order is little-endian.
-    // We should protect that pre-condition with a test.
     for (unsigned int i = 0; i < sizeof(current_sequence_number_); ++i) {
       ++reinterpret_cast<uint8_t *>(&current_sequence_number_)[i];
       reinterpret_cast<uint8_t *>(&current_sequence_number_)[i] %= kP2PLowestToken;
@@ -291,7 +307,9 @@ public:
   // Runs the stream and returns the minimum number of microseconds the caller may wait
   // until calling Run() again. Multi-threaded platforms can use this value to yield time
   // to other threads.
-  uint64_t Run();
+  // If last_sent_packet_view is not NULL, it is filled with a view to the last sent packet,
+  // which can be used to notify an input stream in case it is a signaling packet (e.g. ACK).
+  uint64_t Run(P2PPacketView *last_sent_packet_view = NULL);
 
   class Stats {
     friend class P2PPacketOutputStream;
@@ -337,7 +355,7 @@ private:
   int total_burst_bytes_;
   int pending_burst_bytes_;  
   uint64_t after_burst_wait_end_timestamp_ns_;
-  P2PSequenceNumberType current_sequence_number_; 
+  uint64_t current_sequence_number_; 
   enum State { kGettingNextPacket, kSendingHeaderBurst, kWaitingForHeaderBurstIngestion, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
 
   Stats stats_;

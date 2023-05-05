@@ -1,6 +1,6 @@
 #include <algorithm>
 
-template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run() {
+template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run(P2PPacketView *last_received_packet_view) {
   switch (state_) {
     case kWaitingForPacket:
       {
@@ -34,7 +34,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             }
             // Fix endianness of header fields, so they can be used locally in next states.
             packet.length() = NetworkToLocal<LocalEndianness>(packet.length());
-            packet.sequence_number() = NetworkToLocal<LocalEndianness>(packet.sequence_number());
             current_field_read_bytes_ = 0;
           } else {
             //Serial.println("Packet continuation.");
@@ -175,15 +174,14 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         }
 
         if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
-          // Fix endianness of footer fields.
+          // Adapt endianness of footer fields.
           packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
           if (packet.PrepareToRead()) {
-            // Discard retransmissions if we already got the packet.
-            const P2PPacket *latest_value = packet_buffer_.OldestValue(incoming_header_.priority, packet_buffer_.Size(incoming_header_.priority) - 1);
-            if (latest_value == NULL || latest_value->sequence_number() != packet.sequence_number()) {
-              // Not a retransmission: expose the packet to readers.
-              packet.commit_time_ns() = timer_.GetSystemNanoseconds();
-              packet_buffer_.Commit(incoming_header_.priority);
+            packet.commit_time_ns() = timer_.GetSystemNanoseconds();
+            packet_buffer_.Commit(incoming_header_.priority);
+
+            if (last_received_packet_view != NULL) {
+              *last_received_packet_view = P2PPacketView(&packet);
             }
           }
           state_ = kWaitingForPacket;
@@ -193,7 +191,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
   }
 }
 
-template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStream<kCapacity, LocalEndianness>::Run() {
+template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStream<kCapacity, LocalEndianness>::Run(P2PPacketView *last_sent_packet_view) {
   uint64_t time_until_next_event = 0;
   switch (state_) {
     case kGettingNextPacket:
@@ -296,6 +294,10 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           // stays in the buffer and is retransmitted periodically.
           if (!current_packet_->header()->requires_ack || current_packet_->header()->is_ack) {
             packet_buffer_.Consume(current_packet_->header()->priority);
+          }
+
+          if (last_sent_packet_view != NULL) {
+            *last_sent_packet_view = P2PPacketView(current_packet_);
           }
 
           after_burst_wait_end_timestamp_ns_ = timestamp_ns + total_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();

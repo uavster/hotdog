@@ -67,6 +67,9 @@ void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
   Serial.begin(115200);
 
+  // Initialize the random seed. The random generator is used by the P2P protocol to identify the init packet.
+  randomSeed(analogRead(0));
+
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, 1);
 

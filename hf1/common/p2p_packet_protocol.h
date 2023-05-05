@@ -91,10 +91,10 @@
 
 typedef uint8_t P2PChecksumType;
 
-// This type must be chosen so that the highest sequence number period is always below the
-// packet timeout or link watchdog. The highest period is:
-// maximum_packet_frequency * (kP2PLowestToken * kP2PLowestToken)
-typedef uint16_t P2PSequenceNumberType;
+// This must be chosen so that the highest sequence number period is always below the packet
+// timeout or link watchdog. The highest period is:
+// maximum_packet_frequency * kP2PLowestToken^kSequenceNumberNumBytes
+#define kSequenceNumberNumBytes 3
 
 #pragma pack(push, 1)
 
@@ -120,15 +120,20 @@ typedef struct {
   // 0 = Data packet (data follows), 1 = ACK packet (no data follows).
   uint8_t is_ack: 1;
 
+  // 0 = regular packet, 1 = first packet after program restarts (all packets from the other 
+  // end received before the init's ACK should be discarded).
+  uint8_t is_init: 1;
+
   // The reserved field must not match the corresponding bits in either token.
-  uint8_t reserved: 3;
+  uint8_t reserved: 2;
 
   // The sequence number increments monotonically with each data packet. Each priority
   // level has its own sequence number. It is used to pair every continuation and ACK with
   // the original packet.
   // No byte in this field can match a token, so the total representable values is
-  // kP2PLowestToken * kP2PLowestToken.
-  P2PSequenceNumberType sequence_number;
+  // kP2PLowestToken^kSequenceNumberNumBytes
+  // It is little-endian.
+  uint8_t sequence_number[kSequenceNumberNumBytes];
 
   // Number of content bytes, including special characters. Cannot match any token.
   uint8_t length;
