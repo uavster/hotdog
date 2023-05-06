@@ -16,7 +16,7 @@
 
 class P2PPriority {
 public:
-  enum Level { kHigh = 0, kMedium, kLow, kNumLevels };
+  enum Level { kReserved = 0, kHigh, kMedium, kLow, kNumLevels };
 
   P2PPriority(Level level) : level_(level) {}  
 
@@ -124,7 +124,7 @@ private:
 };
 
 class P2PPacketView {
-  template<int kCapacity, Endianness LocalEndianness> friend class P2PPacketOutputStream;
+  template<int IC, int OC, Endianness LE> friend class P2PPacketStream;
 public:
   // Does not take ownership of the packet, which must outlive this object.
   P2PPacketView(const P2PPacket *packet) : packet_(packet) {}
@@ -142,6 +142,7 @@ public:
   int priority() const {
     return packet_->header()->priority;
   }
+  bool is_valid() const { return packet_ != NULL; }
 
 private:
   const P2PPacket *packet() const {
@@ -151,10 +152,12 @@ private:
 };
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketInputStream {
+  template<int IC, int OC, Endianness LE> friend class P2PPacketStream;
 public:
   // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
-  P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer) : byte_stream_(*byte_stream), timer_(*timer), state_(kWaitingForPacket) {}
+  P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
+    : byte_stream_(*byte_stream), timer_(*timer), state_(kWaitingForPacket), packet_filter_(NULL) {}
 
   // Returns the number of times that Consume() can be called without OldestPacket() returning NULL.
   int NumAvailablePackets(P2PPriority priority) const { return packet_buffer_[priority].Size(); }
@@ -180,12 +183,12 @@ public:
   // value. Returns false, if there is no packet to consume.
   bool Consume(P2PPriority priority) { return packet_buffer_.Consume(priority); }
 
+  // Not all platforms support lambdas.
+  void SetPacketFilter(bool (*fn)(const P2PPacket &, void *), void *user_data) { packet_filter_ = fn; packet_filter_arg_ = user_data; }
+
   // Runs the stream logic. Must be called from a run loop continuously, or when there is
   // data available in the byte stream.
-  // If just_received_packet_view is not NULL, it is filled with a view to the packet that Run()
-  // just finished receiving. The view in invalid if Run() did not finish receiving any packet
-  // within the call.
-  void Run(P2PPacketView *just_received_packet_view = NULL);
+  void Run();
 
   class Stats {
     friend class P2PPacketInputStream;
@@ -228,16 +231,19 @@ private:
   unsigned int current_field_read_bytes_;
   enum State { kWaitingForPacket, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
   P2PHeader incoming_header_;
+  bool (*packet_filter_)(const P2PPacket &, void *);
+  void *packet_filter_arg_;
   
   Stats stats_;
 };
 
 template<int kCapacity, Endianness LocalEndianness> class P2PPacketOutputStream {
+  template<int IC, int OC, Endianness LE> friend class P2PPacketStream;
 public:
   // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
-    : byte_stream_(*byte_stream), timer_(*timer), current_sequence_number_(0), state_(kGettingNextPacket) {}
+    : byte_stream_(*byte_stream), timer_(*timer), current_sequence_number_(0), state_(kGettingNextPacket), packet_filter_(NULL) {}
 
   // Returns the number of packet slots available for writing in the stream.
   int NumAvailableSlots(P2PPriority priority) const {
@@ -251,7 +257,14 @@ public:
     if (NumAvailableSlots(priority) == 0) {
       return Status::kUnavailableError;
     }
-    return P2PMutablePacketView(&packet_buffer_.NewValue(priority));
+    P2PPacket &packet = packet_buffer_.NewValue(priority);
+    packet.header()->is_continuation = 0;
+    packet.header()->requires_ack = 0;
+    packet.header()->is_ack = 0;
+    packet.header()->is_init = 0;
+    packet.header()->reserved = 0;
+    packet.length() = 0;
+    return P2PMutablePacketView(&packet);
   }
 
   // Commits changes to the new packet. Must be called for the packet to be sent.
@@ -260,8 +273,7 @@ public:
   bool Commit(P2PPriority priority, bool guarantee_delivery) {
     P2PPacket &packet = packet_buffer_.NewValue(priority);
     packet.header()->priority = priority;
-    packet.header()->is_continuation = 0;
-    packet.header()->is_ack = 0;
+    packet.header()->requires_ack = guarantee_delivery;
     packet.sequence_number() = current_sequence_number_;
     if (!packet.PrepareToSend()) { return false; }
     // Fix endianness.
@@ -276,13 +288,16 @@ public:
     return true;
   }
 
+  // Not all platforms support lambdas.
+  void SetPacketFilter(bool (*fn)(const P2PPacket &, void *), void *user_data) { packet_filter_ = fn; packet_filter_arg_ = user_data; }
+
   // Runs the stream and returns the minimum number of microseconds the caller may wait
   // until calling Run() again. Multi-threaded platforms can use this value to yield time
   // to other threads.
   // If just_sent_packet_view is not NULL, it is filled with a view to the packet that Run()
   // just finished sending. The view is invalid, if Run() did not finish sending any packet
   // within the call.
-  uint64_t Run(P2PPacketView *just_sent_packet_view = NULL);
+  uint64_t Run();
 
   class Stats {
     friend class P2PPacketOutputStream;
@@ -330,10 +345,94 @@ private:
   uint64_t after_burst_wait_end_timestamp_ns_;
   uint64_t current_sequence_number_; 
   enum State { kGettingNextPacket, kSendingHeaderBurst, kWaitingForHeaderBurstIngestion, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
+  bool (*packet_filter_)(const P2PPacket &, void *);
+  void *packet_filter_arg_;
 
   Stats stats_;
 };
 
-// template<int kCapacity, Endianness LocalEndianness> class P2PPacketStream {
+template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness> class P2PPacketStream {
+public:
+  // Does not take ownership of the streams, which must outlive this object.
+  P2PPacketStream(P2PPacketInputStream<kInputCapacity, LocalEndianness> *input, P2PPacketOutputStream<kOutputCapacity, LocalEndianness> *output)
+    : input_(input), output_(output), last_rx_sequence_number_(-1ULL) {
+      input_.SetPacketFilter(&ShouldCommitInputPacket, this);
+      output_.SetPacketFilter(&ShouldConsumeOutputPacket, this);
+    }
+
+  P2PPacketInputStream<kInputCapacity, LocalEndianness> &input() { return input_; }
+  P2PPacketOutputStream<kOutputCapacity, LocalEndianness> &output() { return output_; }
+
+protected:
+
+  static bool ShouldCommitInputPacket(const P2PPacket &last_rx_packet, void *self_ptr) {
+    P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
+    if (last_rx_packet.header()->is_ack) {
+      // We got an ACK: discard the retrainsmitting packet that originated it.
+
+      // ACKs always have a priority one level higher to avoid deadlocks. Turn priority down one
+      // notch to get that of the retransmitting packet.
+      P2PPriority data_packet_priority = last_rx_packet.header()->priority + 1;
+
+      const P2PPacket &retransmitting_packet = *self.output_.packet_buffer_.OldestValue(data_packet_priority);
+      // Check the retransmitting packet exists, as it could have been consumed already by a
+      // previous ACK.
+      if (retransmitting_packet.header()->requires_ack &&
+          last_rx_packet.sequence_number() == retransmitting_packet.sequence_number()) {
+        self.output_.packet_buffer_.Consume(data_packet_priority);
+      }
+
+      // Do not expose an ACK in the API.
+      return false;
+    }
+
+    // It's a data packet: reply with ACK if there is no ACK in the output buffer already,
+    // to avoid flooding the buffer and blocking the sender for this priority and lower.
+    if (last_rx_packet.header()->requires_ack) {
+      // ACKs always have a priority one level higher to avoid deadlocks.
+      P2PPriority ack_priority = last_rx_packet.header()->priority - 1;
+
+      bool ack_found = false;
+      for (int i = 0; i < self.output_.packet_buffer_.Size(ack_priority); ++i) {
+        const P2PPacket *maybe_ack_packet = self.output_.packet_buffer_.OldestValue(ack_priority, i);
+        assert(maybe_ack_packet != NULL);
+        if (maybe_ack_packet->sequence_number() == last_rx_packet.sequence_number()) {
+          ack_found = true;
+          break;
+        }
+      }
+      if (!ack_found) {
+        StatusOr<P2PMutablePacketView> ack_packet_view = self.output_.NewPacket(ack_priority);
+        // The internal capacity of the output stream must be its observable capacity plus the
+        // capacity of the input stream, so there will always be extra space for all ACKs.
+        assert(ack_packet_view.ok());
+        P2PPacket *ack = ack_packet_view->packet();
+        ack->header()->is_ack = 1;
+        self.output_.Commit(ack_priority, /*guaranteed_delivery=*/false);
+      }
+
+      if (self.last_rx_sequence_number_ != -1ULL && last_rx_packet.sequence_number() <= self.last_rx_sequence_number_) {
+        // This packet had been received already: filter it.
+        return false;
+      }
+      self.last_rx_sequence_number_ = last_rx_packet.sequence_number();
+    }
+    
+    // Expose the packet in the API.
+    return true;
+  }
+
+  static bool ShouldConsumeOutputPacket(const P2PPacket &last_tx_packet, void *self_ptr) {
+    // Packets requiring an ACK are left in the queue for retransmission.
+    return !last_tx_packet.header()->requires_ack;
+  }
+
+private:
+// TODO: input stream should have halve the observable capacity to guarantee space for ACKs.
+// 
+  P2PPacketInputStream<kInputCapacity, LocalEndianness> input_;
+  P2PPacketOutputStream<kOutputCapacity, LocalEndianness> output_;
+  uint64_t last_rx_sequence_number_;
+};
 
 #include "p2p_packet_stream.hh"

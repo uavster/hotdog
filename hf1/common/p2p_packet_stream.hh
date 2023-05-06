@@ -1,6 +1,6 @@
 #include <algorithm>
 
-template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run(P2PPacketView *just_received_packet_view) {
+template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run() {
   switch (state_) {
     case kWaitingForPacket:
       {
@@ -177,11 +177,9 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           // Adapt endianness of footer fields.
           packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
           if (packet.PrepareToRead()) {
-            packet.commit_time_ns() = timer_.GetSystemNanoseconds();
-            packet_buffer_.Commit(incoming_header_.priority);
-
-            if (just_received_packet_view != NULL) {
-              *just_received_packet_view = P2PPacketView(&packet);
+            if (packet_filter_ != NULL || packet_filter_(packet, packet_filter_arg_)) {
+              packet.commit_time_ns() = timer_.GetSystemNanoseconds();
+              packet_buffer_.Commit(incoming_header_.priority);
             }
           }
           state_ = kWaitingForPacket;
@@ -191,7 +189,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
   }
 }
 
-template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStream<kCapacity, LocalEndianness>::Run(P2PPacketView *just_sent_packet_view) {
+template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStream<kCapacity, LocalEndianness>::Run() {
   uint64_t time_until_next_event = 0;
   switch (state_) {
     case kGettingNextPacket:
@@ -290,14 +288,8 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           stats_.total_packet_delay_ns_[priority] += packet_delay;
           stats_.total_packet_delay_per_byte_ns_[priority] += packet_delay / total_packet_bytes_[priority];
 
-          // All packet bytes sent. Discard the packet if no ACK required. Otherwise, the packet
-          // stays in the buffer and is retransmitted periodically.
-          if (!current_packet_->header()->requires_ack || current_packet_->header()->is_ack) {
+          if (packet_filter_ == NULL || packet_filter_(*current_packet_, packet_filter_arg_)) {
             packet_buffer_.Consume(current_packet_->header()->priority);
-          }
-
-          if (just_sent_packet_view != NULL) {
-            *just_sent_packet_view = P2PPacketView(current_packet_);
           }
 
           after_burst_wait_end_timestamp_ns_ = timestamp_ns + total_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
