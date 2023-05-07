@@ -403,9 +403,11 @@ protected:
       }
       if (!ack_found) {
         StatusOr<P2PMutablePacketView> ack_packet_view = self.output_.NewPacket(ack_priority);
-        // The internal capacity of the output stream must be its observable capacity plus the
-        // capacity of the input stream, so there will always be extra space for all ACKs.
-        assert(ack_packet_view.ok());
+        if (!ack_packet_view.ok()) {
+          // Only commit the packet if there is space for the ACK in the output stream.
+          // Let the other end keep retransmitting until there's space for the ACK.
+          return false;
+        }
         P2PPacket *ack = ack_packet_view->packet();
         ack->header()->is_ack = 1;
         self.output_.Commit(ack_priority, /*guaranteed_delivery=*/false);
@@ -428,8 +430,6 @@ protected:
   }
 
 private:
-// TODO: input stream should have halve the observable capacity to guarantee space for ACKs.
-// 
   P2PPacketInputStream<kInputCapacity, LocalEndianness> input_;
   P2PPacketOutputStream<kOutputCapacity, LocalEndianness> output_;
   uint64_t last_rx_sequence_number_;
