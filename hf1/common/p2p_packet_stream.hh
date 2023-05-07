@@ -177,7 +177,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           // Adapt endianness of footer fields.
           packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
           if (packet.PrepareToRead()) {
-            if (packet_filter_ != NULL || packet_filter_(packet, packet_filter_arg_)) {
+            if (packet_filter_ == NULL || packet_filter_(packet, packet_filter_arg_)) {
               packet.commit_time_ns() = timer_.GetSystemNanoseconds();
               packet_buffer_.Commit(incoming_header_.priority);
             }
