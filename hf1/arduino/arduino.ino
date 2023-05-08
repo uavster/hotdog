@@ -49,8 +49,9 @@ void RightEncoderIsr(uint32_t timer_ticks) {
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
-P2PPacketInputStream<8, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
-P2PPacketOutputStream<1, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
+// P2PPacketInputStream<8, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
+// P2PPacketOutputStream<1, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
+P2PPacketStream<8, 1, kLittleEndian> p2p_stream(&byte_stream, &timer);
 
 TimerNanosType last_msg_time_ns = 0;
 
@@ -188,14 +189,14 @@ void loop() {
   {
     last_sent_packet_nanos = now_ns;
     P2PPriority priority = P2PPriority::Level::kHigh;
-    current_packet_view = p2p_output_stream.NewPacket(priority);
+    current_packet_view = p2p_stream.output().NewPacket(priority);
     if (current_packet_view.ok()) {
       for (int i = 0; i < len; ++i) {
         reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
       }
       *reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
       current_packet_view->length() = len; //sizeof(uint8_t);
-      ASSERT(p2p_output_stream.Commit(priority, /*guarantee_delivery=*/false));       
+      ASSERT(p2p_stream.output().Commit(priority, /*guarantee_delivery=*/true));       
 
       ++sent_packets[priority];
       // ++len;
@@ -205,14 +206,14 @@ void loop() {
 
   len = 0xa8;
   P2PPriority priority = P2PPriority::Level::kLow;
-  current_packet_view = p2p_output_stream.NewPacket(priority);
+  current_packet_view = p2p_stream.output().NewPacket(priority);
   if (current_packet_view.ok()) {
     for (int i = 0; i < len; ++i) {
       reinterpret_cast<uint8_t *>(current_packet_view->content())[i] = 0;
     }
     *reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
     current_packet_view->length() = len; //sizeof(uint8_t);
-    ASSERT(p2p_output_stream.Commit(priority, /*guarantee_delivery=*/false)); 
+    ASSERT(p2p_stream.output().Commit(priority, /*guarantee_delivery=*/false)); 
     ++sent_packets[priority];
     // ++len;
     // if (len == 0xa9) { len = 1; }
@@ -233,7 +234,7 @@ void loop() {
     }
     Serial.print(", tx_delay(ns):");
     for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
-      uint64_t delay = p2p_output_stream.stats().average_packet_delay_per_byte_ns(i);
+      uint64_t delay = p2p_stream.output().stats().average_packet_delay_per_byte_ns(i);
       if (delay != -1ULL) {
         char str[24];
         Uint64ToString(delay, str);
@@ -244,7 +245,7 @@ void loop() {
     }
     Serial.print(", rx_delay(ns):");
     for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
-      uint64_t delay = p2p_input_stream.stats().average_packet_delay_per_byte_ns(i);
+      uint64_t delay = p2p_stream.input().stats().average_packet_delay_per_byte_ns(i);
       if (delay != -1ULL) {
         char str[24];
         Uint64ToString(delay, str);
@@ -281,7 +282,7 @@ void loop() {
     }
   }*/
 
-  if (p2p_input_stream.OldestPacket().ok()) {
+  if (p2p_stream.input().OldestPacket().ok()) {
     // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
     // Serial.print("p: ");
     // for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
@@ -289,19 +290,19 @@ void loop() {
     // }
     // Serial.println();
     
-    P2PPriority priority = p2p_input_stream.OldestPacket()->priority();
+    P2PPriority priority = p2p_stream.input().OldestPacket()->priority();
     ++received_packets[priority];
     if (last_received_packet_value[priority] >= 0) {
-      int diff = p2p_input_stream.OldestPacket()->content()[0] - last_received_packet_value[priority];
+      int diff = p2p_stream.input().OldestPacket()->content()[0] - last_received_packet_value[priority];
       if (diff > 0) lost_packets[priority] += diff - 1;
       else lost_packets[priority] += 256 + diff - 1;
     }
-    last_received_packet_value[priority] = p2p_input_stream.OldestPacket()->content()[0];
-    p2p_input_stream.Consume(priority);
+    last_received_packet_value[priority] = p2p_stream.input().OldestPacket()->content()[0];
+    p2p_stream.input().Consume(priority);
   }
 
-  p2p_input_stream.Run();
-  p2p_output_stream.Run();
+  p2p_stream.input().Run();
+  p2p_stream.output().Run();
 
   return;
   /*

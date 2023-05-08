@@ -93,6 +93,7 @@ private:
 
 class P2PMutablePacketView {
   friend class P2PPacketView;
+  template<int IC, int OC, Endianness LE> friend class P2PPacketStream;
 public:
   // Does not take ownership of the packet, which must outlive this object.
   P2PMutablePacketView(P2PPacket *packet) : packet_(packet) {}
@@ -117,7 +118,7 @@ public:
   }
 
 private:
-  const P2PPacket *packet() const {
+  P2PPacket *packet() {
     return packet_;
   }
   P2PPacket *packet_;
@@ -354,8 +355,8 @@ private:
 template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness> class P2PPacketStream {
 public:
   // Does not take ownership of the streams, which must outlive this object.
-  P2PPacketStream(P2PPacketInputStream<kInputCapacity, LocalEndianness> *input, P2PPacketOutputStream<kOutputCapacity, LocalEndianness> *output)
-    : input_(input), output_(output), last_rx_sequence_number_(-1ULL) {
+  P2PPacketStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
+    : input_(byte_stream, timer), output_(byte_stream, timer), last_rx_sequence_number_(-1ULL) {
       input_.SetPacketFilter(&ShouldCommitInputPacket, this);
       output_.SetPacketFilter(&ShouldConsumeOutputPacket, this);
     }
