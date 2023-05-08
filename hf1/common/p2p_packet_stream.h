@@ -271,11 +271,15 @@ public:
   // Commits changes to the new packet. Must be called for the packet to be sent.
   // Afterwards, previous packet views returned by NewPacket() cannot be trusted to be valid,
   // and NewPacket() returns a different view.
-  bool Commit(P2PPriority priority, bool guarantee_delivery) {
+  bool Commit(P2PPriority priority, bool guarantee_delivery, uint64_t seq_number = -1ULL) {
     P2PPacket &packet = packet_buffer_.NewValue(priority);
     packet.header()->priority = priority;
     packet.header()->requires_ack = guarantee_delivery;
-    packet.sequence_number() = current_sequence_number_;
+    if (seq_number == -1ULL) {
+      packet.sequence_number() = current_sequence_number_;
+    } else {
+      packet.sequence_number() = seq_number;
+    }
     if (!packet.PrepareToSend()) { return false; }
     // Fix endianness.
     packet.checksum() = LocalToNetwork<LocalEndianness>(packet.checksum());
@@ -284,8 +288,9 @@ public:
     packet.commit_time_ns() = timer_.GetSystemNanoseconds();
     packet_buffer_.Commit(priority);
 
-    ++current_sequence_number_;
-
+    if (seq_number == -1ULL) {
+      ++current_sequence_number_;
+    }
     return true;
   }
 
@@ -411,7 +416,7 @@ protected:
         }
         P2PPacket *ack = ack_packet_view->packet();
         ack->header()->is_ack = 1;
-        self.output_.Commit(ack_priority, /*guaranteed_delivery=*/false);
+        self.output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/last_rx_packet.sequence_number());
       }
 
       if (self.last_rx_sequence_number_ != -1ULL && last_rx_packet.sequence_number() <= self.last_rx_sequence_number_) {
