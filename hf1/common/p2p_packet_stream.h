@@ -384,11 +384,11 @@ protected:
       // notch to get that of the retransmitting packet.
       P2PPriority data_packet_priority = last_rx_packet.header()->priority + 1;
 
-      const P2PPacket &retransmitting_packet = *self.output_.packet_buffer_.OldestValue(data_packet_priority);
+      const P2PPacket *retransmitting_packet = self.output_.packet_buffer_.OldestValue(data_packet_priority);      
       // Check the retransmitting packet exists, as it could have been consumed already by a
       // previous ACK.
-      if (retransmitting_packet.header()->requires_ack &&
-          last_rx_packet.sequence_number() == retransmitting_packet.sequence_number()) {
+      if (retransmitting_packet != NULL && retransmitting_packet->header()->requires_ack &&
+          last_rx_packet.sequence_number() == retransmitting_packet->sequence_number()) {
         self.output_.packet_buffer_.Consume(data_packet_priority);
       }
 
