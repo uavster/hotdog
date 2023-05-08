@@ -158,7 +158,11 @@ public:
   // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
-    : byte_stream_(*byte_stream), timer_(*timer), state_(kWaitingForPacket), packet_filter_(NULL) {}
+    : byte_stream_(*byte_stream), timer_(*timer), state_(kWaitingForPacket), packet_filter_(NULL) {
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+        write_offset_before_break_[i] = 0;
+      }
+    }
 
   // Returns the number of times that Consume() can be called without OldestPacket() returning NULL.
   int NumAvailablePackets(P2PPriority priority) const { return packet_buffer_[priority].Size(); }
@@ -234,6 +238,7 @@ private:
   P2PHeader incoming_header_;
   bool (*packet_filter_)(const P2PPacket &, void *);
   void *packet_filter_arg_;
+  uint8_t write_offset_before_break_[P2PPriority::kNumLevels];
   
   Stats stats_;
 };
@@ -410,7 +415,7 @@ protected:
           ack_found = true;
           break;
         }
-      }
+      }      
       if (!ack_found) {
         StatusOr<P2PMutablePacketView> ack_packet_view = self.output_.NewPacket(ack_priority);
         if (!ack_packet_view.ok()) {
