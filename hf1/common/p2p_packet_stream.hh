@@ -41,7 +41,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             // The length field for a packet continuation is the remaining length.
             int remaining_length = NetworkToLocal<LocalEndianness>(incoming_header_.length);
             if (incoming_header_.sequence_number != packet.sequence_number() || 
-                remaining_length > packet.length() - write_offset_before_break_[incoming_header_.priority]) {
+                remaining_length != packet.length() - write_offset_before_break_[incoming_header_.priority]) {
               // This continuation does not belong to the packet we have in store, or the
               // continuation offset is not where we left off (could be a continuation from a
               // different retransmission). There must have been a link interruption: reset the
@@ -104,7 +104,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             // end will form correct packets. The start token may then be due to a new packet
             // after a link interruption, or a packet with higher priority.
           //Serial.println("new packet when reading content");
-            write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_;
+            write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_ - 1;
             state_ = kReadingHeader;
             incoming_header_.start_token = kP2PStartToken;
             current_field_read_bytes_ = 1;
@@ -134,14 +134,14 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             // higher priority packet.
             // Assume well designed transmitter and try the latter.
           //Serial.println("new packet after start token when reading content");
-            write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_;
+            write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_ - 1;
             state_ = kReadingHeader;
             incoming_header_.start_token = kP2PStartToken;
             current_field_read_bytes_ = 1;
           } else {
           //Serial.println("start token was a new packet");
             // Must be a start token. Restart the state to re-synchronize with minimal latency.
-            write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_;
+            write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_ - 2;
             state_ = kReadingHeader;
             incoming_header_.start_token = kP2PStartToken;
             reinterpret_cast<uint8_t *>(&incoming_header_)[1] = *next_content_byte;
@@ -168,6 +168,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         if (*current_byte == kP2PStartToken) {
           // New packet after interrupts, as no priority takeover is allowed mid-footer.
           //Serial.println("new packet when reading footer");
+          write_offset_before_break_[incoming_header_.priority] = 0;
           state_ = kReadingHeader;
           incoming_header_.start_token = kP2PStartToken;
           current_field_read_bytes_ = 1;
