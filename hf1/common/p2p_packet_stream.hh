@@ -168,7 +168,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         if (*current_byte == kP2PStartToken) {
           // New packet after interrupts, as no priority takeover is allowed mid-footer.
           //Serial.println("new packet when reading footer");
-          write_offset_before_break_[incoming_header_.priority] = 0;
+          write_offset_before_break_[incoming_header_.priority] = packet.length();
           state_ = kReadingHeader;
           incoming_header_.start_token = kP2PStartToken;
           current_field_read_bytes_ = 1;
