@@ -244,7 +244,11 @@ public:
   // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
-    : byte_stream_(*byte_stream), timer_(*timer), current_sequence_number_(0), state_(kGettingNextPacket), packet_filter_(NULL) {}
+    : byte_stream_(*byte_stream), timer_(*timer), state_(kGettingNextPacket), packet_filter_(NULL) {
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+        current_sequence_number_[i] = 0;
+      }
+    }
 
   // Returns the number of packet slots available for writing in the stream.
   int NumAvailableSlots(P2PPriority priority) const {
@@ -276,7 +280,7 @@ public:
     packet.header()->priority = priority;
     packet.header()->requires_ack = guarantee_delivery;
     if (seq_number == -1ULL) {
-      packet.sequence_number() = current_sequence_number_;
+      packet.sequence_number() = current_sequence_number_[priority];
     } else {
       packet.sequence_number() = seq_number;
     }
@@ -289,7 +293,7 @@ public:
     packet_buffer_.Commit(priority);
 
     if (seq_number == -1ULL) {
-      ++current_sequence_number_;
+      ++current_sequence_number_[priority];
     }
     return true;
   }
@@ -349,7 +353,7 @@ private:
   int total_burst_bytes_;
   int pending_burst_bytes_;  
   uint64_t after_burst_wait_end_timestamp_ns_;
-  uint64_t current_sequence_number_; 
+  uint64_t current_sequence_number_[P2PPriority::kNumLevels]; 
   enum State { kGettingNextPacket, kSendingHeaderBurst, kWaitingForHeaderBurstIngestion, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
   bool (*packet_filter_)(const P2PPacket &, void *);
   void *packet_filter_arg_;
