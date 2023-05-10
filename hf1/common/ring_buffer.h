@@ -5,7 +5,7 @@
 
 template<typename ValueType, int kCapacity> class RingBuffer {
   public:
-    RingBuffer() : read_index_(0), write_index_(0), size_(0) {}
+    RingBuffer() { Clear(); }
 
     inline int Capacity() const {
       return kCapacity;
@@ -14,6 +14,12 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     // Returns the number of values in the buffer.
     inline int Size() const {
       return size_;
+    }
+
+    void Clear() {
+      read_index_ = 0;
+      write_index_ = 0;
+      size_ = 0;
     }
 
     // Returns a pointer to the i-th oldest value in the buffer, or NULL if there are not enough

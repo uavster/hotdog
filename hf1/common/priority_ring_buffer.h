@@ -46,6 +46,16 @@ public:
     return kCapacity;
   }
 
+  void Clear(PriorityType priority) const {
+    buffer_[priority].Clear();
+  }
+
+  void Clear() {
+    for (int i = 0; i < PriorityType::kNumLevels; ++i) {
+      buffer_[i].Clear();
+    }
+  }
+
 private:
   RingBuffer<ValueType, kCapacity> buffer_[PriorityType::kNumLevels];
 };

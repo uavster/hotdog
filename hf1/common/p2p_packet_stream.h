@@ -158,11 +158,17 @@ public:
   // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
-    : byte_stream_(*byte_stream), timer_(*timer), state_(kWaitingForPacket), packet_filter_(NULL) {
-      for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
-        write_offset_before_break_[i] = 0;
-      }
+    : byte_stream_(*byte_stream), timer_(*timer), packet_filter_(NULL) {
+      Reset();
     }
+
+  void Reset() {
+    packet_buffer_.Clear();
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      write_offset_before_break_[i] = 0;
+    }
+    state_ = kWaitingForPacket;
+  }
 
   // Returns the number of times that Consume() can be called without OldestPacket() returning NULL.
   int NumAvailablePackets(P2PPriority priority) const { return packet_buffer_[priority].Size(); }
@@ -249,15 +255,21 @@ public:
   // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
-    : byte_stream_(*byte_stream), timer_(*timer), state_(kGettingNextPacket), packet_filter_(NULL) {
-      for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
-        current_sequence_number_[i] = 0;
-      }
+    : byte_stream_(*byte_stream), timer_(*timer), packet_filter_(NULL) {
     }
 
   // Returns the number of packet slots available for writing in the stream.
   int NumAvailableSlots(P2PPriority priority) const {
     return packet_buffer_.Capacity(priority) - packet_buffer_.Size(priority);
+  }
+
+  void Reset() {
+    packet_buffer_.Clear();
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      current_sequence_number_[i] = 0;
+      total_packet_bytes_[i] = -1;
+    }
+    state_ = kGettingNextPacket;
   }
 
   // Returns a view to a new packet with `priority` in the stream, or kUnavailableError if no
@@ -377,6 +389,11 @@ public:
 
   P2PPacketInputStream<kInputCapacity, LocalEndianness> &input() { return input_; }
   P2PPacketOutputStream<kOutputCapacity, LocalEndianness> &output() { return output_; }
+
+  void Reset() {
+    input_.Reset();
+    output_.Reset();
+  }
 
 protected:
 
