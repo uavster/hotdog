@@ -399,9 +399,7 @@ public:
     : input_(byte_stream, timer), output_(byte_stream, timer), 
       handshake_id_(guid_factory.CreateGUID<kSequenceNumberNumBytes, kP2PLowestToken>()), handshake_done_(false) {
       
-      for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
-        last_rx_sequence_number_[i] = -1ULL;
-      }
+      ResetInput();
 
       input_.SetPacketFilter(&ShouldCommitInputPacket, this);
       output_.SetPacketFilter(&ShouldConsumeOutputPacket, this);
@@ -417,12 +415,13 @@ public:
   P2PPacketInputStream<kInputCapacity, LocalEndianness> &input() { return input_; }
   P2PPacketOutputStream<kOutputCapacity, LocalEndianness> &output() { return output_; }
 
-  void Reset() {
-    input_.Reset();
-    output_.Reset();
-  }
-
 protected:
+  void ResetInput() {
+    input_.Reset();
+    for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+      last_rx_sequence_number_[i] = -1ULL;
+    }
+  }
 
   static bool ShouldCommitInputPacket(const P2PPacket &last_rx_packet, void *self_ptr) {
     P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
@@ -490,7 +489,7 @@ Serial.printf("Got handshake ACK.\n");
       if (last_rx_packet.header()->is_init && !last_rx_packet.header()->is_ack) {
 Serial.printf("Got handshake request.\n");
         // Handshake packet: all packets received previously in the queue or pending are invalid.
-        self.input().Reset();
+        self.ResetInput();
         return false;
       }
 
