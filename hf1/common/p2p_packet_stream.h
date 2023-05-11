@@ -386,8 +386,12 @@ public:
   // Does not take ownership of the streams, which must outlive this object.
   P2PPacketStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer, GUIDFactoryInterface &guid_factory)
     : input_(byte_stream, timer), output_(byte_stream, timer), 
-      handshake_id_(guid_factory.CreateGUID<kSequenceNumberNumBytes, kP2PLowestToken>()), handshake_done_(false),
-      last_rx_sequence_number_(-1ULL) {
+      handshake_id_(guid_factory.CreateGUID<kSequenceNumberNumBytes, kP2PLowestToken>()), handshake_done_(false) {
+      
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+        last_rx_sequence_number_[i] = -1ULL;
+      }
+
       input_.SetPacketFilter(&ShouldCommitInputPacket, this);
       output_.SetPacketFilter(&ShouldConsumeOutputPacket, this);
 
@@ -413,17 +417,16 @@ protected:
     P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
 
     if (!self.handshake_done_) {
-	    printf("init:%d ack:%d seq:%lu\n", last_rx_packet.header()->is_init, last_rx_packet.header()->is_ack, static_cast<uint64_t>(last_rx_packet.sequence_number()));
-      if (last_rx_packet.header()->is_init) { 
-          if (last_rx_packet.header()->is_ack &&
-          last_rx_packet.sequence_number() == self.handshake_id_) {
-	      printf("Got handshake ACK.\n");
-              // The other end replied to a handshake, and it is the one we last started.
-              self.handshake_done_ = true;
-	  }
-      } else {
-	  // Reject all packets unless it's a handshake.
-          return false;
+	    Serial.printf("init:%d ack:%d seq:%lu\n", last_rx_packet.header()->is_init, last_rx_packet.header()->is_ack, static_cast<uint64_t>(last_rx_packet.sequence_number()));      
+      if (!last_rx_packet.header()->is_init) { 
+    	  // Reject all packets packets until handshake.
+        return false;
+      }
+      if (last_rx_packet.header()->is_ack &&
+      last_rx_packet.sequence_number() == self.handshake_id_) {
+        Serial.printf("Got handshake ACK.\n");
+        // The other end replied to a handshake, and it is the one we last started.
+        self.handshake_done_ = true;
       }
     }
 
@@ -452,7 +455,7 @@ protected:
     if (last_rx_packet.header()->requires_ack) {
       // ACKs always have a priority one level higher to avoid deadlocks.
       P2PPriority ack_priority = last_rx_packet.header()->priority - 1;
-printf("got packet requiring ACK\n");
+Serial.printf("got packet requiring ACK\n");
       bool ack_found = false;
       for (int i = 0; i < self.output_.packet_buffer_.Size(ack_priority); ++i) {
         const P2PPacket *maybe_ack_packet = self.output_.packet_buffer_.OldestValue(ack_priority, i);
@@ -470,17 +473,25 @@ printf("got packet requiring ACK\n");
           return false;
         }
         P2PPacket *ack = ack_packet_view->packet();
-	printf("Sending ACK %lu\n", static_cast<uint64_t>(last_rx_packet.sequence_number()));
+	Serial.printf("Sending ACK %lu\n", static_cast<uint64_t>(last_rx_packet.sequence_number()));
         ack->header()->is_ack = 1;
         ack->header()->is_init = last_rx_packet.header()->is_init;
         self.output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/last_rx_packet.sequence_number());
       }
 
-      if (self.last_rx_sequence_number_ != -1ULL && last_rx_packet.sequence_number() <= self.last_rx_sequence_number_) {
+      if (last_rx_packet.header()->is_init && !last_rx_packet.header()->is_ack) {
+        // Handshake packet: all packets received previously in the queue or pending are invalid.
+        self.input().Reset();
+        return false;
+      }
+
+      P2PPriority priority = last_rx_packet.header()->priority;
+      if (self.last_rx_sequence_number_[priority] != -1ULL &&
+          last_rx_packet.sequence_number() <= self.last_rx_sequence_number_[priority]) {
         // This packet had been received already: filter it.
         return false;
       }
-      self.last_rx_sequence_number_ = last_rx_packet.sequence_number();
+      self.last_rx_sequence_number_[priority] = last_rx_packet.sequence_number();
     }
     
     // Expose the packet in the API.
@@ -497,7 +508,7 @@ private:
   P2PPacketOutputStream<kOutputCapacity, LocalEndianness> output_;
   P2PSequenceNumberType handshake_id_;
   bool handshake_done_;
-  uint64_t last_rx_sequence_number_;
+  uint64_t last_rx_sequence_number_[P2PPriority::kNumLevels];
 };
 
 #include "p2p_packet_stream.hh"
