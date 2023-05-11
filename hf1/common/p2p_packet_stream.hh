@@ -291,12 +291,26 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         pending_burst_bytes_ -= written_bytes;
 
         const uint64_t timestamp_ns = timer_.GetSystemNanoseconds();
-        if (pending_packet_bytes_ <= 0) {          
-          // Update stats.
-          const uint64_t packet_delay = timestamp_ns - current_packet_->commit_time_ns();
-          ++stats_.total_packets_[priority];
-          stats_.total_packet_delay_ns_[priority] += packet_delay;
-          stats_.total_packet_delay_per_byte_ns_[priority] += packet_delay / total_packet_bytes_[priority];
+        if (pending_packet_bytes_ <= 0) {
+          if (!current_packet_->header()->is_init) {
+            // is_init is filtered to avoid confusing all following packets with retransmissions,
+            // as is_init packets have a random sequence number.
+            if (last_sent_sequence_number_[priority] == -1ULL || 
+              current_packet_->sequence_number() > last_sent_sequence_number_[priority]) {
+              last_sent_sequence_number_[priority] = current_packet_->sequence_number();
+              // Not a retransmission: update latency stats.
+              const uint64_t packet_delay = timestamp_ns - current_packet_->commit_time_ns();
+              ++stats_.total_packets_[priority];
+              stats_.total_packet_delay_ns_[priority] += packet_delay;
+              stats_.total_packet_delay_per_byte_ns_[priority] += packet_delay / total_packet_bytes_[priority];
+              if (current_packet_->header()->requires_ack) {
+                ++stats_.total_reliable_packets_[priority];
+              }
+            } else {
+              // Update retransmission stats.
+              ++stats_.total_retransmissions_[priority];
+            }
+          }
 
           // Serial.printf("Sent packet %x %x %x\n", current_packet_->sequence_number().bytes[0], current_packet_->sequence_number().bytes[1], current_packet_->sequence_number().bytes[2]);
           if (packet_filter_ == NULL || packet_filter_(*current_packet_, packet_filter_arg_)) {

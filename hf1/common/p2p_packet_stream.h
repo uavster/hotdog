@@ -269,6 +269,7 @@ public:
     packet_buffer_.Clear();
     for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       current_sequence_number_[i] = 0;
+      last_sent_sequence_number_[i] = -1ULL;
       total_packet_bytes_[i] = -1;
     }
     state_ = kGettingNextPacket;
@@ -333,8 +334,10 @@ public:
   public:
     Stats() { 
       for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packets_[i] = 0; }
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_reliable_packets_[i] = 0; }
       for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packet_delay_ns_[i] = 0; }
       for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_packet_delay_per_byte_ns_[i] = 0; }
+      for (int i = 0; i < P2PPriority::kNumLevels; ++i) { total_retransmissions_[i] = 0; }
     }
     
     // Total number of sent packets per priority level.
@@ -354,10 +357,16 @@ public:
       return total_packets_[priority] > 0 ? total_packet_delay_per_byte_ns_[priority] / total_packets_[priority] : -1;
     }
 
+    float average_retransmissions_per_reliable_packet(P2PPriority priority) const {
+      return total_retransmissions_[priority] / static_cast<float>(total_reliable_packets_[priority]);
+    }
+
     private:
       uint64_t total_packets_[P2PPriority::kNumLevels];
+      uint64_t total_reliable_packets_[P2PPriority::kNumLevels];
       uint64_t total_packet_delay_ns_[P2PPriority::kNumLevels];
       uint64_t total_packet_delay_per_byte_ns_[P2PPriority::kNumLevels];
+      uint64_t total_retransmissions_[P2PPriority::kNumLevels];
   };
 
   const Stats &stats() const { return stats_; }
@@ -372,7 +381,8 @@ private:
   int total_burst_bytes_;
   int pending_burst_bytes_;  
   uint64_t after_burst_wait_end_timestamp_ns_;
-  uint64_t current_sequence_number_[P2PPriority::kNumLevels]; 
+  uint64_t current_sequence_number_[P2PPriority::kNumLevels];
+  uint64_t last_sent_sequence_number_[P2PPriority::kNumLevels];
   enum State { kGettingNextPacket, kSendingHeaderBurst, kWaitingForHeaderBurstIngestion, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
   bool (*packet_filter_)(const P2PPacket &, void *);
   void *packet_filter_arg_;
