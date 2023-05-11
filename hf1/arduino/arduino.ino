@@ -11,6 +11,7 @@ uint8_t led_on = 1;
 #include "timer.h"
 #include "encoders.h"
 #include "timer_arduino.h"
+#include "guid_factory.h"
 
 // #include <SPI.h>
 
@@ -49,9 +50,10 @@ void RightEncoderIsr(uint32_t timer_ticks) {
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
+GUIDFactory guid_factory;
 // P2PPacketInputStream<8, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
 // P2PPacketOutputStream<1, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
-P2PPacketStream<8, 1, kLittleEndian> p2p_stream(&byte_stream, &timer);
+P2PPacketStream<8, 1, kLittleEndian> p2p_stream(&byte_stream, &timer, guid_factory);
 
 TimerNanosType last_msg_time_ns = 0;
 
@@ -67,9 +69,6 @@ int lost_packets[P2PPriority::kNumLevels];
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
   Serial.begin(115200);
-
-  // Initialize the random seed. The random generator is used by the P2P protocol to identify the init packet.
-  randomSeed(analogRead(0));
 
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, 1);

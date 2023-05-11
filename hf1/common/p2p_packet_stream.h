@@ -7,6 +7,7 @@
 #include "priority_ring_buffer.h"
 #include "status_or.h"
 #include "timer_interface.h"
+#include "guid_factory_interface.h"
 #ifdef ARDUINO
 #include <DebugLog.h>
 #define assert ASSERT
@@ -381,10 +382,19 @@ private:
 template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness> class P2PPacketStream {
 public:
   // Does not take ownership of the streams, which must outlive this object.
-  P2PPacketStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
-    : input_(byte_stream, timer), output_(byte_stream, timer), last_rx_sequence_number_(-1ULL) {
+  P2PPacketStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer, GUIDFactoryInterface &guid_factory)
+    : input_(byte_stream, timer), output_(byte_stream, timer), 
+      handshake_id_(guid_factory.CreateGUID<kSequenceNumberNumBytes, kP2PLowestToken>()), handshake_done_(false),
+      last_rx_sequence_number_(-1ULL) {
       input_.SetPacketFilter(&ShouldCommitInputPacket, this);
       output_.SetPacketFilter(&ShouldConsumeOutputPacket, this);
+
+      // Schedule handshake packet. The handshake reply is a regular ACK with is_init.
+      P2PPriority init_priority = P2PPriority::kHigh;
+      StatusOr<P2PMutablePacketView> init_packet_view = output_.NewPacket(init_priority);
+      assert(init_packet_view.ok());
+      init_packet_view->packet()->header()->is_init = 1;
+      output_.Commit(init_priority, /*guaranteed_delivery=*/true, /*seq_number=*/handshake_id_);
     }
 
   P2PPacketInputStream<kInputCapacity, LocalEndianness> &input() { return input_; }
@@ -399,7 +409,18 @@ protected:
 
   static bool ShouldCommitInputPacket(const P2PPacket &last_rx_packet, void *self_ptr) {
     P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
+
+    if (!self.handshake_done_) {
+      if (last_rx_packet.header()->is_init && last_rx_packet.header()->is_ack &&
+          last_rx_packet.sequence_number() == self.handshake_id_) {
+        // The other end replied to a handshake, and it is the one we last started.
+        self.handshake_done_ = true;
+      }
+      return false;
+    }
+
     if (last_rx_packet.header()->is_ack) {
+      // Serial.printf("Got ACK %x %x %x\n", last_rx_packet.sequence_number().bytes[0], last_rx_packet.sequence_number().bytes[1], last_rx_packet.sequence_number().bytes[2]);
       // We got an ACK: discard the retrainsmitting packet that originated it.
 
       // ACKs always have a priority one level higher to avoid deadlocks. Turn priority down one
@@ -442,6 +463,7 @@ protected:
         }
         P2PPacket *ack = ack_packet_view->packet();
         ack->header()->is_ack = 1;
+        ack->header()->is_init = last_rx_packet.header()->is_init;
         self.output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/last_rx_packet.sequence_number());
       }
 
@@ -464,6 +486,8 @@ protected:
 private:
   P2PPacketInputStream<kInputCapacity, LocalEndianness> input_;
   P2PPacketOutputStream<kOutputCapacity, LocalEndianness> output_;
+  P2PSequenceNumberType handshake_id_;
+  bool handshake_done_;
   uint64_t last_rx_sequence_number_;
 };
 

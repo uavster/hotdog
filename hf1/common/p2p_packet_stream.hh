@@ -298,6 +298,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           stats_.total_packet_delay_ns_[priority] += packet_delay;
           stats_.total_packet_delay_per_byte_ns_[priority] += packet_delay / total_packet_bytes_[priority];
 
+          // Serial.printf("Sent packet %x %x %x\n", current_packet_->sequence_number().bytes[0], current_packet_->sequence_number().bytes[1], current_packet_->sequence_number().bytes[2]);
           if (packet_filter_ == NULL || packet_filter_(*current_packet_, packet_filter_arg_)) {
             packet_buffer_.Consume(current_packet_->header()->priority);
           }
