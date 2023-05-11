@@ -257,6 +257,7 @@ public:
   // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
     : byte_stream_(*byte_stream), timer_(*timer), packet_filter_(NULL) {
+      Reset();
     }
 
   // Returns the number of packet slots available for writing in the stream.
