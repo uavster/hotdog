@@ -18,6 +18,7 @@
 #include <inttypes.h>
 
 #include "timer_linux.h"
+#include "guid_factory.h"
 
 #define kSerialPath "/dev/ttyTHS1"
 //#define kBaudRate B115200
@@ -85,7 +86,8 @@ int main() {
 
 	TimerLinux timer;
 	P2PByteStreamLinux byte_stream(serial_fd);
-	P2PPacketStream<4, 1, kLittleEndian> p2p_stream(&byte_stream, &timer);
+	GUIDFactory guid_factory;
+	P2PPacketStream<4, 1, kLittleEndian> p2p_stream(&byte_stream, &timer, guid_factory);
 
 	int sent_packets[P2PPriority::kNumLevels];
 	int received_packets[P2PPriority::kNumLevels];
