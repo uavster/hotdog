@@ -379,6 +379,8 @@ private:
   Stats stats_;
 };
 
+#include <stdio.h>
+
 template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness> class P2PPacketStream {
 public:
   // Does not take ownership of the streams, which must outlive this object.
@@ -411,12 +413,18 @@ protected:
     P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
 
     if (!self.handshake_done_) {
-      if (last_rx_packet.header()->is_init && last_rx_packet.header()->is_ack &&
+	    printf("init:%d ack:%d seq:%lu\n", last_rx_packet.header()->is_init, last_rx_packet.header()->is_ack, static_cast<uint64_t>(last_rx_packet.sequence_number()));
+      if (last_rx_packet.header()->is_init) { 
+          if (last_rx_packet.header()->is_ack &&
           last_rx_packet.sequence_number() == self.handshake_id_) {
-        // The other end replied to a handshake, and it is the one we last started.
-        self.handshake_done_ = true;
+	      printf("Got handshake ACK.\n");
+              // The other end replied to a handshake, and it is the one we last started.
+              self.handshake_done_ = true;
+	  }
+      } else {
+	  // Reject all packets unless it's a handshake.
+          return false;
       }
-      return false;
     }
 
     if (last_rx_packet.header()->is_ack) {
@@ -444,7 +452,7 @@ protected:
     if (last_rx_packet.header()->requires_ack) {
       // ACKs always have a priority one level higher to avoid deadlocks.
       P2PPriority ack_priority = last_rx_packet.header()->priority - 1;
-
+printf("got packet requiring ACK\n");
       bool ack_found = false;
       for (int i = 0; i < self.output_.packet_buffer_.Size(ack_priority); ++i) {
         const P2PPacket *maybe_ack_packet = self.output_.packet_buffer_.OldestValue(ack_priority, i);
@@ -462,6 +470,7 @@ protected:
           return false;
         }
         P2PPacket *ack = ack_packet_view->packet();
+	printf("Sending ACK %lu\n", static_cast<uint64_t>(last_rx_packet.sequence_number()));
         ack->header()->is_ack = 1;
         ack->header()->is_init = last_rx_packet.header()->is_init;
         self.output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/last_rx_packet.sequence_number());
