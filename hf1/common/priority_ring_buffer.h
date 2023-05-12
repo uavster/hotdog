@@ -22,7 +22,10 @@ public:
     return NULL;
   }
 
-  const ValueType *OldestValue(PriorityType priority, int i = 0) {
+  const ValueType *OldestValue(PriorityType priority, int i = 0) const {
+    return buffer_[priority].OldestValue(i);
+  }
+  ValueType *OldestValue(PriorityType priority, int i = 0) {
     return buffer_[priority].OldestValue(i);
   }
 

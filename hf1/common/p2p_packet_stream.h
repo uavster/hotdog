@@ -420,7 +420,65 @@ protected:
     input_.Reset();
     for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
       last_rx_sequence_number_[i] = -1ULL;
+    }    
+  }
+
+  void ResetSession(const P2PPacket &handshake_request) {
+    ResetInput();
+    // Purge ACKs in output buffer (except for those of the ongoing handshake).
+    for (int p = 0; p < P2PPriority::kNumLevels; ++p) {
+      // Cache packets to copy because Size() could change within the loop.
+      const int num_packets_to_maybe_copy = output_.packet_buffer_.Size(p);
+      for (int i = 0; i < num_packets_to_maybe_copy; ++i) {
+        const P2PPacket packet_copy = *output_.packet_buffer_.OldestValue(p);
+        output_.packet_buffer_.Consume(p);
+        if (!packet_copy.header()->is_ack ||
+            packet_copy.sequence_number() == handshake_request.sequence_number()) {
+          output_.packet_buffer_.NewValue(p) = packet_copy;
+          output_.packet_buffer_.Commit(p);
+        }
+      }
     }
+
+    // Reset continuation packets to the original packets.
+    for (int p = 0; p < P2PPriority::kNumLevels; ++p) {
+      P2PPacket *packet = output_.packet_buffer_.OldestValue(p);
+      if (packet != NULL && packet->header()->is_continuation) {
+        packet->header()->is_continuation = 0;
+        assert(output_.total_packet_bytes_[p] != -1);
+        packet->length() = output_.total_packet_bytes_[p];
+      }
+    }
+  }
+
+  // Returns false if the ACK packet was to be scheduled, but there was not space in the output
+  // buffer. Returns true if no new ACK was required, or if it was scheduled successfully,
+  // otherwise.
+  bool ScheduleACKWithThrottling(const P2PPacket &packet) {
+    // ACKs always have a priority one level higher to avoid deadlocks.
+    P2PPriority ack_priority = packet.header()->priority - 1;
+    bool ack_found = false;
+    for (int i = 0; i < output_.packet_buffer_.Size(ack_priority); ++i) {
+      const P2PPacket *maybe_ack_packet = output_.packet_buffer_.OldestValue(ack_priority, i);
+      assert(maybe_ack_packet != NULL);
+      if (maybe_ack_packet->sequence_number() == packet.sequence_number()) {
+        ack_found = true;
+        break;
+      }
+    }      
+    if (!ack_found) {
+      StatusOr<P2PMutablePacketView> ack_packet_view = output_.NewPacket(ack_priority);
+      if (!ack_packet_view.ok()) {
+        // Only commit the packet if there is space for the ACK in the output stream.
+        // Let the other end keep retransmitting until there's space for the ACK.
+        return false;
+      }
+      P2PPacket *ack = ack_packet_view->packet();
+      ack->header()->is_ack = 1;
+      ack->header()->is_init = packet.header()->is_init;
+      output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/packet.sequence_number());
+    }
+    return true;
   }
 
   static bool ShouldCommitInputPacket(const P2PPacket &last_rx_packet, void *self_ptr) {
@@ -428,7 +486,9 @@ protected:
 
     if (!self.handshake_done_) {
       if (!last_rx_packet.header()->is_init) { 
-    	  // Reject all packets packets until handshake.
+    	  // Reject all packets until handshake. This ensures that any old ACKs or continuation in
+        // the other end's serial output byte buffer won't be processed, as they could have a
+        // valid sequence number.
         return false;
       }
       if (last_rx_packet.header()->is_ack &&
@@ -437,6 +497,19 @@ Serial.printf("Got handshake ACK.\n");
         // The other end replied to a handshake, and it is the one we last started.
         self.handshake_done_ = true;
       }
+    }
+
+    if (last_rx_packet.header()->is_init && !last_rx_packet.header()->is_ack) {
+Serial.printf("Got handshake request.\n");
+      // Handshake request: any state tied to the other end's state before reset is invalid:
+      // - Packets from the other end, received or in progress.
+      // - ACKs and continuations from this end, unless it's an ACK for the handshake in progress.
+      self.ResetSession(last_rx_packet);
+
+      // The session was reset, so there should always be space in the output queue at the 
+      // ACK's priority, if the handshake is at the highest priority.
+      assert(self.ScheduleACKWithThrottling(last_rx_packet));
+      return false;
     }
 
     if (last_rx_packet.header()->is_ack) {
@@ -462,34 +535,8 @@ Serial.printf("Got handshake ACK.\n");
     // It's a data packet: reply with ACK if there is no ACK in the output buffer already,
     // to avoid flooding the buffer and blocking the sender for this priority and lower.
     if (last_rx_packet.header()->requires_ack) {
-      // ACKs always have a priority one level higher to avoid deadlocks.
-      P2PPriority ack_priority = last_rx_packet.header()->priority - 1;
-      bool ack_found = false;
-      for (int i = 0; i < self.output_.packet_buffer_.Size(ack_priority); ++i) {
-        const P2PPacket *maybe_ack_packet = self.output_.packet_buffer_.OldestValue(ack_priority, i);
-        assert(maybe_ack_packet != NULL);
-        if (maybe_ack_packet->sequence_number() == last_rx_packet.sequence_number()) {
-          ack_found = true;
-          break;
-        }
-      }      
-      if (!ack_found) {
-        StatusOr<P2PMutablePacketView> ack_packet_view = self.output_.NewPacket(ack_priority);
-        if (!ack_packet_view.ok()) {
-          // Only commit the packet if there is space for the ACK in the output stream.
-          // Let the other end keep retransmitting until there's space for the ACK.
-          return false;
-        }
-        P2PPacket *ack = ack_packet_view->packet();
-        ack->header()->is_ack = 1;
-        ack->header()->is_init = last_rx_packet.header()->is_init;
-        self.output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/last_rx_packet.sequence_number());
-      }
 
-      if (last_rx_packet.header()->is_init && !last_rx_packet.header()->is_ack) {
-Serial.printf("Got handshake request.\n");
-        // Handshake packet: all packets received previously in the queue or pending are invalid.
-        self.ResetInput();
+      if (!self.ScheduleACKWithThrottling(last_rx_packet)) {
         return false;
       }
 
