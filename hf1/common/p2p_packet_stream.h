@@ -423,8 +423,7 @@ protected:
     }    
   }
 
-  void ResetSession(const P2PPacket &handshake_request) {
-    ResetInput();
+  void ResetOutputSession(const P2PPacket &handshake_request) {
     // Purge ACKs in output buffer (except for those of the ongoing handshake).
     for (int p = 0; p < P2PPriority::kNumLevels; ++p) {
       // Cache packets to copy because Size() could change within the loop.
@@ -504,9 +503,11 @@ Serial.printf("Got handshake ACK.\n");
     if (last_rx_packet.header()->is_init && !last_rx_packet.header()->is_ack) {
 Serial.printf("Got handshake request.\n");
       // Handshake request: any state tied to the other end's state before reset is invalid:
-      // - Packets from the other end, received or in progress.
-      // - ACKs and continuations from this end, unless it's an ACK for the handshake in progress.
-      self.ResetSession(last_rx_packet);
+      // a) Packets from the other end, received or in progress.
+      // b) ACKs and continuations from this end, unless it's an ACK for the handshake in progress.
+      // We can do (a) right here because we just received a full packet and state variables may be
+      // dicarded, but we must wait until the end of the sender's packet in progress to do (b).
+      self.ResetInput();
 
       // The session was reset, so there should always be space in the output queue at the 
       // ACK's priority, if the handshake is at the highest priority.
@@ -515,7 +516,7 @@ Serial.printf("Got handshake request.\n");
     }
 
     if (last_rx_packet.header()->is_ack) {
-      // Serial.printf("Got ACK %x %x %x\n", last_rx_packet.sequence_number().bytes[0], last_rx_packet.sequence_number().bytes[1], last_rx_packet.sequence_number().bytes[2]);
+      Serial.printf("Got ACK %x %x %x\n", last_rx_packet.sequence_number().bytes[0], last_rx_packet.sequence_number().bytes[1], last_rx_packet.sequence_number().bytes[2]);
       // We got an ACK: discard the retrainsmitting packet that originated it.
 
       // ACKs always have a priority one level higher to avoid deadlocks. Turn priority down one
@@ -524,10 +525,13 @@ Serial.printf("Got handshake request.\n");
 
       const P2PPacket *retransmitting_packet = self.output_.packet_buffer_.OldestValue(data_packet_priority);      
       // Check the retransmitting packet exists, as it could have been consumed already by a
-      // previous ACK.
+      // previous ACK.      
       if (retransmitting_packet != NULL && retransmitting_packet->header()->requires_ack &&
           last_rx_packet.sequence_number() == retransmitting_packet->sequence_number()) {
         self.output_.packet_buffer_.Consume(data_packet_priority);
+      } else {
+        Serial.println("no consume");
+        // Serial.printf("No consume: %p %d (%x %x %x)==(%x %x %x)", retransmitting_packet, retransmitting_packet->header()->requires_ack, last_rx_packet.sequence_number().bytes[0], last_rx_packet.sequence_number().bytes[1], last_rx_packet.sequence_number().bytes[2], retransmitting_packet->sequence_number().bytes[0], retransmitting_packet->sequence_number().bytes[1], retransmitting_packet->sequence_number().bytes[2]);
       }
 
       // Do not expose an ACK in the API.
@@ -538,7 +542,11 @@ Serial.printf("Got handshake request.\n");
     // to avoid flooding the buffer and blocking the sender for this priority and lower.
     if (last_rx_packet.header()->requires_ack) {
 
+        Serial.println("scheduling ack");
       if (!self.ScheduleACKWithThrottling(last_rx_packet)) {
+        Serial.println("can't schedule ack");
+        // No space for the ACK packet: let the other end retransmit until we can guarantee the
+        // ACK is sent.
         return false;
       }
 
@@ -556,6 +564,12 @@ Serial.printf("Got handshake request.\n");
   }
 
   static bool ShouldConsumeOutputPacket(const P2PPacket &last_tx_packet, void *self_ptr) {
+    P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
+    if (last_tx_packet.header()->is_init && last_tx_packet.header()->is_ack) {
+      // The handshake ACK was just sent. We may now reset the output session without
+      // having to update the packet-scope state variables.
+      self.ResetOutputSession(last_tx_packet);
+    }
     // Packets requiring an ACK are left in the queue for retransmission.
     return !last_tx_packet.header()->requires_ack;
   }
