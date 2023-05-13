@@ -446,7 +446,7 @@ protected:
       if (packet != NULL && packet->header()->is_continuation) {
         packet->header()->is_continuation = 0;
         assert(output_.total_packet_bytes_[p] != -1);
-        packet->length() = output_.total_packet_bytes_[p];
+        packet->length() = LocalToNetwork<LocalEndianness>(output_.total_packet_bytes_[p] - sizeof(P2PHeader) - sizeof(P2PFooter));
       }
     }
   }
