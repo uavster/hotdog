@@ -494,14 +494,12 @@ protected:
       }
       if (last_rx_packet.header()->is_ack &&
       last_rx_packet.sequence_number() == self.handshake_id_) {
-Serial.printf("Got handshake ACK.\n");
         // The other end replied to a handshake, and it is the one we last started.
         self.handshake_done_ = true;
       }
     }
 
     if (last_rx_packet.header()->is_init && !last_rx_packet.header()->is_ack) {
-Serial.printf("Got handshake request.\n");
       // Handshake request: any state tied to the other end's state before reset is invalid:
       // a) Packets from the other end, received or in progress.
       // b) ACKs and continuations from this end, unless it's an ACK for the handshake in progress.
@@ -516,7 +514,6 @@ Serial.printf("Got handshake request.\n");
     }
 
     if (last_rx_packet.header()->is_ack) {
-      Serial.printf("Got ACK %x %x %x\n", last_rx_packet.sequence_number().bytes[0], last_rx_packet.sequence_number().bytes[1], last_rx_packet.sequence_number().bytes[2]);
       // We got an ACK: discard the retrainsmitting packet that originated it.
 
       // ACKs always have a priority one level higher to avoid deadlocks. Turn priority down one
@@ -529,9 +526,6 @@ Serial.printf("Got handshake request.\n");
       if (retransmitting_packet != NULL && retransmitting_packet->header()->requires_ack &&
           last_rx_packet.sequence_number() == retransmitting_packet->sequence_number()) {
         self.output_.packet_buffer_.Consume(data_packet_priority);
-      } else {
-        Serial.println("no consume");
-        // Serial.printf("No consume: %p %d (%x %x %x)==(%x %x %x)", retransmitting_packet, retransmitting_packet->header()->requires_ack, last_rx_packet.sequence_number().bytes[0], last_rx_packet.sequence_number().bytes[1], last_rx_packet.sequence_number().bytes[2], retransmitting_packet->sequence_number().bytes[0], retransmitting_packet->sequence_number().bytes[1], retransmitting_packet->sequence_number().bytes[2]);
       }
 
       // Do not expose an ACK in the API.
@@ -542,9 +536,7 @@ Serial.printf("Got handshake request.\n");
     // to avoid flooding the buffer and blocking the sender for this priority and lower.
     if (last_rx_packet.header()->requires_ack) {
 
-        Serial.println("scheduling ack");
       if (!self.ScheduleACKWithThrottling(last_rx_packet)) {
-        Serial.println("can't schedule ack");
         // No space for the ACK packet: let the other end retransmit until we can guarantee the
         // ACK is sent.
         return false;
