@@ -449,6 +449,8 @@ protected:
         packet->length() = LocalToNetwork<LocalEndianness>(output_.total_packet_bytes_[p] - sizeof(P2PHeader) - sizeof(P2PFooter));
       }
     }
+
+    output_.state_ = P2PPacketOutputStream<kOutputCapacity, LocalEndianness>::kGettingNextPacket;
   }
 
   // Returns false if the ACK packet was to be scheduled, but there was not space in the output
