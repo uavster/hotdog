@@ -22,13 +22,11 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           // there.
           if (incoming_header_.priority >= P2PPriority::kNumLevels) {
             // Invalid priority level.
-            //Serial.println("invalid priority.");
             state_ = kWaitingForPacket;
             break;
           }
           P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
           if (!incoming_header_.is_continuation) {
-            //Serial.println("New packet.");
             for (unsigned int i = 0; i < sizeof(P2PHeader); ++i) {
               reinterpret_cast<uint8_t *>(&packet)[i] = reinterpret_cast<uint8_t *>(&incoming_header_)[i];
             }
@@ -37,7 +35,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             write_offset_before_break_[incoming_header_.priority] = 0;
             current_field_read_bytes_ = 0;
           } else {
-            //Serial.println("Packet continuation.");
             // The length field for a packet continuation is the remaining length.
             int remaining_length = NetworkToLocal<LocalEndianness>(incoming_header_.length);
             if (incoming_header_.sequence_number != packet.sequence_number() || 
@@ -46,7 +43,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
               // continuation offset is not where we left off (could be a continuation from a
               // different retransmission). There must have been a link interruption: reset the
               // state machine.
-              //Serial.println("bad continuation");
               state_ = kWaitingForPacket;
               break;
             }
@@ -68,12 +64,10 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           state_ = kReadingHeader;
           incoming_header_.start_token = kP2PStartToken;
           current_field_read_bytes_ = 1;
-          //Serial.println("new packet when reading header");
           break;
         }
         if (*current_byte == kP2PSpecialToken) {
           // Malformed packet.
-          //Serial.println("malformed packet when reading header");
           state_ = kWaitingForPacket;
         }
         break;
@@ -95,7 +89,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         current_field_read_bytes_ += read_bytes;
         if (*next_content_byte == kP2PStartToken) {
           if (current_field_read_bytes_ < packet.length()) {
-          //Serial.println("new start token when reading content");
             // It could be a start token, if the next byte is not a special token.
             state_ = kDisambiguatingStartTokenInContent;
           } else {
@@ -103,7 +96,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
             // it could either be a malformed packet or a new packet start. Assume the other
             // end will form correct packets. The start token may then be due to a new packet
             // after a link interruption, or a packet with higher priority.
-          //Serial.println("new packet when reading content");
             write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_ - 1;
             state_ = kReadingHeader;
             incoming_header_.start_token = kP2PStartToken;
@@ -126,20 +118,17 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         current_field_read_bytes_ += read_bytes;
         if (*next_content_byte == kP2PSpecialToken) {
           // Not a start token, but a content byte.
-          //Serial.println("start token was a content byte");
           state_ = kReadingContent;
         } else {
           if (*next_content_byte == kP2PStartToken) {
             // Either a malformed packet, or a new packet after link reestablished, or a
             // higher priority packet.
             // Assume well designed transmitter and try the latter.
-          //Serial.println("new packet after start token when reading content");
             write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_ - 1;
             state_ = kReadingHeader;
             incoming_header_.start_token = kP2PStartToken;
             current_field_read_bytes_ = 1;
           } else {
-          //Serial.println("start token was a new packet");
             // Must be a start token. Restart the state to re-synchronize with minimal latency.
             write_offset_before_break_[incoming_header_.priority] = current_field_read_bytes_ - 2;
             state_ = kReadingHeader;
@@ -167,7 +156,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
 
         if (*current_byte == kP2PStartToken) {
           // New packet after interrupts, as no priority takeover is allowed mid-footer.
-          //Serial.println("new packet when reading footer");
           write_offset_before_break_[incoming_header_.priority] = packet.length();
           state_ = kReadingHeader;
           incoming_header_.start_token = kP2PStartToken;
@@ -176,7 +164,6 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         }
         if (*current_byte == kP2PSpecialToken) {
           // Malformed packet.
-          //Serial.println("malformed packet when reading footer");
           state_ = kWaitingForPacket;
         }
 
@@ -217,11 +204,6 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           assert(total_packet_bytes_[priority] >= 0);
         }
         pending_packet_bytes_ = sizeof(P2PHeader);
-
-        // for (int i = 0; i < total_packet_bytes_[priority]; ++i) {
-          //Serial.printf("%x ", reinterpret_cast<uint8_t *>(current_packet_->header())[i]);
-        // }
-        //Serial.printf("\n");
 
         state_ = kSendingHeaderBurst;
         total_burst_bytes_ = std::min(pending_packet_bytes_, byte_stream_.GetBurstMaxLength());
@@ -312,7 +294,6 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
             }
           }
 
-          // Serial.printf("Sent packet %x %x %x\n", current_packet_->sequence_number().bytes[0], current_packet_->sequence_number().bytes[1], current_packet_->sequence_number().bytes[2]);
           if (packet_filter_ == NULL || packet_filter_(*current_packet_, packet_filter_arg_)) {
             packet_buffer_.Consume(current_packet_->header()->priority);
           }
