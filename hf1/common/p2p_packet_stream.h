@@ -450,7 +450,7 @@ protected:
       }
     }
 
-    output_.state_ = P2PPacketOutputStream<kOutputCapacity, LocalEndianness>::kGettingNextPacket;
+//    output_.state_ = P2PPacketOutputStream<kOutputCapacity, LocalEndianness>::kGettingNextPacket;
   }
 
   // Returns false if the ACK packet was to be scheduled, but there was not space in the output
