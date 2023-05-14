@@ -509,7 +509,8 @@ protected:
 
       // The session was reset, so there should always be space in the output queue at the 
       // ACK's priority, if the handshake is at the highest priority.
-      assert(self.ScheduleACKWithThrottling(last_rx_packet));
+      const bool ack_ok = self.ScheduleACKWithThrottling(last_rx_packet);
+      assert(ack_ok);
       return false;
     }
 
