@@ -44,7 +44,6 @@ static void CleanUp() {
 }
 
 int main() {
-	ASSERTM(false, "hello lelou");
 	signal(SIGTERM, &ExitHandler);
 	signal(SIGINT, &ExitHandler);
 
