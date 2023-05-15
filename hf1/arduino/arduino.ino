@@ -1,7 +1,7 @@
 #define kEventRingBufferCapacity 256
 
-const int ledPin = 13;
-uint8_t led_on = 1;
+// const int ledPin = 13;
+// uint8_t led_on = 1;
 
 #include "robot_state.h"
 #include "utils.h"
@@ -12,6 +12,9 @@ uint8_t led_on = 1;
 #include "encoders.h"
 #include "timer_arduino.h"
 #include "guid_factory.h"
+#include "logger.h"
+
+Logger logger;
 
 // #include <SPI.h>
 
@@ -34,16 +37,16 @@ RingBuffer<Event, kEventRingBufferCapacity> event_buffer;
 
 void LeftEncoderIsr(uint32_t timer_ticks) {
   // Toggle LED
-  digitalWrite(ledPin, led_on);
-  led_on = (led_on + 1) & 1;
+  // digitalWrite(ledPin, led_on);
+  // led_on = (led_on + 1) & 1;
   // We have exclusive access to the event buffer while in the ISR.
   event_buffer.Write(Event{ .type = kLeftWheelTick, .ticks = timer_ticks });
 }
 
 void RightEncoderIsr(uint32_t timer_ticks) {
     // Toggle LED
-    digitalWrite(ledPin, led_on);
-    led_on = (led_on + 1) & 1;
+    // digitalWrite(ledPin, led_on);
+    // led_on = (led_on + 1) & 1;
     // We have exclusive access to the event buffer while in the ISR.
     event_buffer.Write(Event{ .type = kRightWheelTick, .ticks = timer_ticks });
 }
@@ -70,8 +73,10 @@ void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
   Serial.begin(115200);
 
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, 1);
+  // pinMode(ledPin, OUTPUT);
+  // digitalWrite(ledPin, 1);
+
+  *logger.base_logger() = SetLogger(&logger);
 
   InitTimer();
 
