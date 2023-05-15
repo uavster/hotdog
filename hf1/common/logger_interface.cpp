@@ -2,6 +2,7 @@
 #ifdef ARDUINO
 #include <Arduino.h>
 #else
+#include <cstdlib>
 #include <stdio.h>
 #endif
 
@@ -22,7 +23,7 @@ void DefaultLogger::Fatal(const char *expr, const char *file_name, int line, con
   }
   for (;;) {}
 #else
-  printf("%s is false at line %d of file %s: %s\n", expr, line, file_name, msg);
+  printf("%s is false at line %d of file %s", expr, line, file_name);
   if (msg != nullptr) {
     printf(":\n%s\n", msg);
   }
