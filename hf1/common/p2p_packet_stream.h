@@ -8,12 +8,7 @@
 #include "status_or.h"
 #include "timer_interface.h"
 #include "guid_factory_interface.h"
-#ifdef ARDUINO
-#include <DebugLog.h>
-#define assert ASSERT
-#else
-#include <assert.h>
-#endif
+#include "logger_interface.h"
 
 class P2PPriority {
 public:
@@ -22,7 +17,7 @@ public:
   P2PPriority(Level level) : level_(level) {}  
 
   P2PPriority(int numeric_priority) : level_(static_cast<Level>(numeric_priority)) {
-    assert(level_ < kNumLevels);
+    ASSERT(level_ < kNumLevels);
   }
   virtual operator int() const { return static_cast<int>(level_); }
 
@@ -101,20 +96,20 @@ public:
   P2PMutablePacketView() : P2PMutablePacketView(NULL) {}
 
   uint8_t length() const { 
-    assert(packet_ != NULL);
+    ASSERT(packet_ != NULL);
     return packet_->length();
   }
   uint8_t &length() { 
-    assert(packet_ != NULL);
+    ASSERT(packet_ != NULL);
     return packet_->length();
   }
 
   const uint8_t *content() const { 
-    assert(packet_ != NULL);
+    ASSERT(packet_ != NULL);
     return packet_->content();
   }
   uint8_t *content() { 
-    assert(packet_ != NULL);
+    ASSERT(packet_ != NULL);
     return packet_->content();
   }
 
@@ -134,11 +129,11 @@ public:
   P2PPacketView() : P2PPacketView(NULL) {}
 
   uint8_t length() const { 
-    assert(packet_ != NULL);
+    ASSERT(packet_ != NULL);
     return packet_->length();
   }
   const uint8_t *content() const {
-    assert(packet_ != NULL);
+    ASSERT(packet_ != NULL);
     return packet_->content();
   }
   int priority() const {
@@ -407,7 +402,7 @@ public:
       // Schedule handshake packet. The handshake reply is a regular ACK with is_init.
       P2PPriority init_priority = P2PPriority::kHigh;
       StatusOr<P2PMutablePacketView> init_packet_view = output_.NewPacket(init_priority);
-      assert(init_packet_view.ok());
+      ASSERT(init_packet_view.ok());
       init_packet_view->packet()->header()->is_init = 1;
       output_.Commit(init_priority, /*guaranteed_delivery=*/true, /*seq_number=*/handshake_id_);
     }
@@ -444,7 +439,7 @@ protected:
       P2PPacket *packet = output_.packet_buffer_.OldestValue(p);
       if (packet != NULL && packet->header()->is_continuation) {
         packet->header()->is_continuation = 0;
-        assert(output_.total_packet_bytes_[p] != -1);
+        ASSERT(output_.total_packet_bytes_[p] != -1);
         packet->length() = LocalToNetwork<LocalEndianness>(output_.total_packet_bytes_[p] - sizeof(P2PHeader) - sizeof(P2PFooter));
       }
     }
@@ -461,7 +456,7 @@ protected:
     bool ack_found = false;
     for (int i = 0; i < output_.packet_buffer_.Size(ack_priority); ++i) {
       const P2PPacket *maybe_ack_packet = output_.packet_buffer_.OldestValue(ack_priority, i);
-      assert(maybe_ack_packet != NULL);
+      ASSERT(maybe_ack_packet != NULL);
       if (maybe_ack_packet->sequence_number() == packet.sequence_number()) {
         ack_found = true;
         break;
@@ -510,7 +505,7 @@ protected:
       // The session was reset, so there should always be space in the output queue at the 
       // ACK's priority, if the handshake is at the highest priority.
       const bool ack_ok = self.ScheduleACKWithThrottling(last_rx_packet);
-      assert(ack_ok);
+      ASSERT(ack_ok);
       return false;
     }
 

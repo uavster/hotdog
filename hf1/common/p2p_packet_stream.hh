@@ -201,7 +201,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
           total_packet_bytes_[priority] = sizeof(P2PHeader) + NetworkToLocal<LocalEndianness>(current_packet_->length()) + sizeof(P2PFooter);
         } else {
           // Continuation without a previous original packet is invalid.
-          assert(total_packet_bytes_[priority] >= 0);
+          ASSERT(total_packet_bytes_[priority] >= 0);
         }
         pending_packet_bytes_ = sizeof(P2PHeader);
 
