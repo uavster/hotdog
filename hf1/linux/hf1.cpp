@@ -19,6 +19,7 @@
 
 #include "timer_linux.h"
 #include "guid_factory.h"
+#include "logger_interface.h"
 
 #define kSerialPath "/dev/ttyTHS1"
 //#define kBaudRate B115200
@@ -43,6 +44,7 @@ static void CleanUp() {
 }
 
 int main() {
+	ASSERTM(false, "hello lelou");
 	signal(SIGTERM, &ExitHandler);
 	signal(SIGINT, &ExitHandler);
 
@@ -155,7 +157,7 @@ int main() {
 					}
         				*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
         				current_packet_view->length() = len; //sizeof(uint8_t);
-        				assert(p2p_stream.output().Commit(priority, /*guarantee_delivery=*/false));
+        				ASSERT(p2p_stream.output().Commit(priority, /*guarantee_delivery=*/false));
 					++sent_packets[priority];
 					++len;
 					if (len == 0xa9) { len = 1; }
