@@ -15,6 +15,7 @@ void InitMotors() {
   FTM1_COMBINE = 0;
   // CH1IE = 0 (interrupt disabled), MS1B:MS0A = 2 and ELS1B:ELS1A = 2 (high-true pulses)
   FTM1_C0SC = FTM_CSC_MSB | FTM_CSC_ELSB;
+  FTM1_C1SC = FTM_CSC_MSB | FTM_CSC_ELSB;
 
   FTM1_CNTIN = 0;
 
