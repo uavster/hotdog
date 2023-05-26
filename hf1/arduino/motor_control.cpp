@@ -6,24 +6,23 @@
 
 void InitMotors() {
   FTM1_SC = 0;
-  FTM1_CNT = 0;
-  FTM1_MOD = kPWMPeriodTicks - 1;
-  FTM1_SC = FTM_SC_CLKS(1) | FTM_SC_PS(5);  // CPWMS=0, CLKS=System clock, PS=Divide clock by 32
-  // Set edge-aligned PWM
   // Enable with QUADEN=0, DECAPEN=0, COMBINE=0, CPWMS=0, MSnB=1
   FTM1_QDCTRL = 0;
   FTM1_COMBINE = 0;
+  FTM1_MOD = kPWMPeriodTicks - 1;
+  FTM1_CNTIN = 0;
+  FTM1_CNT = 0;
+  FTM1_SC = FTM_SC_CLKS(1) | FTM_SC_PS(5);  // CPWMS=0, CLKS=System clock, PS=Divide clock by 32
+  // Set edge-aligned PWM.
   // CH1IE = 0 (interrupt disabled), MS1B:MS0A = 2 and ELS1B:ELS1A = 2 (high-true pulses)
   FTM1_C0SC = FTM_CSC_MSB | FTM_CSC_ELSB;
   FTM1_C1SC = FTM_CSC_MSB | FTM_CSC_ELSB;
-
-  FTM1_CNTIN = 0;
 
   SetLeftMotorDutyCycle(0);
   SetRightMotorDutyCycle(0);
 }
 
-void SetLeftMotorDutyCycle(float s) {
+void SetRightMotorDutyCycle(float s) {
   if (s > 0) {
     pinMode(4, OUTPUT);
     digitalWrite(4, 0);
@@ -45,7 +44,7 @@ void SetLeftMotorDutyCycle(float s) {
   }
 }
 
-void SetRightMotorDutyCycle(float s) {
+void SetLeftMotorDutyCycle(float s) {
   if (s > 0) {
     pinMode(16, OUTPUT);
     digitalWrite(16, 0);
