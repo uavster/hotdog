@@ -1,3 +1,6 @@
+#ifndef STATUS_OR_INCLUDED_
+#define STATUS_OR_INCLUDED_
+
 enum Status {
   kSuccess, kUnavailableError
 };
@@ -16,3 +19,5 @@ private:
   Status status_;
   ValueType value_;
 };
+
+#endif  // STATUS_OR_INCLUDED_
