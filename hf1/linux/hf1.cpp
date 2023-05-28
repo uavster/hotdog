@@ -21,6 +21,8 @@
 #include "guid_factory.h"
 #include "logger_interface.h"
 
+#include "time_sync_client.h"
+
 #define kSerialPath "/dev/ttyTHS1"
 //#define kBaudRate B115200
 //#define kBaudRate B2000000
@@ -47,6 +49,7 @@ int main() {
 	signal(SIGTERM, &ExitHandler);
 	signal(SIGINT, &ExitHandler);
 
+	TimeSyncClient time_sync_client;
 
 	std::cout << "Opening serial port" << std::endl;
 
@@ -111,7 +114,7 @@ int main() {
 	while(doLoop) {
 
 		auto now = std::chrono::system_clock::now();
-                std::chrono::duration<double, std::chrono::seconds::period> elapsed_seconds = now-start;
+        std::chrono::duration<double, std::chrono::seconds::period> elapsed_seconds = now - start;
 
 		struct pollfd serial_poll;
         	serial_poll.fd = serial_fd;

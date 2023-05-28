@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.4)
+find_package(JetsonGPIO)
 include_directories(${HF1_SOURCE_DIR}/common)
 link_directories(${HF1_SOURCE_DIR}/common)
-add_executable(hf1 hf1.cpp p2p_byte_stream_linux.cpp guid_factory.cpp)
-target_link_libraries(hf1 common)
+add_executable(hf1 hf1.cpp p2p_byte_stream_linux.cpp guid_factory.cpp time_sync_client.cpp)
+target_link_libraries(hf1 common JetsonGPIO::JetsonGPIO)
