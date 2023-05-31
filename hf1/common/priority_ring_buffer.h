@@ -1,3 +1,6 @@
+#ifndef PRIORITY_RING_BUFFER_
+#define PRIORITY_RING_BUFFER_
+
 #include "ring_buffer.h"
 
 template<typename ValueType, int kCapacity, typename PriorityType> class PriorityRingBuffer {
@@ -62,3 +65,5 @@ public:
 private:
   RingBuffer<ValueType, kCapacity> buffer_[PriorityType::kNumLevels];
 };
+
+#endif  // PRIORITY_RING_BUFFER_
