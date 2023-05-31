@@ -2,6 +2,9 @@
 // 
 // The Each pair of 
 
+#ifndef P2P_PACKET_STREAM_
+#define P2P_PACKET_STREAM_
+
 #include "p2p_packet_protocol.h"
 #include "p2p_byte_stream_interface.h"
 #include "priority_ring_buffer.h"
@@ -267,8 +270,8 @@ public:
   void Reset();
 
   // Returns a view to a new packet with `priority` in the stream, or kUnavailableError if no
-  // space is available in the stream for the given priority. Commit() must be called for the
-  // packet to be finalized.
+  // space is available in the stream for the given priority. Commit() must be called with the
+  // for the same `priority` for the packet to be finalized.
   StatusOr<P2PMutablePacketView> NewPacket(P2PPriority priority);
 
   // Commits changes to the new packet. Must be called for the packet to be sent.
@@ -381,3 +384,5 @@ private:
 };
 
 #include "p2p_packet_stream.hh"
+
+#endif  // P2P_PACKET_STREAM_

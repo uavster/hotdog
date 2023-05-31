@@ -8,7 +8,7 @@ class TimerLinux : public TimerInterface {
 public:
   TimerLinux() : start_time_(GetEpochNanoseconds()) {}
 
-  virtual uint64_t GetSystemNanoseconds() const {
+  virtual uint64_t GetLocalNanoseconds() const {
     return GetEpochNanoseconds() - start_time_;
   }
 

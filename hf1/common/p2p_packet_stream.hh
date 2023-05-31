@@ -16,7 +16,7 @@ StatusOr<const P2PPacketView> P2PPacketInputStream<kCapacity, LocalEndianness>::
     return Status::kUnavailableError;
   }
   if (packet->commit_time_ns() != -1ULL) {
-    uint64_t delay_ns = timer_.GetSystemNanoseconds() - packet->commit_time_ns();
+    uint64_t delay_ns = timer_.GetLocalNanoseconds() - packet->commit_time_ns();
     ++stats_.total_packets_[packet->header()->priority];
     stats_.total_packet_delay_ns_[packet->header()->priority] += delay_ns;
     stats_.total_packet_delay_per_byte_ns_[packet->header()->priority] += delay_ns / (sizeof(P2PHeader) + packet->length() + sizeof(P2PFooter));
@@ -67,7 +67,7 @@ bool P2PPacketOutputStream<kCapacity, LocalEndianness>::Commit(P2PPriority prior
   packet.checksum() = LocalToNetwork<LocalEndianness>(packet.checksum());
   packet.length() = LocalToNetwork<LocalEndianness>(packet.length());
 
-  packet.commit_time_ns() = timer_.GetSystemNanoseconds();
+  packet.commit_time_ns() = timer_.GetLocalNanoseconds();
   packet_buffer_.Commit(priority);
 
   if (seq_number == -1ULL) {
@@ -248,7 +248,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
           if (packet.PrepareToRead()) {
             if (packet_filter_ == NULL || packet_filter_(packet, packet_filter_arg_)) {
-              packet.commit_time_ns() = timer_.GetSystemNanoseconds();
+              packet.commit_time_ns() = timer_.GetLocalNanoseconds();
               packet_buffer_.Commit(incoming_header_.priority);
             }
           }
@@ -294,7 +294,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
       pending_packet_bytes_ -= written_bytes;
       pending_burst_bytes_ -= written_bytes;
 
-      const uint64_t timestamp_ns = timer_.GetSystemNanoseconds();
+      const uint64_t timestamp_ns = timer_.GetLocalNanoseconds();
       if (pending_packet_bytes_ <= 0) { 
         after_burst_wait_end_timestamp_ns_ = timestamp_ns + total_burst_bytes_ * byte_stream_.GetBurstIngestionNanosecondsPerByte();
         state_ = kWaitingForHeaderBurstIngestion;
@@ -313,7 +313,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
 
     case kWaitingForHeaderBurstIngestion:
       {
-        const uint64_t timestamp_ns = timer_.GetSystemNanoseconds();
+        const uint64_t timestamp_ns = timer_.GetLocalNanoseconds();
         if (timestamp_ns < after_burst_wait_end_timestamp_ns_) {
           // Ingestion time not expired: keep waiting.
           time_until_next_event = after_burst_wait_end_timestamp_ns_ - timestamp_ns;
@@ -348,7 +348,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
         pending_packet_bytes_ -= written_bytes;
         pending_burst_bytes_ -= written_bytes;
 
-        const uint64_t timestamp_ns = timer_.GetSystemNanoseconds();
+        const uint64_t timestamp_ns = timer_.GetLocalNanoseconds();
         if (pending_packet_bytes_ <= 0) {
           if (!current_packet_->header()->is_init) {
             // is_init is filtered to avoid confusing all following packets with retransmissions,
@@ -403,7 +403,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
 
     case kWaitingForBurstIngestion:
       {
-        const uint64_t timestamp_ns = timer_.GetSystemNanoseconds();
+        const uint64_t timestamp_ns = timer_.GetLocalNanoseconds();
         if (timestamp_ns < after_burst_wait_end_timestamp_ns_) {
           // Ingestion time not expired: keep waiting.
           time_until_next_event = after_burst_wait_end_timestamp_ns_ - timestamp_ns;
@@ -426,7 +426,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
 
     case kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket:
       {
-        const uint64_t timestamp_ns = timer_.GetSystemNanoseconds();
+        const uint64_t timestamp_ns = timer_.GetLocalNanoseconds();
         if (timestamp_ns < after_burst_wait_end_timestamp_ns_) {
           // Ingestion time not expired: keep waiting.
           time_until_next_event = after_burst_wait_end_timestamp_ns_ - timestamp_ns;
