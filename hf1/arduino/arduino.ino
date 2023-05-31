@@ -1,18 +1,17 @@
 #define kEventRingBufferCapacity 256
 
-// const int ledPin = 13;
-// uint8_t led_on = 1;
-
 #include "robot_state.h"
 #include "utils.h"
 #include "p2p_byte_stream_arduino.h"
 #include "p2p_packet_stream.h"
 #include "motor_control.h"
+#include "servo_control.h"
 #include "timer.h"
 #include "encoders.h"
 #include "timer_arduino.h"
 #include "guid_factory.h"
 #include "logger.h"
+#include "body_imu.h"
 
 Logger logger;
 
@@ -36,19 +35,13 @@ typedef struct {
 RingBuffer<Event, kEventRingBufferCapacity> event_buffer;
 
 void LeftEncoderIsr(uint32_t timer_ticks) {
-  // Toggle LED
-  // digitalWrite(ledPin, led_on);
-  // led_on = (led_on + 1) & 1;
   // We have exclusive access to the event buffer while in the ISR.
   event_buffer.Write(Event{ .type = kLeftWheelTick, .ticks = timer_ticks });
 }
 
 void RightEncoderIsr(uint32_t timer_ticks) {
-    // Toggle LED
-    // digitalWrite(ledPin, led_on);
-    // led_on = (led_on + 1) & 1;
-    // We have exclusive access to the event buffer while in the ISR.
-    event_buffer.Write(Event{ .type = kRightWheelTick, .ticks = timer_ticks });
+  // We have exclusive access to the event buffer while in the ISR.
+  event_buffer.Write(Event{ .type = kRightWheelTick, .ticks = timer_ticks });
 }
 
 P2PByteStreamArduino byte_stream(&Serial1);
@@ -69,24 +62,29 @@ int last_received_packets[P2PPriority::kNumLevels];
 int last_sent_packets[P2PPriority::kNumLevels];
 int lost_packets[P2PPriority::kNumLevels];
 
+BodyIMU body_imu;
+
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
   Serial.begin(115200);
-
-  // pinMode(ledPin, OUTPUT);
-  // digitalWrite(ledPin, 1);
 
   *logger.base_logger() = SetLogger(&logger);
 
   InitTimer();
 
+  // Serial starts working after a second or so. Wait, so we don't miss any log.
+  while(GetTimerNanoseconds() < 1000000000ULL) {}
+
   InitEncoders();
   SetEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
+
+  body_imu.Init();
 
   // Serial1.addMemoryForRead(rx_buffer, 256);
   Serial1.begin(1000000, SERIAL_8N1);
 
   InitMotors();
+  InitServos();
 
   Serial.println("Started.");  
 
@@ -151,13 +149,14 @@ void setup() {
 enum { INIT,
        CIRCLING_LEFT,
        CIRCLING_RIGHT,
+       SLOW_DOWN,
        WAIT_FOR_INPUT,
        SEND_TRAJECTORY,
        DONE } state = INIT;
-int64_t cycles = 0;
+uint64_t last_timestamp_ns = 0;
 
-#define kWaitCycles 100
-#define kInnerDutyCycle 0.25
+#define kWaitSeconds 3
+#define kInnerDutyCycle 0.75
 
 RobotState robot_state;
 
@@ -180,8 +179,33 @@ StatusOr<P2PMutablePacketView> current_packet_view(kUnavailableError);
 
 TimerNanosType last_sent_packet_nanos = 0;
 
+uint64_t last_ns = 0;
+uint64_t last_head_ns = 0;
+
+enum {
+  LOOKING_FORWARD,
+  LOOKING_DOWN,
+  LOOKING_UP,
+  TILTING_HEAD,
+  HEAD_STOP
+} head_state = LOOKING_FORWARD;
+
 void loop() {
-  TimerNanosType now_ns = GetTimerNanoseconds();
+  // uint64_t now_ns = GetTimerNanoseconds();
+  // if (now_ns - last_ns >= 1000000000) {
+  //   char tmp[64];
+  //   Uint64ToString(now_ns, tmp);
+  //   Serial.println(tmp);
+  //   last_ns = now_ns;
+  // }
+
+  // return;
+
+  if (GetTimerNanoseconds() < 15000000000) {
+    last_head_ns = GetTimerNanoseconds();
+    return;
+  }
+/*  TimerNanosType now_ns = GetTimerNanoseconds();
 
   // Working values:
   // 9600 bps -> 230
@@ -200,7 +224,7 @@ void loop() {
       }
       *reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
       current_packet_view->length() = len; //sizeof(uint8_t);
-      ASSERT(p2p_stream.output().Commit(priority, /*guarantee_delivery=*/true));       
+      ASSERT(p2p_stream.output().Commit(priority, true));       
 
       ++sent_packets[priority];
       // ++len;
@@ -217,7 +241,7 @@ void loop() {
     }
     *reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
     current_packet_view->length() = len; //sizeof(uint8_t);
-    ASSERT(p2p_stream.output().Commit(priority, /*guarantee_delivery=*/false)); 
+    ASSERT(p2p_stream.output().Commit(priority, false)); 
     ++sent_packets[priority];
     // ++len;
     // if (len == 0xa9) { len = 1; }
@@ -265,26 +289,6 @@ void loop() {
     }
     last_msg_time_ns = now_ns;
   }
-  
-  /*
-  priority = P2PPriority::Level::kMedium;
-  if (current_packet_view.ok()) {
-    while (Serial.available() > 0) {
-      char c = Serial.read();
-      if (c == 0xa) {
-        p2p_output_stream.Commit(priority);
-        current_packet_view = StatusOr<P2PMutablePacketView>(kUnavailableError);
-      } else {
-        current_packet_view->content()[current_packet_view->length()] = c;
-        ++current_packet_view->length();
-      }
-    }
-  } else {
-    current_packet_view = p2p_output_stream.NewPacket(priority);
-    if (current_packet_view.ok()) {
-      current_packet_view->length() = 0;
-    }
-  }*/
 
   if (p2p_stream.input().OldestPacket().ok()) {
     // Serial.write(p2p_input_stream.OldestPacket()->content(), p2p_input_stream.OldestPacket()->length());
@@ -309,6 +313,7 @@ void loop() {
   p2p_stream.output().Run();
 
   return;
+  */
   /*
  if (SPI.pinIsChipSelect(2)) { Serial.println("2 is CS"); }
   else { Serial.println("2 is NOT CS");}
@@ -371,39 +376,96 @@ void loop() {
   t += 0.00005f;
 */
 
+
+  uint64_t now_ns = GetTimerNanoseconds();
+  float time_factor = kWaitSeconds / 3.0f;
+  float elapsed_time_head_s = time_factor * ((now_ns - last_head_ns) / 1e9f);
+  switch(head_state) {
+    case LOOKING_FORWARD:
+      SetHeadPitchDegrees(0);
+      SetHeadRollDegrees(0);
+      if (elapsed_time_head_s > 1 && elapsed_time_head_s < 1.6) {
+        head_state = LOOKING_DOWN;
+      }
+      if (elapsed_time_head_s > 2.3) {
+        head_state = LOOKING_DOWN;
+      }
+      break;
+    case LOOKING_DOWN:
+      SetHeadPitchDegrees(30);
+      if (elapsed_time_head_s > 1.6 && elapsed_time_head_s < 2.3) {
+        head_state = LOOKING_FORWARD;
+      }
+      if (elapsed_time_head_s >= 3) {
+        head_state = LOOKING_UP;
+      }
+      break;
+    case LOOKING_UP: {
+      float deg = -35.0f / kWaitSeconds * (elapsed_time_head_s - 3);
+      if (deg < -25) deg = -25;
+      SetHeadPitchDegrees(deg);
+      if (elapsed_time_head_s > 7) {
+        head_state = TILTING_HEAD;
+      }
+      break;
+    }
+    case TILTING_HEAD:
+      SetHeadRollDegrees(30);
+      if (elapsed_time_head_s > 8) {
+        head_state = HEAD_STOP;
+      }
+      break;
+    case HEAD_STOP:
+      SetHeadRollDegrees(0);
+      break;
+  }
+
   switch (state) {
     case INIT:
       SetLeftMotorDutyCycle(kInnerDutyCycle);
       SetRightMotorDutyCycle(1.0);
       // Disable the IRQ while writing to the event buffer to avoid a race.
-      NVIC_DISABLE_IRQ(IRQ_FTM0);
-      event_buffer.Write(Event{ .type = kInnerDutyCycle >= 0 ? kLeftWheelForwardCommand : kLeftWheelBackwardCommand, .ticks = GetTimerTicks() });
-      event_buffer.Write(Event{ .type = kRightWheelForwardCommand, .ticks = GetTimerTicks() });
-      NVIC_ENABLE_IRQ(IRQ_FTM0);
-      cycles = 0;
+      NO_TIMER_IRQ {
+        event_buffer.Write(Event{ .type = kInnerDutyCycle >= 0 ? kLeftWheelForwardCommand : kLeftWheelBackwardCommand, .ticks = GetTimerTicks() });
+        event_buffer.Write(Event{ .type = kRightWheelForwardCommand, .ticks = GetTimerTicks() });
+      }
+      last_timestamp_ns = GetTimerNanoseconds();
       state = CIRCLING_LEFT;
       break;
     case CIRCLING_LEFT:
-      if (cycles > kWaitCycles) {
+      if (now_ns - last_timestamp_ns > (kWaitSeconds * 1000000000ULL)) {
         SetLeftMotorDutyCycle(1.0);
         SetRightMotorDutyCycle(kInnerDutyCycle);
         // Disable the IRQ while writing to the event buffer to avoid a race.
-        NVIC_DISABLE_IRQ(IRQ_FTM0);
-        event_buffer.Write(Event{ .type = kLeftWheelForwardCommand, .ticks = GetTimerTicks() });
-        event_buffer.Write(Event{ .type = kInnerDutyCycle >= 0 ? kRightWheelForwardCommand : kRightWheelBackwardCommand, .ticks = GetTimerTicks() });
-        NVIC_ENABLE_IRQ(IRQ_FTM0);
-        cycles = 0;
+        NO_TIMER_IRQ {
+          event_buffer.Write(Event{ .type = kLeftWheelForwardCommand, .ticks = GetTimerTicks() });
+          event_buffer.Write(Event{ .type = kInnerDutyCycle >= 0 ? kRightWheelForwardCommand : kRightWheelBackwardCommand, .ticks = GetTimerTicks() });
+        }
+        last_timestamp_ns = now_ns;
         state = CIRCLING_RIGHT;
       }
       break;
     case CIRCLING_RIGHT:
-      if (cycles > kWaitCycles) {
+      if (now_ns - last_timestamp_ns > (kWaitSeconds * 0.8f * 1000000000ULL)) {
+        SetLeftMotorDutyCycle(1);
+        SetRightMotorDutyCycle(1);
+        last_timestamp_ns = now_ns;
+        state = SLOW_DOWN;
+      }
+      break;
+    case SLOW_DOWN: {
+      float dc = 1 - (now_ns - last_timestamp_ns)/1e9f;
+      if (dc < 0) dc = 0;
+      SetLeftMotorDutyCycle(dc);
+      SetRightMotorDutyCycle(dc);
+      if (now_ns - last_timestamp_ns > (kWaitSeconds * 0.8f * 1000000000ULL)) {
         SetLeftMotorDutyCycle(0);
         SetRightMotorDutyCycle(0);
-        cycles = 0;
+        last_timestamp_ns = now_ns;
         state = WAIT_FOR_INPUT;
       }
       break;
+    }
     case WAIT_FOR_INPUT:
       if (Serial.available() > 0 && Serial.read() == 'n') {
         state = SEND_TRAJECTORY;
@@ -428,11 +490,11 @@ void loop() {
     int left_ticks = 0;
     int right_ticks = 0;
     while (event_buffer.Size() > 0) {
-      ++cycles;
       // Disable the IRQ while reading from the event buffer to avoid a race.
-      NVIC_DISABLE_IRQ(IRQ_FTM0);
-      const Event event = event_buffer.Read();
-      NVIC_ENABLE_IRQ(IRQ_FTM0);
+      Event event;
+      NO_TIMER_IRQ {
+        event = event_buffer.Read();
+      }
       switch (event.type) {
         case kLeftWheelTick:
           ++left_ticks;
@@ -463,6 +525,6 @@ void loop() {
     }
   }
 
-  //  set_duty_cycle_left(1.0f);
-  //  set_duty_cycle_right(1.0f);
+  //  SetLeftMotorDutyCycle(1.0f);
+  //  SetRightMotorDutyCycle(1.0f);
 }
