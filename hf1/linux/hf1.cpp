@@ -29,6 +29,10 @@
 //#define kBaudRate B9600
 #define kBaudRate B1000000
 
+#define kP2PInputCapacity 4
+#define kP2POutputCapacity 1
+#define kP2PLocalEndianness kLittleEndian
+
 bool doLoop = true;
 int serial_fd = -1;
 
@@ -48,8 +52,6 @@ static void CleanUp() {
 int main() {
 	signal(SIGTERM, &ExitHandler);
 	signal(SIGINT, &ExitHandler);
-
-	TimeSyncClient time_sync_client;
 
 	std::cout << "Opening serial port" << std::endl;
 
@@ -91,7 +93,7 @@ int main() {
 	TimerLinux timer;
 	P2PByteStreamLinux byte_stream(serial_fd);
 	GUIDFactory guid_factory;
-	P2PPacketStream<4, 1, kLittleEndian> p2p_stream(&byte_stream, &timer, guid_factory);
+	P2PPacketStream<kP2PInputCapacity, kP2POutputCapacity, kP2PLocalEndianness> p2p_stream(&byte_stream, &timer, guid_factory);
 
 	int sent_packets[P2PPriority::kNumLevels];
 	int received_packets[P2PPriority::kNumLevels];
@@ -110,6 +112,10 @@ int main() {
     		last_sent_packets[i] = 0;
     		lost_packets[i] = 0;
 	}
+
+	// TODO: Define abstract interfaces in the P2P API so not everything has to be a template and drag the P2P parameters.
+	TimeSyncClient<kP2PInputCapacity, kP2POutputCapacity, kP2PLocalEndianness> time_sync_client(&p2p_stream, &timer);
+	time_sync_client.RequestTimeSync();
 
 	while(doLoop) {
 
@@ -208,6 +214,8 @@ int main() {
       				last_received_packets[i] = received_packets[i];
     			}
 		}
+
+		time_sync_client.Run();
 	}
 
 	CleanUp();
