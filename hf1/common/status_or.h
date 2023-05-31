@@ -12,6 +12,9 @@ public:
   
   ValueType *operator->() { return &value_; }
   ValueType &operator*() { return value_; }
+  
+  const ValueType *operator->() const { return &value_; }
+  const ValueType &operator*() const { return value_; }
 
   bool ok() const { return status_ == kSuccess; }
 
