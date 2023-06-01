@@ -14,11 +14,11 @@ typedef struct {
 } P2PApplicationPacketHeader;
 
 typedef struct {
-    PackedInteger<8, 256> sync_edge_local_timestamp_ns;
+    uint64_t sync_edge_local_timestamp_ns;
 } P2PTimeSyncRequestContent;
 
 typedef struct {
-    PackedInteger<8, 256> sync_edge_local_timestamp_ns;
+    uint64_t sync_edge_local_timestamp_ns;
 } P2PTimeSyncReplyContent;
 
 #pragma pack(pop)
