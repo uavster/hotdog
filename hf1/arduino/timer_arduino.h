@@ -6,7 +6,7 @@
 
 class TimerArduino : public TimerInterface {
 public:
-  virtual uint64_t GetSystemNanoseconds() const {
+  virtual uint64_t GetLocalNanoseconds() const {
     return ::GetTimerNanoseconds();
   }
 };
