@@ -77,6 +77,9 @@ public:
   uint64_t &commit_time_ns() { return commit_time_ns_; }
   uint64_t commit_time_ns() const { return commit_time_ns_; }
 
+  bool &counted_in_stats() { return counted_in_stats_; };
+  bool counted_in_stats() const { return counted_in_stats_; };
+
 protected:
   P2PChecksumType CalculateChecksum() const; 
 
@@ -92,6 +95,7 @@ private:
   // Attention: keep all metadata under data_ to not mess with data_'s alignment. Otherwise,
   // you may get lost packets. I have not been able to prevent that with compiler attributes so far.
   uint64_t commit_time_ns_;
+  bool counted_in_stats_;
 };
 
 // A mutable view to a packet's content.
@@ -147,9 +151,15 @@ public:
     return packet_->content();
   }
   int priority() const {
+    ASSERT(packet_ != NULL);
     return packet_->header()->priority;
   }
   bool is_valid() const { return packet_ != NULL; }
+
+  uint64_t reception_local_time_ns() const {
+    ASSERT(packet_ != NULL);
+    return packet_->commit_time_ns();
+  }
 
 private:
   const P2PPacket *packet() const {

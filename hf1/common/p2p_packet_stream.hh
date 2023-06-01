@@ -15,13 +15,13 @@ StatusOr<const P2PPacketView> P2PPacketInputStream<kCapacity, LocalEndianness>::
   if (packet == NULL) {
     return Status::kUnavailableError;
   }
-  if (packet->commit_time_ns() != -1ULL) {
+  if (!packet->counted_in_stats()) {
     uint64_t delay_ns = timer_.GetLocalNanoseconds() - packet->commit_time_ns();
     ++stats_.total_packets_[packet->header()->priority];
     stats_.total_packet_delay_ns_[packet->header()->priority] += delay_ns;
     stats_.total_packet_delay_per_byte_ns_[packet->header()->priority] += delay_ns / (sizeof(P2PHeader) + packet->length() + sizeof(P2PFooter));
     // Mute stats update as this function may be called multiple times for a packet.
-    packet->commit_time_ns() = -1ULL;
+    packet->counted_in_stats() = true;
   }
   return P2PPacketView(packet);
 }
@@ -67,6 +67,7 @@ bool P2PPacketOutputStream<kCapacity, LocalEndianness>::Commit(P2PPriority prior
   packet.checksum() = LocalToNetwork<LocalEndianness>(packet.checksum());
   packet.length() = LocalToNetwork<LocalEndianness>(packet.length());
 
+  packet.counted_in_stats() = false;
   packet.commit_time_ns() = timer_.GetLocalNanoseconds();
   packet_buffer_.Commit(priority);
 
@@ -248,6 +249,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
           if (packet.PrepareToRead()) {
             if (packet_filter_ == NULL || packet_filter_(packet, packet_filter_arg_)) {
+              packet.counted_in_stats() = false;
               packet.commit_time_ns() = timer_.GetLocalNanoseconds();
               packet_buffer_.Commit(incoming_header_.priority);
             }
