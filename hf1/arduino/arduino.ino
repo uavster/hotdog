@@ -12,6 +12,11 @@
 #include "guid_factory.h"
 #include "logger.h"
 #include "body_imu.h"
+#include "time_sync_server.h"
+
+#define kP2PInputCapacity 4
+#define kP2POutputCapacity 1
+#define kP2PLocalEndianness kLittleEndian
 
 Logger logger;
 
@@ -49,7 +54,8 @@ TimerArduino timer;
 GUIDFactory guid_factory;
 // P2PPacketInputStream<8, kLittleEndian> p2p_input_stream(&byte_stream, &timer);
 // P2PPacketOutputStream<1, kLittleEndian> p2p_output_stream(&byte_stream, &timer);
-P2PPacketStream<8, 1, kLittleEndian> p2p_stream(&byte_stream, &timer, guid_factory);
+P2PPacketStream<kP2PInputCapacity, kP2POutputCapacity, kP2PLocalEndianness> p2p_stream(&byte_stream, &timer, guid_factory);
+TimeSyncServer<kP2PInputCapacity, kP2POutputCapacity, kP2PLocalEndianness> time_sync_server(&p2p_stream, &timer);
 
 TimerNanosType last_msg_time_ns = 0;
 
@@ -99,6 +105,8 @@ void setup() {
     lost_packets[i] = 0;
   }
 
+  time_sync_server.Init();
+
   // UART0_S2 |= UART_S2_LBKDE;
   // Clear FE.
   // noInterrupts();
@@ -146,13 +154,13 @@ void setup() {
 
 //char format_buffer[32];
 
-enum { INIT,
-       CIRCLING_LEFT,
-       CIRCLING_RIGHT,
-       SLOW_DOWN,
-       WAIT_FOR_INPUT,
-       SEND_TRAJECTORY,
-       DONE } state = INIT;
+// enum { INIT,
+//        CIRCLING_LEFT,
+//        CIRCLING_RIGHT,
+//        SLOW_DOWN,
+//        WAIT_FOR_INPUT,
+//        SEND_TRAJECTORY,
+//        DONE } state = INIT;
 uint64_t last_timestamp_ns = 0;
 
 #define kWaitSeconds 3
@@ -182,13 +190,13 @@ TimerNanosType last_sent_packet_nanos = 0;
 uint64_t last_ns = 0;
 uint64_t last_head_ns = 0;
 
-enum {
-  LOOKING_FORWARD,
-  LOOKING_DOWN,
-  LOOKING_UP,
-  TILTING_HEAD,
-  HEAD_STOP
-} head_state = LOOKING_FORWARD;
+// enum {
+//   LOOKING_FORWARD,
+//   LOOKING_DOWN,
+//   LOOKING_UP,
+//   TILTING_HEAD,
+//   HEAD_STOP
+// } head_state = LOOKING_FORWARD;
 
 void loop() {
   // uint64_t now_ns = GetTimerNanoseconds();
@@ -201,10 +209,12 @@ void loop() {
 
   // return;
 
-  if (GetTimerNanoseconds() < 15000000000) {
-    last_head_ns = GetTimerNanoseconds();
-    return;
-  }
+  p2p_stream.input().Run();
+  p2p_stream.output().Run();
+  time_sync_server.Run();
+
+  return;
+
 /*  TimerNanosType now_ns = GetTimerNanoseconds();
 
   // Working values:
@@ -376,7 +386,7 @@ void loop() {
   t += 0.00005f;
 */
 
-
+/*
   uint64_t now_ns = GetTimerNanoseconds();
   float time_factor = kWaitSeconds / 3.0f;
   float elapsed_time_head_s = time_factor * ((now_ns - last_head_ns) / 1e9f);
@@ -523,7 +533,7 @@ void loop() {
       trajectory[cur_trajectory_point].angle = robot_state.Angle();
       ++cur_trajectory_point;
     }
-  }
+  }*/
 
   //  SetLeftMotorDutyCycle(1.0f);
   //  SetRightMotorDutyCycle(1.0f);
