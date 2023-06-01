@@ -1,3 +1,4 @@
+#include "kinetis.h"
 #define kTimeSyncServerInputPin 8 
 #define kTimeSyncPacketsPriority P2PPriority::kLow
 
@@ -58,11 +59,16 @@ Serial.println("Got sync edge");
       }
       ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + sizeof(P2PTimeSyncRequestContent));
 
+      // Disable the IRQ, as we should not get any other edge on the pin until after
+      // sending the reply. This should filter any spurious edges.
+      NVIC_DISABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
+      
       // By the time we get the request packet, we should have detected the sync signal.
       // Otherwise, we might have started after the other end generated it. In that case,
       // do not reply; the other end will time out and retry.
       if (last_edge_detect_local_timestamp_ns_ == -1ULL) {
         p2p_packet_stream_.input().Consume(kTimeSyncPacketsPriority);
+        NVIC_ENABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
         break;
       }
 
@@ -75,6 +81,7 @@ Serial.printf("edge_t:%s\n", tmp);
         // The packet was received before the sync signal was detected; must be a previous
         // sync attempt from the client: reject.
         p2p_packet_stream_.input().Consume(kTimeSyncPacketsPriority);
+        NVIC_ENABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
         break;
       }
 Serial.printf("len:%d\n", maybe_oldest_packet_view->length());
@@ -107,6 +114,11 @@ Serial.println("Updated global timer offset.");
 
       last_edge_detect_local_timestamp_ns_ = -1ULL;
       state_ = WAIT_FOR_TIME_SYNC_REQUEST;
+      // Clear any interrupt request that might not be current and reenable the IRQ,
+      // ready to detect a new edge.
+      uint32_t isfr = PORTD_ISFR;
+      PORTD_ISFR = isfr;
+      NVIC_ENABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
       break;
     }
   }
