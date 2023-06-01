@@ -33,6 +33,7 @@ private:
     uint64_t last_edge_detect_local_timestamp_ns_;
     uint64_t last_edge_estimated_local_timestamp_ns_;
     uint64_t last_edge_attempt_timestamp_ns_;
+    uint64_t request_sent_timestamp_ns_;
 };
 
 #include "time_sync_client.hh"

@@ -133,44 +133,37 @@ int main() {
 		} else if (retval != 0) {
 			if (serial_poll.revents & POLLIN) {
 				p2p_stream.input().Run();
-				if (p2p_stream.input().OldestPacket().ok()) {
-					/*
-					std::cout << "packet: ";
-					for (int i = 0; i < p2p_input_stream.OldestPacket()->length(); ++i) {
-						printf("%x ", p2p_input_stream.OldestPacket()->content()[i]);
-					}
-					std::cout << std::endl;
-					*/
-					P2PPriority priority = p2p_stream.input().OldestPacket()->priority();
-					++received_packets[priority];
-					if (last_received_packet_value[priority] >= 0) {
-						int diff = p2p_stream.input().OldestPacket()->content()[0] - last_received_packet_value[priority];
-						if (diff > 0) lost_packets[priority] += diff - 1;
-						else lost_packets[priority] += 256 + diff - 1;
-						//printf("new:%d old:%d ", p2p_input_stream.OldestPacket()->content()[0], last_received_packet_value[priority]);
-						//std::cout << "diff:"<<diff<<" p:"<<priority<<" lost:"<<lost_packets[priority] << std::endl;
-					}
-					last_received_packet_value[priority] = p2p_stream.input().OldestPacket()->content()[0];
-					p2p_stream.input().Consume(priority);
-				}
+				// if (p2p_stream.input().OldestPacket().ok()) {
+				// 	P2PPriority priority = p2p_stream.input().OldestPacket()->priority();
+				// 	++received_packets[priority];
+				// 	if (last_received_packet_value[priority] >= 0) {
+				// 		int diff = p2p_stream.input().OldestPacket()->content()[0] - last_received_packet_value[priority];
+				// 		if (diff > 0) lost_packets[priority] += diff - 1;
+				// 		else lost_packets[priority] += 256 + diff - 1;
+				// 		//printf("new:%d old:%d ", p2p_input_stream.OldestPacket()->content()[0], last_received_packet_value[priority]);
+				// 		//std::cout << "diff:"<<diff<<" p:"<<priority<<" lost:"<<lost_packets[priority] << std::endl;
+				// 	}
+				// 	last_received_packet_value[priority] = p2p_stream.input().OldestPacket()->content()[0];
+				// 	p2p_stream.input().Consume(priority);
+				// }
 			}
 
 			if (serial_poll.revents & POLLOUT) {
-				P2PPriority priority = P2PPriority::Level::kMedium;
-				StatusOr<P2PMutablePacketView> current_packet_view = p2p_stream.output().NewPacket(priority);
-    				if (current_packet_view.ok()) {
-					static int len = 1; //0xa8;
-					for (int i = 0; i < len; ++i) {
-						current_packet_view->content()[i] = 0;
-					}
-        				*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
-        				current_packet_view->length() = len; //sizeof(uint8_t);
-        				ASSERT(p2p_stream.output().Commit(priority, /*guarantee_delivery=*/false));
-					++sent_packets[priority];
-					++len;
-					if (len == 0xa9) { len = 1; }
-    				}
-				uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				// P2PPriority priority = P2PPriority::Level::kMedium;
+				// StatusOr<P2PMutablePacketView> current_packet_view = p2p_stream.output().NewPacket(priority);
+    			// 	if (current_packet_view.ok()) {
+				// 	static int len = 1; //0xa8;
+				// 	for (int i = 0; i < len; ++i) {
+				// 		current_packet_view->content()[i] = 0;
+				// 	}
+        		// 		*reinterpret_cast<uint8_t *>(current_packet_view->content()) = sent_packets[priority];
+        		// 		current_packet_view->length() = len; //sizeof(uint8_t);
+        		// 		ASSERT(p2p_stream.output().Commit(priority, /*guarantee_delivery=*/false));
+				// 	++sent_packets[priority];
+				// 	++len;
+				// 	if (len == 0xa9) { len = 1; }
+    			// 	}
+				// uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 				p2p_stream.output().Run();
 			}
 		}

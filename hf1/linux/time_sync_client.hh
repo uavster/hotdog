@@ -1,6 +1,6 @@
 #include "time_sync_client.h"
 #include <p2p_application_protocol.h>
-
+#include <network.h>
 #include <JetsonGPIO.h>
 
 #define kTimeSyncRequestPinNumber 33
@@ -22,6 +22,10 @@
 // Minimum time interval between consecutive sync signals. Consecutive signals will be generated while trying to meet
 // the kMaxSetDetectDurationNs constraint. 
 #define kMinTimeBetweenSyncEdges 1000000ULL
+
+// Maximum time to wait for a sync packet reply from the other end. If the wait times out, we assume the other end missed the
+// sync signal and we generate it again.
+#define kMaxTimeSyncReplyDelayNs 250000000ULL
 
 extern void *time_sync_client_singleton;
 
@@ -110,30 +114,43 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             auto maybe_new_packet = p2p_packet_stream_.output().NewPacket(kTimeSyncPacketsPriority);
             if (!maybe_new_packet.ok()) { break; }
 
-            // It is guaranteed that the rising edge will have been processed by the time the request is received.
+            // It is guaranteed that the rising edge will have been processed in the other end by the time the request is received.
             maybe_new_packet->length() = sizeof(P2PApplicationPacketHeader) + sizeof(P2PTimeSyncRequestContent);
+            std::cout << "len:" << (int)maybe_new_packet->length() << std::endl;
             reinterpret_cast<P2PApplicationPacketHeader *>(maybe_new_packet->content())->command = kP2PCommandTimeSyncRequest;
-            std::cout << "Packet" << std::endl;
             // The edge was received some time between setting the output pin and receiving the event from the loopback pin: use the mid-point.
             last_edge_estimated_local_timestamp_ns_ = (last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_) / 2;
-            reinterpret_cast<P2PTimeSyncRequestContent *>(maybe_new_packet->content()[sizeof(P2PApplicationPacketHeader)])->sync_edge_local_timestamp_ns = last_edge_estimated_local_timestamp_ns_;
-            std::cout << "Packet2" << std::endl;
+            reinterpret_cast<P2PTimeSyncRequestContent *>(&maybe_new_packet->content()[sizeof(P2PApplicationPacketHeader)])->sync_edge_local_timestamp_ns = LocalToNetwork<kLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
+            std::cout << "len2:" << (int)maybe_new_packet->length() << std::endl;
             p2p_packet_stream_.output().Commit(kTimeSyncPacketsPriority, /*guarantee_delivery=*/true);
+            request_sent_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
             state_ = WAIT_FOR_TIME_SYNC_REPLY;
             break;
         }
         
         case WAIT_FOR_TIME_SYNC_REPLY: {
-            std::cout << "WAIT_FOR_TIME_SYNC_REPLY" << std::endl;
+            // std::cout << "WAIT_FOR_TIME_SYNC_REPLY" << std::endl;
+
+            if (system_timer_.GetLocalNanoseconds() - request_sent_timestamp_ns_ > kMaxTimeSyncReplyDelayNs) { 
+                // The other end must have missed the sync signal (e.g. it started after this end): start over.
+                state_ = GENERATE_SYNC_EDGE;
+                break;
+            }
+
             // The other end should reply with the timestamp at which it detected the rising edge.
             const auto maybe_oldest_packet_view = p2p_packet_stream_.input().OldestPacket();
-            if (!maybe_oldest_packet_view.ok()) { break; }
+            if (!maybe_oldest_packet_view.ok() || 
+                maybe_oldest_packet_view->length() < sizeof(P2PApplicationPacketHeader) || 
+                reinterpret_cast<const P2PApplicationPacketHeader *>(maybe_oldest_packet_view->content())->command != kP2PCommandTimeSyncReply) { 
+                    break;
+            }
 
-            ASSERT(maybe_oldest_packet_view->length() != sizeof(P2PApplicationPacketHeader) + sizeof(P2PTimeSyncReplyContent));
+            ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + sizeof(P2PTimeSyncReplyContent));
             const auto *time_sync_reply = reinterpret_cast<const P2PTimeSyncReplyContent *>(&maybe_oldest_packet_view->content()[sizeof(P2PApplicationPacketHeader)]);
             if (time_sync_reply->sync_edge_local_timestamp_ns > last_edge_estimated_local_timestamp_ns_) {
-                system_timer_.global_offset_nanoseconds() = time_sync_reply->sync_edge_local_timestamp_ns - last_edge_estimated_local_timestamp_ns_;
+                system_timer_.global_offset_nanoseconds() = NetworkToLocal<kLocalEndianness>(time_sync_reply->sync_edge_local_timestamp_ns) - last_edge_estimated_local_timestamp_ns_;
             }
+            p2p_packet_stream_.input().Consume(kTimeSyncPacketsPriority);
 
             sync_requested_ = false;
             state_ = IDLE;
