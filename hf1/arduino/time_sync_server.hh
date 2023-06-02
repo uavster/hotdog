@@ -26,31 +26,12 @@ template <int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness>
 void TimeSyncServer<kInputCapacity, kOutputCapacity, kLocalEndianness>::NotifyEdgeDetected() {
   auto *time_sync_server = reinterpret_cast<TimeSyncServer<kInputCapacity, kOutputCapacity, kLocalEndianness> *>(time_sync_server_singleton);
   time_sync_server->last_edge_detect_local_timestamp_ns_ = time_sync_server->system_timer_.GetLocalNanoseconds();
-  char tmp[32];
-  Uint64ToString(time_sync_server->last_edge_detect_local_timestamp_ns_, tmp);
-  Serial.printf("t:%s\n", tmp);
 }
 
 template <int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness>
 void TimeSyncServer<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
   switch(state_) {
-/*    case WAIT_FOR_SYNC_EDGE: {
-      // Without this state, 
-// Serial.println("WAIT_FOR_SYNC_EDGE");
-      const int irq_number = digitalPinToInterrupt(kTimeSyncServerInputPin);
-      bool irq_enabled = NVIC_IS_ENABLED(irq_number);
-      NVIC_DISABLE_IRQ(irq_number);
-      if (last_edge_detect_local_timestamp_ns_ != -1ULL) {
-        // Got a sync edge.
-Serial.println("Got sync edge");
-        state_ = WAIT_FOR_TIME_SYNC_REQUEST;
-      }
-      if (irq_enabled) { NVIC_ENABLE_IRQ(irq_number); }
-      break;
-    }
-*/
     case WAIT_FOR_TIME_SYNC_REQUEST: {
-// Serial.println("WAIT_FOR_TIME_SYNC_REQUEST");
       const auto maybe_oldest_packet_view = p2p_packet_stream_.input().OldestPacket();
       if (!maybe_oldest_packet_view.ok() || 
           maybe_oldest_packet_view->length() < sizeof(P2PApplicationPacketHeader) || 
@@ -72,11 +53,6 @@ Serial.println("Got sync edge");
         break;
       }
 
-char tmp[32];
-Uint64ToString(maybe_oldest_packet_view->reception_local_time_ns(), tmp);
-Serial.printf("packet_t:%s <? ", tmp);
-Uint64ToString(last_edge_detect_local_timestamp_ns_, tmp);
-Serial.printf("edge_t:%s\n", tmp);
       if (maybe_oldest_packet_view->reception_local_time_ns() < last_edge_detect_local_timestamp_ns_) {
         // The packet was received before the sync signal was detected; must be a previous
         // sync attempt from the client: reject.
@@ -84,15 +60,16 @@ Serial.printf("edge_t:%s\n", tmp);
         NVIC_ENABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
         break;
       }
-Serial.printf("len:%d\n", maybe_oldest_packet_view->length());
       
       // Got a sync signal and a posterior detection timestamp from the other end:
       // update global time offset if necessary.
       const auto *time_sync_request = reinterpret_cast<const P2PTimeSyncRequestContent *>(&maybe_oldest_packet_view->content()[sizeof(P2PApplicationPacketHeader)]);
       uint64_t last_edge_detect_remote_timestamp_ns = NetworkToLocal<kLocalEndianness>(time_sync_request->sync_edge_local_timestamp_ns);
       if (last_edge_detect_remote_timestamp_ns > last_edge_detect_local_timestamp_ns_) {
-Serial.println("Updated global timer offset.");
           system_timer_.global_offset_nanoseconds() = last_edge_detect_remote_timestamp_ns - last_edge_detect_local_timestamp_ns_;
+          char tmp[32];
+          Uint64ToString(system_timer_.global_offset_nanoseconds(), tmp);
+          Serial.printf("Global timer +%s ns\n", tmp);
       }
       p2p_packet_stream_.input().Consume(kTimeSyncPacketsPriority);
 
@@ -101,7 +78,6 @@ Serial.println("Updated global timer offset.");
     }
 
     case SEND_TIME_SYNC_REPLY: {
-// Serial.println("SEND_TIME_SYNC_REPLY");
       // Schedule a request with low priority, so that regular time sync does not block urgent communications.
       auto maybe_new_packet = p2p_packet_stream_.output().NewPacket(kTimeSyncPacketsPriority);
       if (!maybe_new_packet.ok()) { break; }

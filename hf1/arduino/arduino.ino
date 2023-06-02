@@ -198,6 +198,8 @@ uint64_t last_head_ns = 0;
 //   HEAD_STOP
 // } head_state = LOOKING_FORWARD;
 
+uint64_t next_global_time_event_s = -1ULL;
+
 void loop() {
   // uint64_t now_ns = GetTimerNanoseconds();
   // if (now_ns - last_ns >= 1000000000) {
@@ -208,6 +210,16 @@ void loop() {
   // }
 
   // return;
+  if (next_global_time_event_s == -1ULL) {
+    next_global_time_event_s = (timer.GetGlobalNanoseconds() + 1000000000ULL) / 1000000000ULL;
+  }
+  uint64_t cur_global_time_ns = timer.GetGlobalNanoseconds();
+	if (cur_global_time_ns / 1000000000ULL >= next_global_time_event_s) {
+    char tmp[32];
+    Uint64ToString(cur_global_time_ns, tmp);
+    Serial.println(tmp);
+    next_global_time_event_s = (cur_global_time_ns + 1000000000ULL) / 1000000000ULL;
+  }
 
   p2p_stream.input().Run();
   p2p_stream.output().Run();
