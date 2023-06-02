@@ -97,7 +97,7 @@ int main() {
 
 	int sent_packets[P2PPriority::kNumLevels];
 	int received_packets[P2PPriority::kNumLevels];
-	auto start = std::chrono::system_clock::now();
+	// auto start = std::chrono::system_clock::now();
 	int last_sent_packets[P2PPriority::kNumLevels];
 	int last_received_packets[P2PPriority::kNumLevels];
 	int last_received_packet_value[P2PPriority::kNumLevels];
@@ -117,10 +117,12 @@ int main() {
 	TimeSyncClient<kP2PInputCapacity, kP2POutputCapacity, kP2PLocalEndianness> time_sync_client(&p2p_stream, &timer);
 	time_sync_client.RequestTimeSync();
 
+    uint64_t next_global_time_event_s = -1ULL; 
+
 	while(doLoop) {
 
-		auto now = std::chrono::system_clock::now();
-        std::chrono::duration<double, std::chrono::seconds::period> elapsed_seconds = now - start;
+		// auto now = std::chrono::system_clock::now();
+        // std::chrono::duration<double, std::chrono::seconds::period> elapsed_seconds = now - start;
 
 		struct pollfd serial_poll;
         	serial_poll.fd = serial_fd;
@@ -167,7 +169,7 @@ int main() {
 				p2p_stream.output().Run();
 			}
 		}
-		
+/*		
 		if (elapsed_seconds >= std::chrono::seconds(1)) {
 			start = now;
 			printf("tx:");
@@ -206,6 +208,15 @@ int main() {
       				last_sent_packets[i] = sent_packets[i];
       				last_received_packets[i] = received_packets[i];
     			}
+		}
+*/
+		if (next_global_time_event_s == -1ULL) {
+			next_global_time_event_s = (timer.GetGlobalNanoseconds() + 1000000000ULL) / 1000000000ULL;
+		}
+		uint64_t cur_global_time_ns = timer.GetGlobalNanoseconds();
+		if (cur_global_time_ns / 1000000000ULL >= next_global_time_event_s) {
+			std::cout << cur_global_time_ns << std::endl;
+			next_global_time_event_s = (cur_global_time_ns + 1000000000ULL) / 1000000000ULL;
 		}
 
 		time_sync_client.Run();

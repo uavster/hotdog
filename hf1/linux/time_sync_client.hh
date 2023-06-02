@@ -70,7 +70,6 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             break;
 
         case GENERATE_SYNC_EDGE: {
-            std::cout << "GENERATE_SYNC_EDGE" << std::endl;
             // Create a rising edge in the time sync signal.
             last_edge_set_local_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
             mutex_.lock();
@@ -82,7 +81,6 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
         }
 
         case WAIT_FOR_LOCAL_EDGE: {
-            std::cout << "WAIT_FOR_LOCAL_EDGE" << std::endl;
             std::lock_guard<std::mutex> guard(mutex_);
             if (last_edge_detect_local_timestamp_ns_ == -1ULL) { break; }
 
@@ -101,27 +99,22 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
         }
 
         case WAIT_TO_REGENERATE_SYNC_EDGE:
-            std::cout << "WAIT_TO_REGENERATE_SYNC_EDGE" << std::endl;
             if (system_timer_.GetLocalNanoseconds() - last_edge_attempt_timestamp_ns_ < kMinTimeBetweenSyncEdges) { break; }
 
             state_ = GENERATE_SYNC_EDGE;
             break;
 
         case SEND_TIME_SYNC_REQUEST: {
-            std::cout << "got edge! set_time:" << last_edge_set_local_timestamp_ns_ << " detect_time:" << last_edge_detect_local_timestamp_ns_ << " diff:" << (last_edge_detect_local_timestamp_ns_ - last_edge_set_local_timestamp_ns_) << std::endl;
-            std::cout << "SEND_TIME_SYNC_REQUEST" << std::endl;
             // Schedule a request with low priority, so that regular time sync does not block urgent communications.
             auto maybe_new_packet = p2p_packet_stream_.output().NewPacket(kTimeSyncPacketsPriority);
             if (!maybe_new_packet.ok()) { break; }
 
             // It is guaranteed that the rising edge will have been processed in the other end by the time the request is received.
             maybe_new_packet->length() = sizeof(P2PApplicationPacketHeader) + sizeof(P2PTimeSyncRequestContent);
-            std::cout << "len:" << (int)maybe_new_packet->length() << std::endl;
             reinterpret_cast<P2PApplicationPacketHeader *>(maybe_new_packet->content())->command = kP2PCommandTimeSyncRequest;
             // The edge was received some time between setting the output pin and receiving the event from the loopback pin: use the mid-point.
             last_edge_estimated_local_timestamp_ns_ = (last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_) / 2;
             reinterpret_cast<P2PTimeSyncRequestContent *>(&maybe_new_packet->content()[sizeof(P2PApplicationPacketHeader)])->sync_edge_local_timestamp_ns = LocalToNetwork<kLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
-            std::cout << "len2:" << (int)maybe_new_packet->length() << std::endl;
             p2p_packet_stream_.output().Commit(kTimeSyncPacketsPriority, /*guarantee_delivery=*/true);
             request_sent_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
             state_ = WAIT_FOR_TIME_SYNC_REPLY;
@@ -129,8 +122,6 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
         }
         
         case WAIT_FOR_TIME_SYNC_REPLY: {
-            // std::cout << "WAIT_FOR_TIME_SYNC_REPLY" << std::endl;
-
             if (system_timer_.GetLocalNanoseconds() - request_sent_timestamp_ns_ > kMaxTimeSyncReplyDelayNs) { 
                 // The other end must have missed the sync signal (e.g. it started after this end): start over.
                 state_ = GENERATE_SYNC_EDGE;
@@ -149,6 +140,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             const auto *time_sync_reply = reinterpret_cast<const P2PTimeSyncReplyContent *>(&maybe_oldest_packet_view->content()[sizeof(P2PApplicationPacketHeader)]);
             if (time_sync_reply->sync_edge_local_timestamp_ns > last_edge_estimated_local_timestamp_ns_) {
                 system_timer_.global_offset_nanoseconds() = NetworkToLocal<kLocalEndianness>(time_sync_reply->sync_edge_local_timestamp_ns) - last_edge_estimated_local_timestamp_ns_;
+                std::cout << "Global timer +" << system_timer_.global_offset_nanoseconds() << " ns" << std::endl;
             }
             p2p_packet_stream_.input().Consume(kTimeSyncPacketsPriority);
 
