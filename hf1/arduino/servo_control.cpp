@@ -12,7 +12,7 @@
 #define kPWMPeriodTicks (kTimerTicksPerSecond / kServoPWMFrequencyHz)
 
 #define kHorizontalPitchDegrees 125.0f
-#define kHorizontalRollDegrees 90.0f
+#define kHorizontalRollDegrees 93.0f
 
 #define kMinPitchDegrees -60.0f
 #define kMaxPitchDegrees 60.0f

@@ -155,15 +155,15 @@ void setup() {
 //char format_buffer[32];
 
 // enum { INIT,
-//        CIRCLING_LEFT,
-//        CIRCLING_RIGHT,
-//        SLOW_DOWN,
-//        WAIT_FOR_INPUT,
-//        SEND_TRAJECTORY,
+//        LOOK_LEFT,
+//        LOOK_RIGHT,
+//        LOOK_CENTER,
+//        MOVE_FORWARD,
 //        DONE } state = INIT;
 uint64_t last_timestamp_ns = 0;
 
 #define kWaitSeconds 3
+#define kWaitSecondsDrive 0.25
 #define kInnerDutyCycle 0.75
 
 RobotState robot_state;
@@ -190,15 +190,33 @@ TimerNanosType last_sent_packet_nanos = 0;
 uint64_t last_ns = 0;
 uint64_t last_head_ns = 0;
 
-// enum {
-//   LOOKING_FORWARD,
-//   LOOKING_DOWN,
-//   LOOKING_UP,
-//   TILTING_HEAD,
-//   HEAD_STOP
-// } head_state = LOOKING_FORWARD;
+enum {
+  IDLE,
+  NODDING,
+  NEGATING
+  // LOOKING_UP,
+  // TILTING_HEAD,
+  // HEAD_STOP
+} head_state = IDLE;
 
 uint64_t next_global_time_event_s = -1ULL;
+
+typedef struct {
+  uint64_t timestamp_ns;
+  float pitch;
+  float roll;
+} HeadPose;
+
+HeadPose next_idle_head_pose{0, 0, 0};
+uint64_t nodding_start_time_ns = -1ULL; 
+uint64_t nodding_stop_time_ns = -1ULL;
+
+uint64_t negating_start_time_ns = -1ULL;
+uint64_t negating_stop_time_ns = -1ULL;
+
+uint64_t next_wheel_command_time_ns = 0;
+float next_wheel_command_left_dc = 0;
+float next_wheel_command_right_dc = 0;
 
 void loop() {
   // uint64_t now_ns = GetTimerNanoseconds();
@@ -210,6 +228,8 @@ void loop() {
   // }
 
   // return;
+
+/*  
   if (next_global_time_event_s == -1ULL) {
     next_global_time_event_s = (timer.GetGlobalNanoseconds() + 1000000000ULL) / 1000000000ULL;
   }
@@ -226,6 +246,7 @@ void loop() {
   time_sync_server.Run();
 
   return;
+*/
 
 /*  TimerNanosType now_ns = GetTimerNanoseconds();
 
@@ -398,115 +419,145 @@ void loop() {
   t += 0.00005f;
 */
 
-/*
+
   uint64_t now_ns = GetTimerNanoseconds();
-  float time_factor = kWaitSeconds / 3.0f;
-  float elapsed_time_head_s = time_factor * ((now_ns - last_head_ns) / 1e9f);
+  if (nodding_start_time_ns == -1ULL) {
+    nodding_start_time_ns = now_ns + 15 * 1000000000ULL;      
+    nodding_stop_time_ns = now_ns + 16 * 1000000000ULL;
+    negating_start_time_ns = now_ns + 12 * 1000000000ULL;
+    negating_stop_time_ns = now_ns + 13 * 1000000000ULL;
+  }
+  // float time_factor = kWaitSeconds / 3.0f;
+  // float elapsed_time_head_s = time_factor * ((now_ns - last_head_ns) / 1e9f);
+  const uint64_t nodding_period_ns = 70000000ULL;
+  const uint64_t negating_period_ns = 200000000ULL;
   switch(head_state) {
-    case LOOKING_FORWARD:
-      SetHeadPitchDegrees(0);
-      SetHeadRollDegrees(0);
-      if (elapsed_time_head_s > 1 && elapsed_time_head_s < 1.6) {
-        head_state = LOOKING_DOWN;
+    case IDLE:
+      SetHeadPitchDegrees(next_idle_head_pose.pitch);
+      SetHeadRollDegrees(next_idle_head_pose.roll);
+      if (now_ns > next_idle_head_pose.timestamp_ns) {
+        next_idle_head_pose.timestamp_ns = now_ns + 1000000ULL * (1000 + random(0, 200));
+        next_idle_head_pose.pitch = -20 + (random(0, 4 * 1000) - 1 * 1000) / 1000.0f;
+        next_idle_head_pose.roll = (random(0, 4 * 1000) - 1 * 1000) / 1000.0f;
       }
-      if (elapsed_time_head_s > 2.3) {
-        head_state = LOOKING_DOWN;
+      if (now_ns > nodding_start_time_ns) {
+        next_idle_head_pose.pitch = -20 + 10;
+        next_idle_head_pose.roll = 0;
+        next_idle_head_pose.timestamp_ns = now_ns + nodding_period_ns;
+        head_state = NODDING;
       }
-      break;
-    case LOOKING_DOWN:
-      SetHeadPitchDegrees(30);
-      if (elapsed_time_head_s > 1.6 && elapsed_time_head_s < 2.3) {
-        head_state = LOOKING_FORWARD;
-      }
-      if (elapsed_time_head_s >= 3) {
-        head_state = LOOKING_UP;
-      }
-      break;
-    case LOOKING_UP: {
-      float deg = -35.0f / kWaitSeconds * (elapsed_time_head_s - 3);
-      if (deg < -25) deg = -25;
-      SetHeadPitchDegrees(deg);
-      if (elapsed_time_head_s > 7) {
-        head_state = TILTING_HEAD;
+      if (now_ns > negating_start_time_ns) {
+        next_wheel_command_time_ns = now_ns + negating_period_ns;
+        next_wheel_command_left_dc = 0.5;
+        next_wheel_command_right_dc = -0.5 + 0.08;
+        head_state = NEGATING;
       }
       break;
-    }
-    case TILTING_HEAD:
-      SetHeadRollDegrees(30);
-      if (elapsed_time_head_s > 8) {
-        head_state = HEAD_STOP;
+
+    case NODDING:
+      SetHeadPitchDegrees(next_idle_head_pose.pitch);
+      SetHeadRollDegrees(next_idle_head_pose.roll);
+      if (now_ns > next_idle_head_pose.timestamp_ns) {
+        next_idle_head_pose.timestamp_ns = now_ns + nodding_period_ns;
+        if (next_idle_head_pose.pitch != -20 + 10) {
+          next_idle_head_pose.pitch = -20 + 10;
+        } else {
+          next_idle_head_pose.pitch = -20;
+        }
+      }
+      if (now_ns > nodding_stop_time_ns) {
+        next_idle_head_pose.timestamp_ns = 0;
+        nodding_start_time_ns = negating_start_time_ns + 3 * 1000000000ULL;      
+        nodding_stop_time_ns = negating_start_time_ns + 4 * 1000000000ULL;
+        head_state = IDLE;
       }
       break;
-    case HEAD_STOP:
-      SetHeadRollDegrees(0);
+
+    case NEGATING:
+      SetLeftMotorDutyCycle(next_wheel_command_left_dc);
+      SetRightMotorDutyCycle(next_wheel_command_right_dc);
+      if (now_ns > next_wheel_command_time_ns) {
+        next_wheel_command_time_ns = now_ns + negating_period_ns;
+        if (next_wheel_command_left_dc > 0) {
+          next_wheel_command_left_dc = -0.5;
+        } else {
+          next_wheel_command_left_dc = 0.5;
+        }
+        if (next_wheel_command_right_dc > 0) {
+          next_wheel_command_right_dc = -0.5 + 0.08;
+        } else {
+          next_wheel_command_right_dc = 0.5 + 0.08;
+        }
+      }
+      if (now_ns > negating_stop_time_ns) {
+        SetLeftMotorDutyCycle(0);
+        SetRightMotorDutyCycle(0);
+        next_wheel_command_time_ns = 0;
+        negating_start_time_ns = nodding_start_time_ns + 12 * 1000000000ULL;      
+        negating_stop_time_ns = nodding_start_time_ns + 13 * 1000000000ULL;
+        head_state = IDLE;
+      }
       break;
   }
 
-  switch (state) {
-    case INIT:
-      SetLeftMotorDutyCycle(kInnerDutyCycle);
-      SetRightMotorDutyCycle(1.0);
-      // Disable the IRQ while writing to the event buffer to avoid a race.
-      NO_TIMER_IRQ {
-        event_buffer.Write(Event{ .type = kInnerDutyCycle >= 0 ? kLeftWheelForwardCommand : kLeftWheelBackwardCommand, .ticks = GetTimerTicks() });
-        event_buffer.Write(Event{ .type = kRightWheelForwardCommand, .ticks = GetTimerTicks() });
-      }
-      last_timestamp_ns = GetTimerNanoseconds();
-      state = CIRCLING_LEFT;
-      break;
-    case CIRCLING_LEFT:
-      if (now_ns - last_timestamp_ns > (kWaitSeconds * 1000000000ULL)) {
-        SetLeftMotorDutyCycle(1.0);
-        SetRightMotorDutyCycle(kInnerDutyCycle);
-        // Disable the IRQ while writing to the event buffer to avoid a race.
-        NO_TIMER_IRQ {
-          event_buffer.Write(Event{ .type = kLeftWheelForwardCommand, .ticks = GetTimerTicks() });
-          event_buffer.Write(Event{ .type = kInnerDutyCycle >= 0 ? kRightWheelForwardCommand : kRightWheelBackwardCommand, .ticks = GetTimerTicks() });
-        }
-        last_timestamp_ns = now_ns;
-        state = CIRCLING_RIGHT;
-      }
-      break;
-    case CIRCLING_RIGHT:
-      if (now_ns - last_timestamp_ns > (kWaitSeconds * 0.8f * 1000000000ULL)) {
-        SetLeftMotorDutyCycle(1);
-        SetRightMotorDutyCycle(1);
-        last_timestamp_ns = now_ns;
-        state = SLOW_DOWN;
-      }
-      break;
-    case SLOW_DOWN: {
-      float dc = 1 - (now_ns - last_timestamp_ns)/1e9f;
-      if (dc < 0) dc = 0;
-      SetLeftMotorDutyCycle(dc);
-      SetRightMotorDutyCycle(dc);
-      if (now_ns - last_timestamp_ns > (kWaitSeconds * 0.8f * 1000000000ULL)) {
-        SetLeftMotorDutyCycle(0);
-        SetRightMotorDutyCycle(0);
-        last_timestamp_ns = now_ns;
-        state = WAIT_FOR_INPUT;
-      }
-      break;
-    }
-    case WAIT_FOR_INPUT:
-      if (Serial.available() > 0 && Serial.read() == 'n') {
-        state = SEND_TRAJECTORY;
-        send_index = 0;
-        sprintf(tmp, "Sending trajectory with %d points...", cur_trajectory_point);
-        Serial.println(tmp);
-      }
-      break;
-    case SEND_TRAJECTORY:
-      sprintf(tmp, "%f,%f,%f", trajectory[send_index].center.x, trajectory[send_index].center.y, trajectory[send_index].angle);
-      Serial.println(tmp);
-      ++send_index;
-      if (send_index >= cur_trajectory_point) {
-        state = DONE;
-      }
-      break;
-    case DONE:
-      break;
-  }
+  // switch (state) {
+  //   case INIT:
+  //     SetLeftMotorDutyCycle(0);
+  //     SetRightMotorDutyCycle(0);
+  //     if (now_ns - last_timestamp_ns > (kWaitSecondsDrive * 1000000000ULL)) {
+  //       last_timestamp_ns = now_ns;
+  //       state = LOOK_LEFT;
+  //     }
+  //     break;
+  //   case LOOK_LEFT:
+  //     if (now_ns - last_timestamp_ns < (kWaitSecondsDrive * 1000000000ULL)) {
+  //       SetLeftMotorDutyCycle(-0.5);
+  //       SetRightMotorDutyCycle(0.5);
+  //     }
+  //     if (now_ns - last_timestamp_ns >= (kWaitSecondsDrive * 1000000000ULL)) {
+  //       SetLeftMotorDutyCycle(0);
+  //       SetRightMotorDutyCycle(0);
+  //     }
+  //     if (now_ns - last_timestamp_ns > (4 * kWaitSecondsDrive * 1000000000ULL)) {
+  //       last_timestamp_ns = now_ns;
+  //       state = LOOK_RIGHT;
+  //     }
+  //     break;
+  //   case LOOK_RIGHT:
+  //     if (now_ns - last_timestamp_ns < (kWaitSecondsDrive * 1000000000ULL)) {
+  //       SetLeftMotorDutyCycle(0.5);
+  //       SetRightMotorDutyCycle(-0.5);
+  //     }
+  //     if (now_ns - last_timestamp_ns >= (2 * kWaitSecondsDrive * 1000000000ULL)) {
+  //       SetLeftMotorDutyCycle(0);
+  //       SetRightMotorDutyCycle(0);
+  //     }
+  //     if (now_ns - last_timestamp_ns > (4 * kWaitSecondsDrive * 1000000000ULL)) {
+  //       last_timestamp_ns = now_ns;
+  //       state = LOOK_CENTER;
+  //     }
+  //     break;
+  //   case LOOK_CENTER:
+  //     SetLeftMotorDutyCycle(-0.5);
+  //     SetRightMotorDutyCycle(0.5);
+  //     if (now_ns - last_timestamp_ns > (kWaitSecondsDrive * 1000000000ULL)) {
+  //       last_timestamp_ns = now_ns;
+  //       state = MOVE_FORWARD;
+  //     }
+  //     break;
+  //   case MOVE_FORWARD: {
+  //     float dc = 0.5 * (now_ns - last_timestamp_ns) / (kWaitSecondsDrive * 10 * 1000000000ULL);
+  //     SetLeftMotorDutyCycle(dc);
+  //     SetRightMotorDutyCycle(dc);
+  //     if (now_ns - last_timestamp_ns > (kWaitSecondsDrive * 20 * 1000000000ULL)) {
+  //       last_timestamp_ns = now_ns;
+  //       state = INIT;
+  //     }
+  //     break;
+  //   }
+  //   case DONE:
+  //     break;
+  // }
 
   if (event_buffer.Size() > 0) {
     int left_ticks = 0;
@@ -540,12 +591,12 @@ void loop() {
           break;
       }
     }
-    if ((state == INIT || state == CIRCLING_LEFT || state == CIRCLING_RIGHT) && cur_trajectory_point < kMaxTrajectoryPoints) {
-      trajectory[cur_trajectory_point].center = robot_state.Center();
-      trajectory[cur_trajectory_point].angle = robot_state.Angle();
-      ++cur_trajectory_point;
-    }
-  }*/
+    // if ((state == INIT || state == CIRCLING_LEFT || state == CIRCLING_RIGHT) && cur_trajectory_point < kMaxTrajectoryPoints) {
+    //   trajectory[cur_trajectory_point].center = robot_state.Center();
+    //   trajectory[cur_trajectory_point].angle = robot_state.Angle();
+    //   ++cur_trajectory_point;
+    // }
+  }
 
   //  SetLeftMotorDutyCycle(1.0f);
   //  SetRightMotorDutyCycle(1.0f);
