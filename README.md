@@ -3,7 +3,7 @@
 Hotdog Fernando is a robot platform. My son and I started developing it in San Jose, California, as a fun project during weekends when he was 6.
 The name, which my son brilliantly came up with, marries our two cultures: American and Spanish.
 
-We're now opening the source code for all makers and robotics to play with, as I keep developing it in my spare time.
+We're now opening the source code for all makers and roboticists to play with, as I keep developing it in my spare time.
 Some parts of the code are messy and experimental, as publishing it has been an impromptu decision. Hopefully, you'll bear with me, or help me fix them.
 
 ## HF1
