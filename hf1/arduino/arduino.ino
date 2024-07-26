@@ -1,3 +1,5 @@
+// This program assumes the CPU clock is set to 96 MHz.
+
 #define kEventRingBufferCapacity 256
 
 #include "robot_state.h"
@@ -21,6 +23,8 @@
 Logger logger;
 
 // #include <SPI.h>
+
+// #define kAutomaticTransitions
 
 // ------------ Event ring buffer ------------
 typedef enum {
@@ -79,22 +83,26 @@ void setup() {
   InitTimer();
 
   // Serial starts working after a second or so. Wait, so we don't miss any log.
-  while(GetTimerNanoseconds() < 1000000000ULL) {}
+  while(GetTimerNanoseconds() < 3000000000ULL) {}
 
+  Serial.println("Initialized debugging serial port and timing modules.");
+
+  Serial.println("Initializing encoders...");
   InitEncoders();
   SetEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
 
+  Serial.println("Initializing body IMU...");
   body_imu.Init();
 
+  Serial.println("Initializing inter-board communications...");
   // Serial1.addMemoryForRead(rx_buffer, 256);
   Serial1.begin(1000000, SERIAL_8N1);
 
+  Serial.println("Initializing motors...");
   InitMotors();
+
+  Serial.println("Initializing servos...");
   InitServos();
-
-  Serial.println("Started.");  
-
-  last_msg_time_ns = GetTimerNanoseconds();
 
   for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
     last_received_packet_value[i] = -1;
@@ -105,7 +113,10 @@ void setup() {
     lost_packets[i] = 0;
   }
 
+  Serial.println("Initializing time server...");
   time_sync_server.Init();
+
+  last_msg_time_ns = GetTimerNanoseconds();
 
   // UART0_S2 |= UART_S2_LBKDE;
   // Clear FE.
@@ -150,6 +161,8 @@ void setup() {
   pinMode(2, OUTPUT);   // SPI CS
   digitalWrite(2, HIGH);
   */
+  
+  Serial.println("Ready.");
 }
 
 //char format_buffer[32];
@@ -190,14 +203,21 @@ TimerNanosType last_sent_packet_nanos = 0;
 uint64_t last_ns = 0;
 uint64_t last_head_ns = 0;
 
-enum {
-  IDLE,
-  NODDING,
-  NEGATING
+typedef enum {
+  IDLE = 0,
+  NODDING = 1,
+  NEGATING = 2,
+  TURNING_LEFT = 3,
+  TURNING_RIGHT = 4,
+  LOOKING_UP = 5,
+  LOOKING_DOWN = 6,
+  MOVING_FORWARD = 7,
   // LOOKING_UP,
   // TILTING_HEAD,
   // HEAD_STOP
-} head_state = IDLE;
+} HeadState;
+
+HeadState head_state = IDLE;
 
 uint64_t next_global_time_event_s = -1ULL;
 
@@ -219,6 +239,63 @@ float next_wheel_command_left_dc = 0;
 float next_wheel_command_right_dc = 0;
 
 void loop() {
+  p2p_stream.input().Run();
+  p2p_stream.output().Run();
+  time_sync_server.Run();
+
+  uint64_t now_ns = GetTimerNanoseconds();
+
+  const uint64_t nodding_period_ns = 100000000ULL;
+  const uint64_t negating_period_ns = 200000000ULL;
+
+  if (p2p_stream.input().OldestPacket().ok()) {
+    P2PPriority priority = p2p_stream.input().OldestPacket()->priority();
+    if (p2p_stream.input().OldestPacket()->content()[0] == 3) {
+      uint8_t command = p2p_stream.input().OldestPacket()->content()[1];
+      head_state = static_cast<HeadState>(command);
+      switch(head_state) {
+        case NODDING:
+          next_idle_head_pose.pitch = -20 + 10;
+          next_idle_head_pose.roll = 0;
+          next_idle_head_pose.timestamp_ns = now_ns + nodding_period_ns;
+          nodding_stop_time_ns = now_ns + 1 * 1000000000ULL;
+          break;
+        case NEGATING:
+          next_wheel_command_time_ns = now_ns + negating_period_ns;
+          next_wheel_command_left_dc = 0.5;
+          next_wheel_command_right_dc = -0.5 + 0.08;
+          negating_stop_time_ns = now_ns + 2 * 1000000000ULL;
+          break;
+        case TURNING_RIGHT:
+          next_wheel_command_left_dc = -0.5;
+          next_wheel_command_right_dc = 0.5 + 0.08;
+          negating_stop_time_ns = now_ns + 1 * 1000000000ULL;
+          break;
+        case TURNING_LEFT:
+          next_wheel_command_left_dc = 0.5;
+          next_wheel_command_right_dc = -0.5 + 0.08;
+          negating_stop_time_ns = now_ns + 1 * 1000000000ULL;
+          break;
+        case LOOKING_UP:
+          SetHeadPitchDegrees(-40);
+          break;
+        case LOOKING_DOWN:
+          SetHeadPitchDegrees(40);
+          break;
+        case MOVING_FORWARD:
+          next_wheel_command_left_dc = 0.5;
+          next_wheel_command_right_dc = 0.5 + 0.08;
+          negating_stop_time_ns = now_ns + 1 * 1000000000ULL;
+          break;
+        default:
+          head_state = IDLE;
+          break;
+      }
+      p2p_stream.input().Consume(priority);
+    }
+  }
+
+
   // uint64_t now_ns = GetTimerNanoseconds();
   // if (now_ns - last_ns >= 1000000000) {
   //   char tmp[64];
@@ -420,17 +497,16 @@ void loop() {
 */
 
 
-  uint64_t now_ns = GetTimerNanoseconds();
+#ifdef kAutomaticTransitions
   if (nodding_start_time_ns == -1ULL) {
     nodding_start_time_ns = now_ns + 15 * 1000000000ULL;      
     nodding_stop_time_ns = now_ns + 16 * 1000000000ULL;
     negating_start_time_ns = now_ns + 12 * 1000000000ULL;
     negating_stop_time_ns = now_ns + 13 * 1000000000ULL;
   }
+#endif  
   // float time_factor = kWaitSeconds / 3.0f;
   // float elapsed_time_head_s = time_factor * ((now_ns - last_head_ns) / 1e9f);
-  const uint64_t nodding_period_ns = 70000000ULL;
-  const uint64_t negating_period_ns = 200000000ULL;
   switch(head_state) {
     case IDLE:
       SetHeadPitchDegrees(next_idle_head_pose.pitch);
@@ -440,6 +516,7 @@ void loop() {
         next_idle_head_pose.pitch = -20 + (random(0, 4 * 1000) - 1 * 1000) / 1000.0f;
         next_idle_head_pose.roll = (random(0, 4 * 1000) - 1 * 1000) / 1000.0f;
       }
+#ifdef kAutomaticTransitions      
       if (now_ns > nodding_start_time_ns) {
         next_idle_head_pose.pitch = -20 + 10;
         next_idle_head_pose.roll = 0;
@@ -452,6 +529,7 @@ void loop() {
         next_wheel_command_right_dc = -0.5 + 0.08;
         head_state = NEGATING;
       }
+#endif    
       break;
 
     case NODDING:
@@ -466,9 +544,11 @@ void loop() {
         }
       }
       if (now_ns > nodding_stop_time_ns) {
+#ifdef kAutomaticTransitions 
         next_idle_head_pose.timestamp_ns = 0;
         nodding_start_time_ns = negating_start_time_ns + 3 * 1000000000ULL;      
         nodding_stop_time_ns = negating_start_time_ns + 4 * 1000000000ULL;
+#endif      
         head_state = IDLE;
       }
       break;
@@ -477,7 +557,9 @@ void loop() {
       SetLeftMotorDutyCycle(next_wheel_command_left_dc);
       SetRightMotorDutyCycle(next_wheel_command_right_dc);
       if (now_ns > next_wheel_command_time_ns) {
+#ifdef kAutomaticTransitions        
         next_wheel_command_time_ns = now_ns + negating_period_ns;
+#endif        
         if (next_wheel_command_left_dc > 0) {
           next_wheel_command_left_dc = -0.5;
         } else {
@@ -492,11 +574,29 @@ void loop() {
       if (now_ns > negating_stop_time_ns) {
         SetLeftMotorDutyCycle(0);
         SetRightMotorDutyCycle(0);
+#ifdef kAutomaticTransitions        
         next_wheel_command_time_ns = 0;
         negating_start_time_ns = nodding_start_time_ns + 12 * 1000000000ULL;      
         negating_stop_time_ns = nodding_start_time_ns + 13 * 1000000000ULL;
+#endif        
         head_state = IDLE;
       }
+      break;
+
+    case TURNING_RIGHT:
+    case TURNING_LEFT:
+    case MOVING_FORWARD:
+      SetLeftMotorDutyCycle(next_wheel_command_left_dc);
+      SetRightMotorDutyCycle(next_wheel_command_right_dc);
+      if (now_ns > negating_stop_time_ns) {
+        SetLeftMotorDutyCycle(0);
+        SetRightMotorDutyCycle(0);
+        head_state = IDLE;
+      }
+      break;      
+
+    case LOOKING_UP:
+    case LOOKING_DOWN:
       break;
   }
 
@@ -559,6 +659,7 @@ void loop() {
   //     break;
   // }
 
+/*
   if (event_buffer.Size() > 0) {
     int left_ticks = 0;
     int right_ticks = 0;
@@ -591,12 +692,13 @@ void loop() {
           break;
       }
     }
+
     // if ((state == INIT || state == CIRCLING_LEFT || state == CIRCLING_RIGHT) && cur_trajectory_point < kMaxTrajectoryPoints) {
     //   trajectory[cur_trajectory_point].center = robot_state.Center();
     //   trajectory[cur_trajectory_point].angle = robot_state.Angle();
     //   ++cur_trajectory_point;
     // }
-  }
+  }*/
 
   //  SetLeftMotorDutyCycle(1.0f);
   //  SetRightMotorDutyCycle(1.0f);
