@@ -212,6 +212,7 @@ typedef enum {
   LOOKING_UP = 5,
   LOOKING_DOWN = 6,
   MOVING_FORWARD = 7,
+  MOVING_BACKWARD = 8,
   // LOOKING_UP,
   // TILTING_HEAD,
   // HEAD_STOP
@@ -263,17 +264,17 @@ void loop() {
         case NEGATING:
           next_wheel_command_time_ns = now_ns + negating_period_ns;
           next_wheel_command_left_dc = 0.5;
-          next_wheel_command_right_dc = -0.5 + 0.08;
+          next_wheel_command_right_dc = -0.5;
           negating_stop_time_ns = now_ns + 2 * 1000000000ULL;
           break;
         case TURNING_RIGHT:
           next_wheel_command_left_dc = -0.5;
-          next_wheel_command_right_dc = 0.5 + 0.08;
+          next_wheel_command_right_dc = 0.5;
           negating_stop_time_ns = now_ns + 1 * 1000000000ULL;
           break;
         case TURNING_LEFT:
           next_wheel_command_left_dc = 0.5;
-          next_wheel_command_right_dc = -0.5 + 0.08;
+          next_wheel_command_right_dc = -0.5 - 0.08;
           negating_stop_time_ns = now_ns + 1 * 1000000000ULL;
           break;
         case LOOKING_UP:
@@ -284,7 +285,12 @@ void loop() {
           break;
         case MOVING_FORWARD:
           next_wheel_command_left_dc = 0.5;
-          next_wheel_command_right_dc = 0.5 + 0.08;
+          next_wheel_command_right_dc = 0.5;
+          negating_stop_time_ns = now_ns + 1 * 1000000000ULL;
+          break;
+        case MOVING_BACKWARD:
+          next_wheel_command_left_dc = -0.5;
+          next_wheel_command_right_dc = -0.5;
           negating_stop_time_ns = now_ns + 1 * 1000000000ULL;
           break;
         default:
@@ -586,6 +592,7 @@ void loop() {
     case TURNING_RIGHT:
     case TURNING_LEFT:
     case MOVING_FORWARD:
+    case MOVING_BACKWARD:
       SetLeftMotorDutyCycle(next_wheel_command_left_dc);
       SetRightMotorDutyCycle(next_wheel_command_right_dc);
       if (now_ns > negating_stop_time_ns) {
