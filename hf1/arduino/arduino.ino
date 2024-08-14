@@ -1,8 +1,5 @@
 // This program assumes the CPU clock is set to 96 MHz.
 
-#define kEventRingBufferCapacity 256
-
-#include "robot_state.h"
 #include "utils.h"
 #include "p2p_byte_stream_arduino.h"
 #include "p2p_packet_stream.h"
@@ -13,8 +10,8 @@
 #include "timer_arduino.h"
 #include "guid_factory.h"
 #include "logger.h"
-#include "body_imu.h"
 #include "time_sync_server.h"
+#include "robot_state_estimator.h"
 
 #define kP2PInputCapacity 4
 #define kP2POutputCapacity 1
@@ -25,33 +22,6 @@ Logger logger;
 // #include <SPI.h>
 
 // #define kAutomaticTransitions
-
-// ------------ Event ring buffer ------------
-typedef enum {
-  kLeftWheelTick,
-  kRightWheelTick,
-  kLeftWheelForwardCommand,
-  kLeftWheelBackwardCommand,
-  kRightWheelForwardCommand,
-  kRightWheelBackwardCommand,
-} EventType;
-
-typedef struct {
-  EventType type;
-  uint64_t ticks;
-} Event;
-
-RingBuffer<Event, kEventRingBufferCapacity> event_buffer;
-
-void LeftEncoderIsr(uint32_t timer_ticks) {
-  // We have exclusive access to the event buffer while in the ISR.
-  event_buffer.Write(Event{ .type = kLeftWheelTick, .ticks = timer_ticks });
-}
-
-void RightEncoderIsr(uint32_t timer_ticks) {
-  // We have exclusive access to the event buffer while in the ISR.
-  event_buffer.Write(Event{ .type = kRightWheelTick, .ticks = timer_ticks });
-}
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
@@ -72,8 +42,6 @@ int last_received_packets[P2PPriority::kNumLevels];
 int last_sent_packets[P2PPriority::kNumLevels];
 int lost_packets[P2PPriority::kNumLevels];
 
-BodyIMU body_imu;
-
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
   Serial.begin(115200);
@@ -87,12 +55,8 @@ void setup() {
 
   Serial.println("Initialized debugging serial port and timing modules.");
 
-  Serial.println("Initializing encoders...");
-  InitEncoders();
-  SetEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
-
-  Serial.println("Initializing body IMU...");
-  body_imu.Init();
+  Serial.println("Initializing robot state estimator...");
+  InitRobotStateEstimator();
 
   Serial.println("Initializing inter-board communications...");
   // Serial1.addMemoryForRead(rx_buffer, 256);
@@ -240,6 +204,9 @@ float next_wheel_command_left_dc = 0;
 float next_wheel_command_right_dc = 0;
 
 void loop() {
+  RunRobotStateEstimator();
+  Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetRobotState().Center().x, GetRobotState().Center().y, GetRobotState().Angle(), GetRobotState().CenterVelocity().x, GetRobotState().CenterVelocity().y);
+
   p2p_stream.input().Run();
   p2p_stream.output().Run();
   time_sync_server.Run();
@@ -665,47 +632,6 @@ void loop() {
   //   case DONE:
   //     break;
   // }
-
-/*
-  if (event_buffer.Size() > 0) {
-    int left_ticks = 0;
-    int right_ticks = 0;
-    while (event_buffer.Size() > 0) {
-      // Disable the IRQ while reading from the event buffer to avoid a race.
-      Event event;
-      NO_TIMER_IRQ {
-        event = event_buffer.Read();
-      }
-      switch (event.type) {
-        case kLeftWheelTick:
-          ++left_ticks;
-          robot_state.NotifyWheelTicks(left_ticks, right_ticks);
-          break;
-        case kRightWheelTick:
-          ++right_ticks;
-          robot_state.NotifyWheelTicks(left_ticks, right_ticks);
-          break;
-        case kLeftWheelForwardCommand:
-          robot_state.NotifyLeftWheelDirection(false);
-          break;
-        case kLeftWheelBackwardCommand:
-          robot_state.NotifyLeftWheelDirection(true);
-          break;
-        case kRightWheelForwardCommand:
-          robot_state.NotifyRightWheelDirection(false);
-          break;
-        case kRightWheelBackwardCommand:
-          robot_state.NotifyRightWheelDirection(true);
-          break;
-      }
-    }
-
-    // if ((state == INIT || state == CIRCLING_LEFT || state == CIRCLING_RIGHT) && cur_trajectory_point < kMaxTrajectoryPoints) {
-    //   trajectory[cur_trajectory_point].center = robot_state.Center();
-    //   trajectory[cur_trajectory_point].angle = robot_state.Angle();
-    //   ++cur_trajectory_point;
-    // }
-  }*/
 
   //  SetLeftMotorDutyCycle(1.0f);
   //  SetRightMotorDutyCycle(1.0f);
