@@ -89,6 +89,14 @@ TimerNanosType GetTimerNanoseconds() {
   return NanosFromTimerTicks(GetTimerTicks());
 }
 
+double SecondsFromTimerTicks(TimerTicksType ticks) {
+  return NanosFromTimerTicks(ticks) * 1e-9;
+}
+
+double GetTimerSeconds() {
+  return GetTimerNanoseconds() * 1e-9;
+}
+
 static int FindIsr(TimerISR isr_to_find) {
   for (int i = 0; i < kMaxIsrs; ++i) {
     if (isr[i] == isr_to_find) {

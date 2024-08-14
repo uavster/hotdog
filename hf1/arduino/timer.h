@@ -37,8 +37,15 @@ TimerTicksType GetTimerTicks();
 TimerNanosType NanosFromTimerTicks(TimerTicksType ticks);
 
 // Returns the number of nanoseconds since the CPU started, with a resolution of
-// 1e9 / kTimerTicksPerSecond.
+// (1e9 / kTimerTicksPerSecond) nanoseconds.
 TimerNanosType GetTimerNanoseconds();
+
+// Returns the number of seconds elapsed for the given number of timer ticks.
+double SecondsFromTimerTicks(TimerTicksType ticks);
+
+// Returns the number of seconds since the CPU started, with a resolution of
+// (1.0 / kTimerTicksPerSecond) seconds.
+double GetTimerSeconds();
 
 typedef void (*TimerISR)(void);
 
