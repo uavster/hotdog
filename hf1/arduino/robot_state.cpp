@@ -1,36 +1,48 @@
 #include <BasicLinearAlgebra.h>
 #include "robot_state.h"
 
+// Approximate rate at which the state estimation is updated.
+#define kApproximateUpdateRate 160.0
+
+// Standard deviations of the IMU measures.
 #define kStdevIMUAccelX 0.0118  // [m/s^2] Estimated from accelerometer data in https://forums.adafruit.com/viewtopic.php?t=122078
 #define kStdevIMUAccelY 0.0128  // [m/s^2] Estimated from accelerometer data in https://forums.adafruit.com/viewtopic.php?t=122078
 #define kStdevIMUYaw 0.001   // [rad] Estimated experimentally. The measure comes from the IMU internal filter, so noise is pretty low.
 
-#define kApproximateUpdateRate 160.0
-#define kStdevOdomPosX (0.01 / (0.85 * kApproximateUpdateRate))  // +/-1 cm error in a 0.85-seconds test (21.5 cm/s) at 160 Hz [m]
-#define kStdevOdomPosY (0.01 / (0.85 * kApproximateUpdateRate))  // +/-1 cm error in a 0.85-seconds test (21.5 cm/s) at 160 Hz [m]
-#define kStdevOdomYaw (M_PI / 180 * (10 / (90.0 / 90.0 * kApproximateUpdateRate)))  // +/-10 degreed after 90 degrees turn, at 90 deg/s and 160 Hz [rad]
+// Standard deviations of the odometry measures.
+#define kStdevOdomPosX (0.01 / (0.85 * kApproximateUpdateRate))  // +/-1 cm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
+#define kStdevOdomPosY (0.01 / (0.85 * kApproximateUpdateRate))  // +/-1 cm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
+#define kStdevOdomYaw (M_PI / 180 * (10 / (90.0 / 90.0 * kApproximateUpdateRate)))  // +/-10 degreed after 90 degrees turn, at 90 deg/s and the approximate sample rate [rad]
 
 // Any estimate above this value is rejected.
 // Meant to prevent too high estimates due to co-occuring encoder edges.
 #define kOdomCenterVelocityMax 2.0 // [m/s]
 
-// Fraction of the last measured odometry velocity fed to the filter after kOdomCenterVelocityDecayTime.
+// The odometry model applies a factor in [0, 1] to the velocity estimate at every update 
+// to make it decay. Otherwise, even after the robot stops, velocity stays at the estimate
+// from the last encoder edge. The factor is calculated so that either dimension of the 
+// velocity is its last value multiplied by kOdomCenterVelocityDecayReduction after
+// kOdomCenterVelocityDecaySeconds seconds.
+
+// Target fraction of the last measured odometry velocity fed to the filter after kOdomCenterVelocityDecaySeconds.
 #define kOdomCenterVelocityDecayReduction 1e-3
 // Seconds required to reduce the odometry center velocity to kOdomCenterVelocityDecayReduction of the last measurement.
-#define kOdomCenterVelocityDecayTime ((kWheelRadius * kRadiansPerWheelTick) / 0.5)  // The time between wheel ticks at 0.5 m/s.
-#define kOdomCenterVelocityDecayFactor (exp(log(kOdomCenterVelocityDecayReduction) / (kApproximateUpdateRate * kOdomCenterVelocityDecayTime)))
+#define kOdomCenterVelocityDecaySeconds ((kWheelRadius * kRadiansPerWheelTick) / 0.5)  // The time between wheel ticks at 0.5 m/s.
+#define kOdomCenterVelocityDecayFactor (exp(log(kOdomCenterVelocityDecayReduction) / (kApproximateUpdateRate * kOdomCenterVelocityDecaySeconds)))
 
 RobotState::RobotState() 
   : last_odom_timer_ticks_(0), left_wheel_ticks_(0), right_wheel_ticks_(0), left_wheel_moving_backward_(false), right_wheel_moving_backward_(false), odom_yaw_(0.0f), last_imu_timer_ticks_(0), imu_yaw_(0.0f), last_state_update_timer_ticks_(0) {     
   
   // F: state transition model. x_k = F*x_{k-1} + B*u_k + w_k.
-  // Set only the upper triangle of the F matrix.
   const float time_inc = 1e-3f;  // This value really doesn't matter. It's just makes the matrices below easier to understand.
+  // This is a first-order model of the robot's position. The robot's yaw comes entirely
+  // from the IMU ("command") and the odometry, so its coefficient is zero in the state
+  // transition model.
   kalman_.F = { 1, 0, time_inc, 0, 0,
                 0, 1, 0, time_inc, 0,
                 0, 0, 1, 0, 0,
                 0, 0, 0, 1, 0,
-                0, 0, 0, 0, 1
+                0, 0, 0, 0, 0
               };
 
   // B: control-input model. x_k = F*x_{k-1} + B*u_k + w_k.
@@ -51,11 +63,12 @@ RobotState::RobotState()
                 0, 0, 0, 0, 1 };
 
   // Q: covariance matrix of process noise.
-  const float qpx = kStdevIMUAccelX * kStdevIMUAccelX * time_inc_2 * time_inc_2;
-  const float qpy = kStdevIMUAccelY * kStdevIMUAccelY * time_inc_2 * time_inc_2;
+  const float time_inc_4 = time_inc_2 * time_inc_2;
+  const float qpx = kStdevIMUAccelX * kStdevIMUAccelX * time_inc_4;
+  const float qpy = kStdevIMUAccelY * kStdevIMUAccelY * time_inc_4;
+  const float qvx = kStdevIMUAccelX * kStdevIMUAccelX * time_inc_2;
+  const float qvy = kStdevIMUAccelY * kStdevIMUAccelY * time_inc_2;
   const float qpa = kStdevIMUYaw * kStdevIMUYaw;
-  const float qvx = kStdevIMUAccelX * kStdevIMUAccelX * time_inc * time_inc;
-  const float qvy = kStdevIMUAccelY * kStdevIMUAccelY * time_inc * time_inc;
   kalman_.Q = {
                 qpx, 0, 0, 0, 0,
                 0, qpy, 0, 0, 0,
@@ -69,10 +82,8 @@ RobotState::RobotState()
   const float rpy = kStdevOdomPosY * kStdevOdomPosY;  // [m^2]
   const float rpa = kStdevOdomYaw * kStdevOdomYaw;  // [rad^2]
   // Velocity is calculated from position, 
-  const float stdev_velx = 2 * kStdevOdomPosX / time_inc;   // [m/s]
-  const float stdev_vely = 2 * kStdevOdomPosY / time_inc;   // [m/s]
-  const float rvx = stdev_velx * stdev_velx;  // [(m/s)^2]
-  const float rvy = stdev_vely * stdev_vely;  // [(m/s)^2]
+  const float rvx = (2 * rpx * rpx) / time_inc_2;  // [(m/s)^2]
+  const float rvy = (2 * rpy * rpy) / time_inc_2;  // [(m/s)^2]
   kalman_.R = {
                 rpx, 0, 0, 0, 0,
                 0, rpy, 0, 0, 0,
@@ -96,9 +107,9 @@ void RobotState::EstimateState(TimerTicksType timer_ticks) {
   // Update state estimation.
   Serial.printf("odom:%f %f %f %f %f, imu:%f %f %f\n", odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, odom_yaw_, imu_acceleration_.x, imu_acceleration_.y, imu_yaw_);
   kalman_.update({ odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, odom_yaw_ }, { imu_acceleration_.x, imu_acceleration_.y, imu_yaw_ });
-  Serial.printf("F = {{ %f %f %f %f %f }, {%f %f %f %f %f}, {%f %f %f %f %f}, { %f %f %f %f %f }, {%f %f %f %f %f}}\n", kalman_.F(0, 0), kalman_.F(0, 1), kalman_.F(0, 2), kalman_.F(0, 3), kalman_.F(0, 4), kalman_.F(1, 0), kalman_.F(1, 1), kalman_.F(1, 2), kalman_.F(1, 3), kalman_.F(1, 4), kalman_.F(2, 0), kalman_.F(2, 1), kalman_.F(2, 2), kalman_.F(2, 3), kalman_.F(2, 4), kalman_.F(3, 0), kalman_.F(3, 1), kalman_.F(3, 2), kalman_.F(3, 3), kalman_.F(3, 4), kalman_.F(4, 0), kalman_.F(4, 1), kalman_.F(4, 2), kalman_.F(4, 3), kalman_.F(4, 4));
-  Serial.printf("B = {{ %f %f %f }, {%f %f %f}, {%f %f %f}, {%f %f %f }, {%f %f %f}}\n", kalman_.B(0, 0), kalman_.B(0, 1), kalman_.B(0, 2), kalman_.B(1, 0), kalman_.B(1, 1), kalman_.B(1, 2), kalman_.B(2, 0), kalman_.B(2, 1), kalman_.B(2, 2), kalman_.B(3, 0), kalman_.B(3, 1), kalman_.B(3, 2), kalman_.B(4, 0), kalman_.B(4, 1), kalman_.B(4, 2));
-  Serial.printf("H = {{ %f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}}\n", kalman_.H(0, 0), kalman_.H(0, 1), kalman_.H(0, 2), kalman_.H(0, 3), kalman_.H(0, 4), kalman_.H(1, 0), kalman_.H(1, 1), kalman_.H(1, 2), kalman_.H(1, 3), kalman_.H(1, 4), kalman_.H(2, 0), kalman_.H(2, 1), kalman_.H(2, 2), kalman_.H(2, 3), kalman_.H(2, 4), kalman_.H(3, 0), kalman_.H(3, 1), kalman_.H(3, 2), kalman_.H(3, 3), kalman_.H(3, 4), kalman_.H(4, 0), kalman_.H(4, 1), kalman_.H(4, 2), kalman_.H(4, 3), kalman_.H(4, 4));  
+  // Serial.printf("F = {{ %f %f %f %f %f }, {%f %f %f %f %f}, {%f %f %f %f %f}, { %f %f %f %f %f }, {%f %f %f %f %f}}\n", kalman_.F(0, 0), kalman_.F(0, 1), kalman_.F(0, 2), kalman_.F(0, 3), kalman_.F(0, 4), kalman_.F(1, 0), kalman_.F(1, 1), kalman_.F(1, 2), kalman_.F(1, 3), kalman_.F(1, 4), kalman_.F(2, 0), kalman_.F(2, 1), kalman_.F(2, 2), kalman_.F(2, 3), kalman_.F(2, 4), kalman_.F(3, 0), kalman_.F(3, 1), kalman_.F(3, 2), kalman_.F(3, 3), kalman_.F(3, 4), kalman_.F(4, 0), kalman_.F(4, 1), kalman_.F(4, 2), kalman_.F(4, 3), kalman_.F(4, 4));
+  // Serial.printf("B = {{ %f %f %f }, {%f %f %f}, {%f %f %f}, {%f %f %f }, {%f %f %f}}\n", kalman_.B(0, 0), kalman_.B(0, 1), kalman_.B(0, 2), kalman_.B(1, 0), kalman_.B(1, 1), kalman_.B(1, 2), kalman_.B(2, 0), kalman_.B(2, 1), kalman_.B(2, 2), kalman_.B(3, 0), kalman_.B(3, 1), kalman_.B(3, 2), kalman_.B(4, 0), kalman_.B(4, 1), kalman_.B(4, 2));
+  // Serial.printf("H = {{ %f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}}\n", kalman_.H(0, 0), kalman_.H(0, 1), kalman_.H(0, 2), kalman_.H(0, 3), kalman_.H(0, 4), kalman_.H(1, 0), kalman_.H(1, 1), kalman_.H(1, 2), kalman_.H(1, 3), kalman_.H(1, 4), kalman_.H(2, 0), kalman_.H(2, 1), kalman_.H(2, 2), kalman_.H(2, 3), kalman_.H(2, 4), kalman_.H(3, 0), kalman_.H(3, 1), kalman_.H(3, 2), kalman_.H(3, 3), kalman_.H(3, 4), kalman_.H(4, 0), kalman_.H(4, 1), kalman_.H(4, 2), kalman_.H(4, 3), kalman_.H(4, 4));  
   
   last_state_update_timer_ticks_ = timer_ticks;
 }
@@ -133,10 +144,13 @@ void RobotState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc
   Serial.printf("odom_yaw_inc:%f odom_yaw_:%f perimeter_inc:%f curve_radius:%f distance_inc:%f distance_inc_yaw:%f x_inc:%f y_inc:%f odom_center_x:%f odom_center_y:%f odom_center_vx:%f odom_center_vy:%f\n", odom_yaw_inc, odom_yaw_, perimeter_inc, curve_radius, distance_inc, distance_inc_yaw, x_inc, y_inc, odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y);
 
   // Update the observation covariance elements that depend on the odometry sampling period.
-  const float stdev_velx = kStdevOdomPosX / odom_timer_inc;   // [m/s]
-  const float stdev_vely = kStdevOdomPosY / odom_timer_inc;   // [m/s]
-  kalman_.R(2, 2) = stdev_velx * stdev_velx;
-  kalman_.R(3, 3) = stdev_vely * stdev_vely;
+  // This is an approximation under the assumption that time_inc is constant. It might not be
+  // accurate looking at the entire signal because the sampling rate depends on wheel speed, 
+  // but it is meant to downplay velocity estimates coming from position samples very close 
+  // in time, where errors will be more amplified.
+  const float odom_time_inc_2 = odom_timer_inc * odom_timer_inc;
+  kalman_.R(2, 2) = (2 * kalman_.R(0, 0) * kalman_.R(0, 0)) / odom_time_inc_2;
+  kalman_.R(3, 3) = (2 * kalman_.R(1, 1) * kalman_.R(1, 1)) / odom_time_inc_2;
 
   EstimateState(timer_ticks);
 }
