@@ -10,8 +10,8 @@
 #define kStdevIMUYaw 0.001   // [rad] Estimated experimentally. The measure comes from the IMU internal filter, so noise is pretty low.
 
 // Standard deviations of the odometry measures.
-#define kStdevOdomPosX (0.01 / (0.85 * kApproximateUpdateRate))  // +/-1 cm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
-#define kStdevOdomPosY (0.01 / (0.85 * kApproximateUpdateRate))  // +/-1 cm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
+#define kStdevOdomPosX (0.005 / (0.85 * kApproximateUpdateRate))  // +/-5 mm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
+#define kStdevOdomPosY (0.005 / (0.85 * kApproximateUpdateRate))  // +/-5 mm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
 #define kStdevOdomYaw (M_PI / 180 * (10 / (90.0 / 90.0 * kApproximateUpdateRate)))  // +/-10 degreed after 90 degrees turn, at 90 deg/s and the approximate sample rate [rad]
 
 // Any estimate above this value is rejected.
