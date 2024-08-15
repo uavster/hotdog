@@ -106,7 +106,15 @@ void RobotState::EstimateState(TimerTicksType timer_ticks) {
   
   // Update state estimation.
   Serial.printf("odom:%f %f %f %f %f, imu:%f %f %f\n", odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, odom_yaw_, imu_acceleration_.x, imu_acceleration_.y, imu_yaw_);
-  kalman_.update({ odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, odom_yaw_ }, { imu_acceleration_.x, imu_acceleration_.y, imu_yaw_ });
+  // Avoid yaw discontinuities messing with the Kalman estimate.
+  // This was inspired by dmuir's answer at https://stackoverflow.com/questions/64947640/how-to-use-kalman-filter-with-degrees-0-360.
+  // Instead of the observed yaw, we pass the state minus the innovation normalized to 
+  // [-pi, pi), so that the filter gets the innovation normalized:
+  // Passing Y^ = X + remainder(Y-X, 2*pi) instead of Y makes the filter get 
+  // Y^-X = remainder(Y-X, 2*pi) as innovation.
+  float yaw_state_plus_normalized_odom_yaw_innovation = kalman_.x(4) + remainderf(odom_yaw_ - kalman_.x(4), 2 * M_PI);
+  kalman_.update({ odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, yaw_state_plus_normalized_odom_yaw_innovation }, { imu_acceleration_.x, imu_acceleration_.y, imu_yaw_ });
+
   // Serial.printf("F = {{ %f %f %f %f %f }, {%f %f %f %f %f}, {%f %f %f %f %f}, { %f %f %f %f %f }, {%f %f %f %f %f}}\n", kalman_.F(0, 0), kalman_.F(0, 1), kalman_.F(0, 2), kalman_.F(0, 3), kalman_.F(0, 4), kalman_.F(1, 0), kalman_.F(1, 1), kalman_.F(1, 2), kalman_.F(1, 3), kalman_.F(1, 4), kalman_.F(2, 0), kalman_.F(2, 1), kalman_.F(2, 2), kalman_.F(2, 3), kalman_.F(2, 4), kalman_.F(3, 0), kalman_.F(3, 1), kalman_.F(3, 2), kalman_.F(3, 3), kalman_.F(3, 4), kalman_.F(4, 0), kalman_.F(4, 1), kalman_.F(4, 2), kalman_.F(4, 3), kalman_.F(4, 4));
   // Serial.printf("B = {{ %f %f %f }, {%f %f %f}, {%f %f %f}, {%f %f %f }, {%f %f %f}}\n", kalman_.B(0, 0), kalman_.B(0, 1), kalman_.B(0, 2), kalman_.B(1, 0), kalman_.B(1, 1), kalman_.B(1, 2), kalman_.B(2, 0), kalman_.B(2, 1), kalman_.B(2, 2), kalman_.B(3, 0), kalman_.B(3, 1), kalman_.B(3, 2), kalman_.B(4, 0), kalman_.B(4, 1), kalman_.B(4, 2));
   // Serial.printf("H = {{ %f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}}\n", kalman_.H(0, 0), kalman_.H(0, 1), kalman_.H(0, 2), kalman_.H(0, 3), kalman_.H(0, 4), kalman_.H(1, 0), kalman_.H(1, 1), kalman_.H(1, 2), kalman_.H(1, 3), kalman_.H(1, 4), kalman_.H(2, 0), kalman_.H(2, 1), kalman_.H(2, 2), kalman_.H(2, 3), kalman_.H(2, 4), kalman_.H(3, 0), kalman_.H(3, 1), kalman_.H(3, 2), kalman_.H(3, 3), kalman_.H(3, 4), kalman_.H(4, 0), kalman_.H(4, 1), kalman_.H(4, 2), kalman_.H(4, 3), kalman_.H(4, 4));  
@@ -201,5 +209,8 @@ Point RobotState::CenterVelocity() const {
 }
 
 float RobotState::Angle() const {
-  return kalman_.x(4);
+  // As dmuir's answer above points out, we have to normalize the estimated yaw state, too.
+  // When the state is at the transition edge between pi and -pi, the innovation (eventhough
+  // normalized) may take the state above pi or below -pi.
+  return remainderf(kalman_.x(4), 2 * M_PI);
 }
