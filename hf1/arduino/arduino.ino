@@ -50,7 +50,7 @@ void setup() {
 
   InitTimer();
 
-  // Serial starts working after a second or so. Wait, so we don't miss any log.
+  // Serial starts working after some time. Wait, so we don't miss any log.
   while(GetTimerNanoseconds() < 3000000000ULL) {}
 
   Serial.println("Initialized debugging serial port and timing modules.");
