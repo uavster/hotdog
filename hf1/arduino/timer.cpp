@@ -1,10 +1,16 @@
+#include "kinetis.h"
+#include "wiring.h"
 #include "timer.h"
 #include <DebugLog.h>
 
 #define kMaxIsrs 4
 
 bool timer_initialized = false;
-uint64_t timer_num_overflows;
+
+// This effectively makes the count 48 bits long. At 31250 ticks per seconds, it does not
+// roll over for more than 285 years.
+uint32_t timer_num_overflows;
+
 TimerISR isr[kMaxIsrs];
 
 void InitTimer() {
@@ -58,10 +64,10 @@ void RestoreTimerIrq(bool previous_state) {
 
 void ftm2_isr(void) {
   if (FTM2_SC & FTM_SC_TOF) {
-    // The timer 0 counter overflowed
+    // The timer counter overflowed
     ++timer_num_overflows;
-  // TODO: Check if clearing the flag reenables the IRQ from here or only after returning.
-  // Avoid reenabling right away so ISRs don't need to be reentrant.
+    // TODO: Check if clearing the flag reenables the IRQ from here or only after returning.
+    // Avoid reenabling right away so ISRs don't need to be reentrant.
     // Reset overflow flag (read SC and write 0 to TOF)
     FTM2_SC &= ~FTM_SC_TOF;
   }
@@ -74,26 +80,34 @@ void ftm2_isr(void) {
 
 TimerTicksType GetTimerTicks() {
   NO_TIMER_IRQ {
-    return (timer_num_overflows << 16) | (FTM2_CNT & 0xffff);
+    if (FTM2_SC & FTM_SC_TOF) {
+      // The timer overflowed after we disabled the IRQ, and the ISR has not run yet to 
+      // update the overflow count. Update the count here and clear the flag so that the IRQ
+      // does not get triggered for that reason and increases the overflow count again. 
+      // Without this, for instance, SleepForNanos() exits its busy wait too early.
+      ++timer_num_overflows;
+      FTM2_SC &= ~FTM_SC_TOF;
+    }
+    return (static_cast<TimerTicksType>(timer_num_overflows) << 16) | (FTM2_CNT & 0xffff);
   }
-  return 0;
+  return 0; // Gets rid of "control reaches end of non-voic function..." warning.
 }
 
 TimerNanosType NanosFromTimerTicks(TimerTicksType ticks) {
   // This is valid for 37 years.
   // NanosFromTimerTicks(ticks) - NanosFromTimerTicks(ticks + 1) = 32000 nanos = 1 tick.
-  return ((ticks * 500000ULL) / kTimerTicksPerSecond) * 2000;
+  return ((ticks * 500000ULL) / kTimerTicksPerSecond) * 2000ULL;
 }
 
 TimerNanosType GetTimerNanoseconds() {
   return NanosFromTimerTicks(GetTimerTicks());
 }
 
-double SecondsFromTimerTicks(TimerTicksType ticks) {
+TimerSecondsType SecondsFromTimerTicks(TimerTicksType ticks) {
   return NanosFromTimerTicks(ticks) * 1e-9;
 }
 
-double GetTimerSeconds() {
+TimerSecondsType GetTimerSeconds() {
   return GetTimerNanoseconds() * 1e-9;
 }
 
@@ -123,3 +137,13 @@ void RemoveTimerIsr(TimerISR custom_isr) {
     isr[slot_index] = NULL;
   }
 }
+
+void SleepForNanos(TimerNanosType min_nanos) {
+  const TimerNanosType start_nanos = GetTimerNanoseconds();
+  while(GetTimerNanoseconds() - start_nanos < min_nanos) {}
+}
+
+void SleepForSeconds(TimerSecondsType min_seconds) {
+  SleepForNanos(min_seconds * 1e9);
+}
+

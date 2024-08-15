@@ -13,7 +13,10 @@ Maintains a clock, and offers timing services.
 // Maximum number of custom ISRs that can be added with AddTimerIsr().
 #define kTimerMaxIsrs 4
 
-// Rate at which ISRs added with AddTimerIsr() are called.
+// Minimum rate at which ISRs added with AddTimerIsr() are called.
+// Other than a timer overflow, ISRs can also be called if any channel configured as input 
+// capture gets triggered. ISRs should check the necessary channel flags if they want to 
+// avoid that.
 #define kTimerISRRate (65536.0 / kTimerTicksPerSecond)
 
 // Initializes the timer.
@@ -28,6 +31,7 @@ void RestoreTimerIrq(bool previous_state);
 
 typedef uint64_t TimerTicksType;
 typedef uint64_t TimerNanosType;
+typedef double TimerSecondsType;
 
 // Returns the timer ticks since the CPU started.
 // The tick count increments at a rate of kTimerTicksPerSecond.
@@ -41,11 +45,21 @@ TimerNanosType NanosFromTimerTicks(TimerTicksType ticks);
 TimerNanosType GetTimerNanoseconds();
 
 // Returns the number of seconds elapsed for the given number of timer ticks.
-double SecondsFromTimerTicks(TimerTicksType ticks);
+TimerSecondsType SecondsFromTimerTicks(TimerTicksType ticks);
 
 // Returns the number of seconds since the CPU started, with a resolution of
 // (1.0 / kTimerTicksPerSecond) seconds.
-double GetTimerSeconds();
+TimerSecondsType GetTimerSeconds();
+
+// Returns after a minimum number of nanoseconds.
+// The actual sleep time may be higher because the timer resolution is higher than 1 ns.
+// Any triggered CPU interruption may also make the actual sleep time higher, too.
+void SleepForNanos(TimerNanosType min_nanos);
+
+// Returns after a minimum number of seconds.
+// The actual sleep time may be higher because the timer resolution is higher than 1 ns.
+// Any triggered CPU interruption may also make the actual sleep time higher, too.
+void SleepForSeconds(TimerSecondsType min_seconds);
 
 typedef void (*TimerISR)(void);
 
