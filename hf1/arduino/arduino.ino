@@ -12,6 +12,7 @@
 #include "logger.h"
 #include "time_sync_server.h"
 #include "robot_state_estimator.h"
+#include "wheel_controller.h"
 
 #define kP2PInputCapacity 4
 #define kP2POutputCapacity 1
@@ -54,6 +55,12 @@ void setup() {
   while(GetTimerNanoseconds() < 3000000000ULL) {}
 
   Serial.println("Initialized debugging serial port and timing modules.");
+
+  Serial.println("Initializing encoders...");
+  InitEncoders();
+  
+  Serial.println("Initializing wheel speed estimator...");
+  InitWheelSpeedEstimator();
 
   Serial.println("Initializing robot state estimator...");
   InitRobotStateEstimator();
@@ -203,7 +210,17 @@ uint64_t next_wheel_command_time_ns = 0;
 float next_wheel_command_left_dc = 0;
 float next_wheel_command_right_dc = 0;
 
+WheelSpeedController left_wheel(&GetLeftWheelLinearSpeed, &SetLeftMotorDutyCycle);
+WheelSpeedController right_wheel(&GetRightWheelLinearSpeed, &SetRightMotorDutyCycle);
+
 void loop() {
+  left_wheel.SetLinearSpeed(0.4);
+  right_wheel.SetLinearSpeed(0.4);
+  left_wheel.Run();
+  right_wheel.Run();
+  Serial.println("");
+  return;
+
   RunRobotStateEstimator();
   Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetRobotState().Center().x, GetRobotState().Center().y, GetRobotState().Angle(), GetRobotState().CenterVelocity().x, GetRobotState().CenterVelocity().y);
 
