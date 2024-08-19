@@ -16,7 +16,7 @@
 
 // Any estimate above this value is rejected.
 // Meant to prevent too high estimates due to co-occuring encoder edges.
-#define kOdomCenterVelocityMax 2.0 // [m/s]
+#define kOdomCenterSpeedMax 2.0 // [m/s]
 
 // The odometry model applies a factor in [0, 1] to the velocity estimate at every update 
 // to make it decay. Otherwise, even after the robot stops, velocity stays at the estimate
@@ -141,7 +141,7 @@ void RobotState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc
   odom_yaw_ = ((kRadiansPerWheelTick * kWheelRadius) * (right_wheel_ticks_ - left_wheel_ticks_)) / kRobotDistanceBetweenTireCenters;
 
   const float odom_timer_inc = SecondsFromTimerTicks(timer_ticks - last_odom_timer_ticks_);
-  if (odom_timer_inc >= sqrt(x_inc * x_inc + y_inc * y_inc) / kOdomCenterVelocityMax) {
+  if (odom_timer_inc >= sqrt(x_inc * x_inc + y_inc * y_inc) / kOdomCenterSpeedMax) {
     // There could be input capture edges in the buffer before the timer started
     odom_center_velocity_.x = x_inc / odom_timer_inc;
     odom_center_velocity_.y = y_inc / odom_timer_inc;
