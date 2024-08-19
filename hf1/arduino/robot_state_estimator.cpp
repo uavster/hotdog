@@ -33,20 +33,18 @@ static BodyIMU body_imu;
 static RingBuffer<Event, kEventRingBufferCapacity> event_buffer;
 static RobotState robot_state;
 
-void LeftEncoderIsr(uint32_t timer_ticks) {
+static void LeftEncoderIsr(TimerTicksType timer_ticks) {
   // We have exclusive access to the event buffer while in the ISR.
   event_buffer.Write(Event{ .type = kLeftWheelTick, .timer_ticks = timer_ticks });
 }
 
-void RightEncoderIsr(uint32_t timer_ticks) {
+static void RightEncoderIsr(TimerTicksType timer_ticks) {
   // We have exclusive access to the event buffer while in the ISR.
   event_buffer.Write(Event{ .type = kRightWheelTick, .timer_ticks = timer_ticks });
 }
 
 void InitRobotStateEstimator() {
-  Serial.println("Initializing encoders...");
-  InitEncoders();
-  SetEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
+  AddEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
 
   Serial.println("Initializing body IMU...");
   body_imu.Init();
