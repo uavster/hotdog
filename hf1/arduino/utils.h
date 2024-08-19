@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <functional>
+#include <DebugLog.h>
 
 void Uint64ToString(uint64_t number, char *str);
 
@@ -42,4 +43,9 @@ private:
 // }
 #define PUSH_POP_WRAPPER(state_type, push_fn, pop_fn) for(struct { bool done; EndOfScopeExecutor<state_type> pop_executor; } s = { .done = false, .pop_executor = EndOfScopeExecutor<state_type>(&pop_fn, push_fn()) }; !s.done; s.done = true)
 
-#endif
+template<typename T> T *ASSERT_NOT_NULL(T * const ptr) {
+  ASSERT(ptr != NULL);
+  return ptr;
+}
+
+#endif  // UTILS_INCLUDED__
