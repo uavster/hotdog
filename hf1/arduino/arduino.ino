@@ -43,6 +43,10 @@ int last_received_packets[P2PPriority::kNumLevels];
 int last_sent_packets[P2PPriority::kNumLevels];
 int lost_packets[P2PPriority::kNumLevels];
 
+WheelSpeedController left_wheel(&GetLeftWheelTickCount, &SetLeftMotorDutyCycle);
+WheelSpeedController right_wheel(&GetRightWheelTickCount, &SetRightMotorDutyCycle);
+
+
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
   Serial.begin(115200);
@@ -60,7 +64,7 @@ void setup() {
   InitEncoders();
   
   Serial.println("Initializing wheel speed estimator...");
-  InitWheelSpeedEstimator();
+  InitWheelSpeedControl();
 
   Serial.println("Initializing robot state estimator...");
   InitRobotStateEstimator();
@@ -134,6 +138,9 @@ void setup() {
   */
   
   Serial.println("Ready.");
+
+  left_wheel.SetLinearSpeed(0.4);
+  right_wheel.SetLinearSpeed(0.4);
 }
 
 //char format_buffer[32];
@@ -210,19 +217,12 @@ uint64_t next_wheel_command_time_ns = 0;
 float next_wheel_command_left_dc = 0;
 float next_wheel_command_right_dc = 0;
 
-WheelSpeedController left_wheel(&GetLeftWheelLinearSpeed, &SetLeftMotorDutyCycle);
-WheelSpeedController right_wheel(&GetRightWheelLinearSpeed, &SetRightMotorDutyCycle);
-
 void loop() {
-  left_wheel.SetLinearSpeed(0.4);
-  right_wheel.SetLinearSpeed(0.4);
   left_wheel.Run();
   right_wheel.Run();
-  Serial.println("");
-  return;
 
   RunRobotStateEstimator();
-  Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetRobotState().Center().x, GetRobotState().Center().y, GetRobotState().Angle(), GetRobotState().CenterVelocity().x, GetRobotState().CenterVelocity().y);
+  // Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetRobotState().Center().x, GetRobotState().Center().y, GetRobotState().Angle(), GetRobotState().CenterVelocity().x, GetRobotState().CenterVelocity().y);
 
   p2p_stream.input().Run();
   p2p_stream.output().Run();
