@@ -127,32 +127,32 @@ void RunRobotStateEstimator() {
   qsort(event_pointers, num_events, sizeof(event_pointers[0]), CompareEventPointers);
 
   // Process events in chronological order.
-  Serial.println("--- Processing events ---");
+  // Serial.println("--- Processing events ---");
   for (int i = 0; i < num_events; ++i) {
     const Event &event = *event_pointers[i];
     char str[32];
     Uint64ToString(event.timer_ticks, str);
-    Serial.printf("ts:%s\n", str);
+    // Serial.printf("ts:%s\n", str);
     switch (event.type) {
       case kLeftWheelTick:
-        Serial.printf("left wheel tick\n");
+        // Serial.printf("left wheel tick\n");
         robot_state.NotifyWheelTicks(event.timer_ticks, 1, 0);
         break;
       case kRightWheelTick:
-        Serial.printf("right wheel tick\n");
+        // Serial.printf("right wheel tick\n");
         robot_state.NotifyWheelTicks(event.timer_ticks, 0, 1);
         break;
       case kLeftWheelDirectionCommand:
-        Serial.printf("left wheel direction command\n");
+        // Serial.printf("left wheel direction command\n");
         robot_state.NotifyLeftWheelDirection(event.payload.wheel_direction.is_forward);
         break;
       case kRightWheelDirectionCommand:
-        Serial.printf("left wheel direction command\n");
+        // Serial.printf("left wheel direction command\n");
         robot_state.NotifyLeftWheelDirection(event.payload.wheel_direction.is_forward);
         break;
       case kIMUReading:
-        Serial.printf("IMU reading\n");
-        Serial.printf("imu_ax:%f imu_ay:%f imu_a:%f\n", event.payload.imu.position_acceleration[0], event.payload.imu.position_acceleration[1], event.payload.imu.attitude[2]);
+        // Serial.printf("IMU reading\n");
+        // Serial.printf("imu_ax:%f imu_ay:%f imu_a:%f\n", event.payload.imu.position_acceleration[0], event.payload.imu.position_acceleration[1], event.payload.imu.attitude[2]);
         robot_state.NotifyIMUReading(event.timer_ticks, event.payload.imu.position_acceleration[0], event.payload.imu.position_acceleration[1], event.payload.imu.attitude[2]);
         break;
     }

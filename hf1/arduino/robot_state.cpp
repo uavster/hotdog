@@ -98,14 +98,14 @@ void RobotState::EstimateState(TimerTicksType timer_ticks) {
   const float state_update_timer_inc = SecondsFromTimerTicks(timer_ticks - last_state_update_timer_ticks_);
   kalman_.F(0, 2) = state_update_timer_inc;
   kalman_.F(1, 3) = state_update_timer_inc;
-  Serial.printf("state_update_timer_inc: %f\n", state_update_timer_inc);
+  // Serial.printf("state_update_timer_inc: %f\n", state_update_timer_inc);
 
   // Decay odometry velocity, so it goes to zero if no more wheel ticks are received.
   odom_center_velocity_.x *= kOdomCenterVelocityDecayFactor;
   odom_center_velocity_.y *= kOdomCenterVelocityDecayFactor;
   
   // Update state estimation.
-  Serial.printf("odom:%f %f %f %f %f, imu:%f %f %f\n", odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, odom_yaw_, imu_acceleration_.x, imu_acceleration_.y, imu_yaw_);
+  // Serial.printf("odom:%f %f %f %f %f, imu:%f %f %f\n", odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, odom_yaw_, imu_acceleration_.x, imu_acceleration_.y, imu_yaw_);
   // Avoid yaw discontinuities messing with the Kalman estimate.
   // This was inspired by dmuir's answer at https://stackoverflow.com/questions/64947640/how-to-use-kalman-filter-with-degrees-0-360.
   // Instead of the observed yaw, we pass the state minus the innovation normalized to 
@@ -149,7 +149,7 @@ void RobotState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc
   last_odom_timer_ticks_ = timer_ticks;
   odom_center_.x += x_inc;
   odom_center_.y += y_inc;
-  Serial.printf("odom_yaw_inc:%f odom_yaw_:%f perimeter_inc:%f curve_radius:%f distance_inc:%f distance_inc_yaw:%f x_inc:%f y_inc:%f odom_center_x:%f odom_center_y:%f odom_center_vx:%f odom_center_vy:%f\n", odom_yaw_inc, odom_yaw_, perimeter_inc, curve_radius, distance_inc, distance_inc_yaw, x_inc, y_inc, odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y);
+  // Serial.printf("odom_yaw_inc:%f odom_yaw_:%f perimeter_inc:%f curve_radius:%f distance_inc:%f distance_inc_yaw:%f x_inc:%f y_inc:%f odom_center_x:%f odom_center_y:%f odom_center_vx:%f odom_center_vy:%f\n", odom_yaw_inc, odom_yaw_, perimeter_inc, curve_radius, distance_inc, distance_inc_yaw, x_inc, y_inc, odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y);
 
   // Update the observation covariance elements that depend on the odometry sampling period.
   // This is an approximation under the assumption that time_inc is constant. It might not be
@@ -181,7 +181,7 @@ void RobotState::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x, flo
   imu_acceleration_.y = accel_x * sin_yaw + accel_y * cos_yaw;
   imu_yaw_ = yaw;
 
-  Serial.printf("imu_accel_.x:%f imu_accel_.y:%f imy_yaw_:%f\n", imu_acceleration_.x, imu_acceleration_.y, imu_yaw_);
+  // Serial.printf("imu_accel_.x:%f imu_accel_.y:%f imy_yaw_:%f\n", imu_acceleration_.x, imu_acceleration_.y, imu_yaw_);
 
   // Update the control-input elements that depend on the IMU sampling period.
   const float imu_time_inc_2 = imu_time_inc * imu_time_inc;
