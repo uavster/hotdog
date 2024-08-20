@@ -1,7 +1,7 @@
 #include "motors.h"
 #include "Arduino.h"
 
-#define kPWMFrequencyHz 20
+#define kPWMFrequencyHz 100
 #define kPWMPeriodTicks ((16000000 / 32) / kPWMFrequencyHz)
 
 void InitMotors() {
