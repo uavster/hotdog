@@ -131,11 +131,18 @@ void RobotState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc
   }
   left_wheel_ticks_ += left_ticks_inc;
   right_wheel_ticks_ += right_ticks_inc;
-  const float odom_yaw_inc = ((kRadiansPerWheelTick * kWheelRadius) * (right_ticks_inc - left_ticks_inc)) / kRobotDistanceBetweenTireCenters;
-  const float perimeter_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
-  const float curve_radius = perimeter_inc / abs(odom_yaw_inc);
-  const float distance_inc = curve_radius * sqrt(2 * (1 - cos(odom_yaw_inc)));
-  const float distance_inc_yaw = odom_yaw_ + 0.5f * odom_yaw_inc;
+  float distance_inc;
+  float distance_inc_yaw;
+  if (left_ticks_inc != right_ticks_inc) {
+    const float odom_yaw_inc = ((kRadiansPerWheelTick * kWheelRadius) * (right_ticks_inc - left_ticks_inc)) / kRobotDistanceBetweenTireCenters;
+    const float perimeter_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
+    const float curve_radius = perimeter_inc / abs(odom_yaw_inc);
+    distance_inc = curve_radius * sqrt(2 * (1 - cos(odom_yaw_inc)));
+    distance_inc_yaw = odom_yaw_ + 0.5f * odom_yaw_inc;
+  } else {
+    distance_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
+    distance_inc_yaw = odom_yaw_;
+  }
   const float x_inc = distance_inc * cos(distance_inc_yaw);
   const float y_inc = distance_inc * sin(distance_inc_yaw);
   odom_yaw_ = ((kRadiansPerWheelTick * kWheelRadius) * (right_wheel_ticks_ - left_wheel_ticks_)) / kRobotDistanceBetweenTireCenters;

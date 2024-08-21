@@ -130,17 +130,29 @@ void RunRobotStateEstimator() {
   // Serial.println("--- Processing events ---");
   for (int i = 0; i < num_events; ++i) {
     const Event &event = *event_pointers[i];
-    char str[32];
-    Uint64ToString(event.timer_ticks, str);
+    // char str[32];
+    // Uint64ToString(event.timer_ticks, str);
     // Serial.printf("ts:%s\n", str);
     switch (event.type) {
       case kLeftWheelTick:
         // Serial.printf("left wheel tick\n");
-        robot_state.NotifyWheelTicks(event.timer_ticks, 1, 0);
+        if (i == num_events - 1 || event_pointers[i + 1]->type != kRightWheelTick || event_pointers[i + 1]->timer_ticks != event.timer_ticks) {
+          robot_state.NotifyWheelTicks(event.timer_ticks, 1, 0);
+        } else {
+          // There is a tick from the other wheel at the exact same time.
+          robot_state.NotifyWheelTicks(event.timer_ticks, 1, 1);
+          ++i;  // The next event has been processed.
+        }
         break;
       case kRightWheelTick:
         // Serial.printf("right wheel tick\n");
-        robot_state.NotifyWheelTicks(event.timer_ticks, 0, 1);
+        if (i == num_events - 1 || event_pointers[i + 1]->type != kLeftWheelTick || event_pointers[i + 1]->timer_ticks != event.timer_ticks) {
+          robot_state.NotifyWheelTicks(event.timer_ticks, 0, 1);
+        } else {
+          // There is a tick from the other wheel at the exact same time.
+          robot_state.NotifyWheelTicks(event.timer_ticks, 1, 1);
+          ++i;  // The next event has been processed.
+        }
         break;
       case kLeftWheelDirectionCommand:
         // Serial.printf("left wheel direction command\n");
