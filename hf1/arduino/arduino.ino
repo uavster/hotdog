@@ -13,6 +13,7 @@
 #include "time_sync_server.h"
 #include "robot_state_estimator.h"
 #include "wheel_controller.h"
+#include "base_controller.h"
 
 #define kP2PInputCapacity 4
 #define kP2POutputCapacity 1
@@ -45,7 +46,8 @@ int lost_packets[P2PPriority::kNumLevels];
 
 WheelSpeedController left_wheel(&GetLeftWheelTickCount, &SetLeftMotorDutyCycle);
 WheelSpeedController right_wheel(&GetRightWheelTickCount, &SetRightMotorDutyCycle);
-
+BaseSpeedController base_speed_controller(&left_wheel, &right_wheel);
+BaseStateController base_state_controller(&base_speed_controller);
 
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
@@ -139,8 +141,8 @@ void setup() {
   
   Serial.println("Ready.");
 
-  left_wheel.SetLinearSpeed(0.4);
-  right_wheel.SetLinearSpeed(0.4);
+  base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI/2, 0.3, 0.4);
+  // base_speed_controller.SetTargetSpeeds(0.4, 0.8);
 }
 
 //char format_buffer[32];
@@ -156,8 +158,6 @@ uint64_t last_timestamp_ns = 0;
 #define kWaitSeconds 3
 #define kWaitSecondsDrive 0.25
 #define kInnerDutyCycle 0.75
-
-RobotState robot_state;
 
 typedef struct {
   Point center;
@@ -218,11 +218,11 @@ float next_wheel_command_left_dc = 0;
 float next_wheel_command_right_dc = 0;
 
 void loop() {
-  left_wheel.Run();
-  right_wheel.Run();
-
   RunRobotStateEstimator();
-  // Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetRobotState().Center().x, GetRobotState().Center().y, GetRobotState().Angle(), GetRobotState().CenterVelocity().x, GetRobotState().CenterVelocity().y);
+  Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
+
+  base_state_controller.Run();
+  // base_speed_controller.Run();
 
   p2p_stream.input().Run();
   p2p_stream.output().Run();
