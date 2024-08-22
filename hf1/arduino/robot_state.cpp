@@ -30,7 +30,7 @@
 #define kOdomCenterVelocityDecaySeconds ((kWheelRadius * kRadiansPerWheelTick) / 0.5)  // The time between wheel ticks at 0.5 m/s.
 #define kOdomCenterVelocityDecayFactor (exp(log(kOdomCenterVelocityDecayReduction) / (kApproximateUpdateRate * kOdomCenterVelocityDecaySeconds)))
 
-RobotState::RobotState() 
+BaseState::BaseState() 
   : last_odom_timer_ticks_(0), left_wheel_ticks_(0), right_wheel_ticks_(0), left_wheel_moving_backward_(false), right_wheel_moving_backward_(false), odom_yaw_(0.0f), last_imu_timer_ticks_(0), imu_yaw_(0.0f), last_state_update_timer_ticks_(0) {     
   
   // F: state transition model. x_k = F*x_{k-1} + B*u_k + w_k.
@@ -93,7 +93,7 @@ RobotState::RobotState()
               };
 }
 
-void RobotState::EstimateState(TimerTicksType timer_ticks) {
+void BaseState::EstimateState(TimerTicksType timer_ticks) {
   // Recalculate F with Ts=time_since_last_filter_run, and re-run Kalman filter.
   const float state_update_timer_inc = SecondsFromTimerTicks(timer_ticks - last_state_update_timer_ticks_);
   kalman_.F(0, 2) = state_update_timer_inc;
@@ -122,7 +122,7 @@ void RobotState::EstimateState(TimerTicksType timer_ticks) {
   last_state_update_timer_ticks_ = timer_ticks;
 }
 
-void RobotState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc, int right_ticks_inc) {
+void BaseState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc, int right_ticks_inc) {
   if (left_wheel_moving_backward_) {
     left_ticks_inc = -left_ticks_inc;
   }
@@ -170,15 +170,15 @@ void RobotState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc
   EstimateState(timer_ticks);
 }
 
-void RobotState::NotifyLeftWheelDirection(bool backward) {
+void BaseState::NotifyLeftWheelDirection(bool backward) {
   left_wheel_moving_backward_ = backward;
 }
 
-void RobotState::NotifyRightWheelDirection(bool backward) {
+void BaseState::NotifyRightWheelDirection(bool backward) {
   right_wheel_moving_backward_ = backward;
 }
 
-void RobotState::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x, float accel_y, float yaw) {
+void BaseState::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x, float accel_y, float yaw) {
   const float imu_time_inc = SecondsFromTimerTicks(timer_ticks - last_imu_timer_ticks_);
   last_imu_timer_ticks_ = timer_ticks;
 
@@ -207,15 +207,15 @@ void RobotState::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x, flo
   EstimateState(timer_ticks);
 }
 
-Point RobotState::Center() const {
+Point BaseState::center() const {
   return Point(kalman_.x(0), kalman_.x(1));
 }
 
-Point RobotState::CenterVelocity() const {
+Point BaseState::center_velocity() const {
   return Point(kalman_.x(2), kalman_.x(3));
 }
 
-float RobotState::Angle() const {
+float BaseState::yaw() const {
   // As dmuir's answer above points out, we have to normalize the estimated yaw state, too.
   // When the state is at the transition edge between pi and -pi, the innovation (eventhough
   // normalized) may take the state above pi or below -pi.

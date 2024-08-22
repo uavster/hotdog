@@ -5,6 +5,6 @@
 
 void InitRobotStateEstimator();
 void RunRobotStateEstimator();
-const RobotState &GetRobotState();
+const BaseState &GetBaseState();
 
 #endif  // ROBOT_STATE_ESTIMATOR_
