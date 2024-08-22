@@ -95,7 +95,7 @@ TimerTicksType GetTimerTicks() {
 
 TimerNanosType NanosFromTimerTicks(TimerTicksType ticks) {
   // This is valid for 37 years.
-  // NanosFromTimerTicks(ticks) - NanosFromTimerTicks(ticks + 1) = 32000 nanos = 1 tick.
+  // NanosFromTimerTicks(ticks) - NanosFromTimerTicks(ticks - 1) = 32000 nanos = 1 tick.
   return ((ticks * 500000ULL) / kTimerTicksPerSecond) * 2000ULL;
 }
 
@@ -146,4 +146,13 @@ void SleepForNanos(TimerNanosType min_nanos) {
 void SleepForSeconds(TimerSecondsType min_seconds) {
   SleepForNanos(min_seconds * 1e9);
 }
+
+TimerNanosType NanosFromSeconds(TimerSecondsType seconds) {
+  return seconds * 1e9;
+}
+
+TimerSecondsType SecondsFromNanos(TimerNanosType nanos) {
+  return nanos * 1e-9;
+}
+
 

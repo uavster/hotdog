@@ -3,6 +3,7 @@
 
 #include "encoders.h"
 #include "pid.h"
+#include "periodic_runnable.h"
 
 void InitWheelSpeedControl();
 
@@ -12,7 +13,7 @@ int32_t GetRightWheelTickCount();
 typedef void (DutyCycleSetter)(float duty_cycle);
 typedef int32_t (WheelTickCountGetter)(void);
 
-class WheelSpeedController {
+class WheelSpeedController : public PeriodicRunnable {
 public:
   // No ownership of the pointee is taken by this object.
   WheelSpeedController(WheelTickCountGetter * const wheel_tick_count_getter, DutyCycleSetter * const duty_cycle_setter);
@@ -20,7 +21,7 @@ public:
   void SetLinearSpeed(float meters_per_second);
   void SetAngularSpeed(float radians_per_second);
 
-  void Run();
+  void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;
 
 private:
   float DutyCycleFromLinearSpeed(float meters_per_second) const;

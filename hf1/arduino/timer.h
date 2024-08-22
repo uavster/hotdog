@@ -37,15 +37,21 @@ typedef double TimerSecondsType;
 // The tick count increments at a rate of kTimerTicksPerSecond.
 TimerTicksType GetTimerTicks();
 
-// Returns the number of nanoseconds elapsed for the given number of timer ticks.
+// Converts timer ticks to nanoseconds.
 TimerNanosType NanosFromTimerTicks(TimerTicksType ticks);
+
+// Converts seconds to nanoseconds.
+TimerNanosType NanosFromSeconds(TimerSecondsType seconds);
 
 // Returns the number of nanoseconds since the CPU started, with a resolution of
 // (1e9 / kTimerTicksPerSecond) nanoseconds.
 TimerNanosType GetTimerNanoseconds();
 
-// Returns the number of seconds elapsed for the given number of timer ticks.
+// Converts timer ticks to seconds.
 TimerSecondsType SecondsFromTimerTicks(TimerTicksType ticks);
+
+// Converts nanoseconds to seconds.
+TimerSecondsType SecondsFromNanos(TimerNanosType nanos);
 
 // Returns the number of seconds since the CPU started, with a resolution of
 // (1.0 / kTimerTicksPerSecond) seconds.

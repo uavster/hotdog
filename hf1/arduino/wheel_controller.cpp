@@ -63,7 +63,8 @@ int32_t GetRightWheelTickCount() {
 WheelSpeedController::WheelSpeedController(
   WheelTickCountGetter * const wheel_tick_count_getter, 
   DutyCycleSetter * const duty_cycle_setter) 
-  : wheel_tick_count_getter_(*ASSERT_NOT_NULL(wheel_tick_count_getter)), 
+  : PeriodicRunnable(kControlLoopPeriodSeconds), 
+    wheel_tick_count_getter_(*ASSERT_NOT_NULL(wheel_tick_count_getter)), 
     duty_cycle_setter_(*ASSERT_NOT_NULL(duty_cycle_setter)), 
     last_run_seconds_(-1),
     pid_(kP, kI, kD)
@@ -103,21 +104,10 @@ void WheelSpeedController::SetAngularSpeed(float radians_per_second) {
   SetLinearSpeed(radians_per_second * kWheelRadius);
 }
 
-void WheelSpeedController::Run() {
-  float now_seconds = GetTimerSeconds();
-  if (last_run_seconds_ < 0) {
-    last_run_seconds_ = now_seconds;
-    return;
-  }
-  float seconds_since_last_run = now_seconds - last_run_seconds_;
-  if (seconds_since_last_run <= kControlLoopPeriodSeconds) {
-    return;
-  }
-  last_run_seconds_ = now_seconds;
-
-  float seconds_since_start = now_seconds - time_start_;
+void WheelSpeedController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) {
+  float seconds_since_start = SecondsFromNanos(now_nanos) - time_start_;
   float average_wheel_speed = kWheelRadius * kRadiansPerWheelTick * (wheel_tick_count_getter_() - num_wheel_ticks_start_) / seconds_since_start;
-  const float pid_output = pid_.update(average_wheel_speed, seconds_since_last_run);
+  const float pid_output = pid_.update(average_wheel_speed, SecondsFromNanos(nanos_since_last_call));
   float speed_command = pid_.target() + pid_output;
   speed_command = max(speed_command, 0.0f);
   const float duty_cycle = DutyCycleFromLinearSpeed(speed_command);
