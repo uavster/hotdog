@@ -141,8 +141,9 @@ void setup() {
   
   Serial.println("Ready.");
 
-  base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI/2, 0.3, 0.4);
-  // base_speed_controller.SetTargetSpeeds(0.4, 0.8);
+  // base_state_controller.SetTargetState(Point(0.5, 0.5), 0, 0.3, 0.4);
+  // base_speed_controller.SetTargetSpeeds(0.1, 10 * M_PI);
+  // Serial.printf("target_linear_speed:%f target_angular_speed:%f radius:%f\n", base_speed_controller.target_linear_speed(), base_speed_controller.target_angular_speed(), base_speed_controller.curve_radius());
 }
 
 //char format_buffer[32];
@@ -217,12 +218,35 @@ uint64_t next_wheel_command_time_ns = 0;
 float next_wheel_command_left_dc = 0;
 float next_wheel_command_right_dc = 0;
 
+class SpeedControllerTest : public PeriodicRunnable {
+public:
+  SpeedControllerTest(BaseSpeedController *base_controller) : PeriodicRunnable(1.0), base_controller_(base_controller), linear_speed_(0) {}
+
+  void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override {
+    const float linear_speed = 0.3;
+    const float radius = -1.0;
+    // TODO: check negative angular speed causing saccades.
+    base_controller_->SetTargetSpeeds(linear_speed, linear_speed / radius);
+    // linear_speed_ += 0.1 * SecondsFromNanos(nanos_since_last_call);
+    // const float target_angular = M_PI;
+    // base_controller_->SetTargetSpeeds(linear_speed_, target_angular);
+    // // Serial.printf("linear:%f->%f angular:%f->%f radius:%f\n", linear_speed_, base_controller_->target_linear_speed(), target_angular, base_controller_->target_angular_speed(), base_controller_->curve_radius());
+  }
+
+private:
+  BaseSpeedController *base_controller_;
+  float linear_speed_;
+};
+
+SpeedControllerTest speed_controller_test(&base_speed_controller);
+
 void loop() {
   RunRobotStateEstimator();
-  Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
+  // Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
 
-  base_state_controller.Run();
-  // base_speed_controller.Run();
+  // base_state_controller.Run();
+  speed_controller_test.Run();
+  base_speed_controller.Run();
 
   p2p_stream.input().Run();
   p2p_stream.output().Run();
