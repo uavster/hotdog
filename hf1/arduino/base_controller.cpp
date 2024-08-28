@@ -22,27 +22,19 @@ void BaseSpeedController::SetTargetSpeeds(const float linear, const float angula
     target_speed_linear_ = min(target_speed_linear_, left_wheel_.GetMaxLinearSpeed());
     if (angular >= 0) {
       const float angular_max = 2 * (left_wheel_.GetMaxLinearSpeed() - target_speed_linear_) / kRobotDistanceBetweenTireCenters;
-      if (angular > angular_max) {
-        target_speed_angular_ = angular_max;
-      }
+      target_speed_angular_ = min(angular_max, target_speed_angular_);
     } else {
       const float angular_min = -2 * (left_wheel_.GetMaxLinearSpeed() - target_speed_linear_) / kRobotDistanceBetweenTireCenters;
-      if (angular < angular_min) {
-        target_speed_angular_ = angular_min;
-      }
+      target_speed_angular_ = max(angular_min, target_speed_angular_);
     }
   } else {
     target_speed_linear_ = max(target_speed_linear_, left_wheel_.GetMinLinearSpeed());
     if (angular >= 0) {
       const float angular_max = -2 * (left_wheel_.GetMinLinearSpeed() - target_speed_linear_) / kRobotDistanceBetweenTireCenters;
-      if (angular > angular_max) {
-        target_speed_angular_ = angular_max;
-      }
+      target_speed_angular_ = min(angular_max, target_speed_angular_);
     } else {
       const float angular_min = 2 * (left_wheel_.GetMinLinearSpeed() - target_speed_linear_) / kRobotDistanceBetweenTireCenters;
-      if (angular < angular_min) {
-        target_speed_angular_ = angular_min;
-      }
+      target_speed_angular_ = max(angular_min, target_speed_angular_);
     }
   }
   if (angular != target_speed_angular_) {
@@ -55,7 +47,7 @@ void BaseSpeedController::SetTargetSpeeds(const float linear, const float angula
   const float wheel_speed_l = linear_component - angular_component;
   const float wheel_speed_r = linear_component + angular_component;
 
-  Serial.printf("l:%f r:%f\n", wheel_speed_l, wheel_speed_r);
+  // Serial.printf("l:%f r:%f\n", wheel_speed_l, wheel_speed_r);
 
   left_wheel_.SetAngularSpeed(wheel_speed_l);
   right_wheel_.SetAngularSpeed(wheel_speed_r);

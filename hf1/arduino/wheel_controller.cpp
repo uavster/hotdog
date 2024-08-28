@@ -11,10 +11,15 @@
 #define kSpeedModelFactor 0.041
 #define kSpeedModelSpeedOffset 0.66
 
+// Only update the average speed estimate after this time period to ensure it is stable.
+// Outer control loops must not change the target speed faster than this period, or the 
+// speed will never get re-estimated.
+#define kSpeedMeasureUpdateStartSeconds 0.05
+
 // Best params at 0.4 m/s
-#define kP 10.0
-#define kI 5.0
-#define kD 0 //0.5
+#define kP 3.0
+#define kI 4.0
+#define kD 0.0
 
 #define kPWMDutyCycleMin 0.0f
 #define kPWMDutyCycleMax 1.0f
@@ -94,7 +99,6 @@ void WheelSpeedController::SetLinearSpeed(float meters_per_second) {
   time_start_ = GetTimerSeconds();
   num_wheel_ticks_start_ = wheel_tick_count_getter_();
   pid_.target(meters_per_second);
-  // pid_.ResetIntegrator();
 }
 
 void WheelSpeedController::SetAngularSpeed(float radians_per_second) {
@@ -116,22 +120,26 @@ void WheelSpeedController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosTy
   is_turning_forward_ = is_turning_forward;
 
   // Estimate wheel speed.
-  const float seconds_since_start = SecondsFromNanos(now_nanos) - time_start_;
   int num_encoder_ticks = wheel_tick_count_getter_() - num_wheel_ticks_start_;
   if (num_encoder_ticks > 0) {
-    // Only update the speed estimate if get got any encoder ticks since the last change of
+    // Only update the speed estimate if got any encoder ticks since the last change of
     // target speed. Otherwise, we'd get 0 after every change and the consequent control 
     // peak.
-    float cur_avg_speed = kWheelRadius * kRadiansPerWheelTick * num_encoder_ticks / seconds_since_start;
-    if (!is_turning_forward_) {
-      // Assume the wheel is turning in the commanded direction because we cannot sense it.
-      cur_avg_speed = -cur_avg_speed;
+    const float seconds_since_start = SecondsFromNanos(now_nanos) - time_start_;
+    if (seconds_since_start > kSpeedMeasureUpdateStartSeconds) {
+      // Only update the speed estimate after some time to ensure that it is stable. 
+      // Otherwise, we get artificial peaks in the control action.
+      float cur_avg_speed = kWheelRadius * kRadiansPerWheelTick * num_encoder_ticks / seconds_since_start;
+      if (!is_turning_forward_) {
+        // Assume the wheel is turning in the commanded direction because we cannot sense it.
+        cur_avg_speed = -cur_avg_speed;
+      }
+      average_wheel_speed_ = cur_avg_speed;
     }
-    average_wheel_speed_ = cur_avg_speed;
   }
 
   // Update duty cycle with the speed estimate.
-  const float pid_output = pid_.update(average_wheel_speed_, SecondsFromNanos(nanos_since_last_call));
+  const float pid_output = pid_.update(average_wheel_speed_);
   float speed_command = pid_.target() + pid_output;
   if ((is_turning_forward && speed_command < 0) || (!is_turning_forward && speed_command > 0)) {
     // Avoid speed commands opposite to the driving direction as that can make the wheel 

@@ -222,10 +222,14 @@ class SpeedControllerTest : public PeriodicRunnable {
 public:
   SpeedControllerTest(BaseSpeedController *base_controller) : PeriodicRunnable(1.0), base_controller_(base_controller), linear_speed_(0) {}
 
+  void RunFirstTime(TimerNanosType now_nanos) {
+    // const float linear_speed = 0.3;
+    // const float radius = 1.0;
+    // base_controller_->SetTargetSpeeds(linear_speed, 0); // linear_speed / radius);
+  }
   void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override {
     const float linear_speed = 0.3;
-    const float radius = -1.0;
-    // TODO: check negative angular speed causing saccades.
+    const float radius = 1.0;
     base_controller_->SetTargetSpeeds(linear_speed, linear_speed / radius);
     // linear_speed_ += 0.1 * SecondsFromNanos(nanos_since_last_call);
     // const float target_angular = M_PI;
