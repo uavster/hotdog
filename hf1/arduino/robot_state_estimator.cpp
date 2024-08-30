@@ -17,7 +17,7 @@ typedef enum {
 
 typedef struct {
   EventType type;
-  uint64_t timer_ticks;
+  TimerTicksType timer_ticks;
   union {
     struct {
       bool is_forward;
@@ -67,7 +67,7 @@ static void RegisterIMUEvent() {
   }
 }
 
-void NotifyLeftMotorDirection(uint32_t timer_ticks, bool forward) {
+void NotifyLeftMotorDirection(TimerTicksType timer_ticks, bool forward) {
   NO_TIMER_IRQ {
     event_buffer.Write(Event{ 
       .type = kLeftWheelDirectionCommand, 
@@ -81,7 +81,7 @@ void NotifyLeftMotorDirection(uint32_t timer_ticks, bool forward) {
   }
 }
 
-void NotifyRightMotorDirection(uint32_t timer_ticks, bool forward) {
+void NotifyRightMotorDirection(TimerTicksType timer_ticks, bool forward) {
   NO_TIMER_IRQ {
     event_buffer.Write(Event{ 
       .type = kRightWheelDirectionCommand, 
@@ -160,7 +160,7 @@ void RunRobotStateEstimator() {
         break;
       case kRightWheelDirectionCommand:
         // Serial.printf("left wheel direction command\n");
-        base_state.NotifyLeftWheelDirection(event.payload.wheel_direction.is_forward);
+        base_state.NotifyRightWheelDirection(event.payload.wheel_direction.is_forward);
         break;
       case kIMUReading:
         // Serial.printf("IMU reading\n");
