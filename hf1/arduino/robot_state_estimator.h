@@ -6,5 +6,7 @@
 void InitRobotStateEstimator();
 void RunRobotStateEstimator();
 const BaseState &GetBaseState();
+void NotifyLeftMotorDirection(TimerTicksType timer_ticks, bool forward);
+void NotifyRightMotorDirection(TimerTicksType timer_ticks, bool forward);
 
 #endif  // ROBOT_STATE_ESTIMATOR_
