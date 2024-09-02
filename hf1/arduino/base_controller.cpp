@@ -6,9 +6,12 @@
 
 #define kLoopPeriod 0.33  // [s]
 
-#define kKx 10.0   // [1/s]
+#define kKx 3.0   // [1/s]
 #define kKy 64.0 // [1/m^2]
-#define kKyaw 16.0    // [1/m]
+#define kKyaw 32.0    // [1/m]
+
+#define kMaxPositionErrorForAtState 0.15 // [m]
+#define kMaxYawErrorForAtState ((45.0/4 * M_PI) / 180)  // [rad]
 
 BaseSpeedController::BaseSpeedController(WheelSpeedController *left_wheel, WheelSpeedController *right_wheel) 
   : left_wheel_(*ASSERT_NOT_NULL(left_wheel)), right_wheel_(*ASSERT_NOT_NULL(right_wheel)) {
@@ -78,14 +81,17 @@ void BaseStateController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosTyp
   const Point position_error = center_position_target_ - base_state.center();
   const float forward_error = position_error.x * cos_yaw + position_error.y * sin_yaw;
   const float lateral_error = -position_error.x * sin_yaw + position_error.y * cos_yaw;  
-  const float yaw_error = yaw_target_ - base_state.yaw();
+  const float yaw_error = NormalizeRadians(yaw_target_ - base_state.yaw());
 
   // Calculate commands for the base's speed controller from errors and reference speed.
-  const float linear_speed_command = reference_forward_speed_ * cos(yaw_error) + kKx * forward_error;
+  float linear_speed_command = reference_forward_speed_ * cos(yaw_error) + kKx * forward_error;
+  linear_speed_command = std::clamp(linear_speed_command, -0.4, 0.4);
   // Reference angular speed is assumed to be 0.
-  const float angular_speed_command = reference_forward_speed_ * (kKy * lateral_error + kKyaw * sin(yaw_error));
-  Serial.printf("forward_cmd:%f angular_cmd:%f\n", min(0.4, max(0, linear_speed_command)), min(0.8, max(-0.8, angular_speed_command)));
-  base_speed_controller_.SetTargetSpeeds(min(0.4, max(0, linear_speed_command)), min(0.8, max(-0.8, angular_speed_command)));
+  float angular_speed_command = reference_forward_speed_ * (kKy * lateral_error + kKyaw * sin(yaw_error));
+  angular_speed_command = std::clamp(angular_speed_command, -0.8, 0.8);
+  Serial.printf("%f * (%f * %f + %f * sin(%f))\n", reference_forward_speed_, kKy, lateral_error, kKyaw, yaw_error);
+  Serial.printf("fw_error:%f lat_error:%f yaw_error:%f fw_cmd:%f ang_cmd:%f\n", forward_error, lateral_error, yaw_error, linear_speed_command, angular_speed_command);
+  base_speed_controller_.SetTargetSpeeds(linear_speed_command, angular_speed_command);
 }
 
 void BaseStateController::SetTargetState(const Point &center_position_target, float yaw_target, float reference_forward_speed, float reference_angular_speed) {
@@ -95,3 +101,9 @@ void BaseStateController::SetTargetState(const Point &center_position_target, fl
   reference_angular_speed_ = reference_angular_speed;
 }
 
+bool BaseStateController::IsAtTargetState() const {
+  const BaseState &base_state = GetBaseState();
+  const Point position_error = center_position_target_ - base_state.center();
+  const float yaw_error = NormalizeRadians(yaw_target_ - base_state.yaw());
+  return position_error.norm() <= kMaxPositionErrorForAtState && abs(yaw_error) <= kMaxYawErrorForAtState;
+}

@@ -141,7 +141,7 @@ void setup() {
   
   Serial.println("Ready.");
 
-  // base_state_controller.SetTargetState(Point(0.5, 0.5), 0, 0.3, 0.4);
+  base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI / 4, 0.3, 0);
   // base_speed_controller.SetTargetSpeeds(0.1, 10 * M_PI);
   // Serial.printf("target_linear_speed:%f target_angular_speed:%f radius:%f\n", base_speed_controller.target_linear_speed(), base_speed_controller.target_angular_speed(), base_speed_controller.curve_radius());
 }
@@ -220,17 +220,18 @@ float next_wheel_command_right_dc = 0;
 
 class SpeedControllerTest : public PeriodicRunnable {
 public:
-  SpeedControllerTest(BaseSpeedController *base_controller) : PeriodicRunnable(1.0), base_controller_(base_controller), linear_speed_(0) {}
+  SpeedControllerTest(BaseSpeedController *base_controller) : PeriodicRunnable(0.33), base_controller_(base_controller), linear_speed_(0) {}
 
   void RunFirstTime(TimerNanosType now_nanos) {
-    // const float linear_speed = 0.3;
+    const float linear_speed = -0.3;
     // const float radius = 1.0;
     // base_controller_->SetTargetSpeeds(linear_speed, 0); // linear_speed / radius);
   }
   void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override {
-    const float linear_speed = 0.3;
+    const float linear_speed = -0.3;
     const float radius = 1.0;
-    base_controller_->SetTargetSpeeds(linear_speed, linear_speed / radius);
+    base_controller_->SetTargetSpeeds(linear_speed, 0);
+    // base_controller_->SetTargetSpeeds(linear_speed * sin(2 * M_PI * 0.1 * SecondsFromNanos(now_nanos)), 0); //linear_speed / radius);
     // linear_speed_ += 0.1 * SecondsFromNanos(nanos_since_last_call);
     // const float target_angular = M_PI;
     // base_controller_->SetTargetSpeeds(linear_speed_, target_angular);
@@ -246,11 +247,18 @@ SpeedControllerTest speed_controller_test(&base_speed_controller);
 
 void loop() {
   RunRobotStateEstimator();
-  // Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
+  Serial.printf("%d|cx:%f cy:%f a:%f vx:%f vy:%f\n", base_state_controller.IsAtTargetState() ? 1:0, GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
 
-  // base_state_controller.Run();
-  speed_controller_test.Run();
-  base_speed_controller.Run();
+  if (!base_state_controller.IsAtTargetState()) {
+    base_state_controller.Run();
+  } else {
+    base_speed_controller.SetTargetSpeeds(0, 0);
+  }
+  NotifyLeftMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
+  NotifyRightMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
+  
+  // speed_controller_test.Run();
+  // base_speed_controller.Run();
 
   p2p_stream.input().Run();
   p2p_stream.output().Run();

@@ -28,6 +28,9 @@ public:
 
   void Run();
 
+  const WheelSpeedController &left_wheel_speed_controller() const { return left_wheel_; }
+  const WheelSpeedController &right_wheel_speed_controller() const { return right_wheel_; }
+
 private:
   WheelSpeedController &left_wheel_;
   WheelSpeedController &right_wheel_;
@@ -43,6 +46,10 @@ public:
 
   void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;
   void Run();
+
+  const BaseSpeedController &base_speed_controller() const { return base_speed_controller_; }
+
+  bool IsAtTargetState() const;
 
 private:
   BaseSpeedController &base_speed_controller_;
