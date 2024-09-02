@@ -18,6 +18,17 @@ public:
   // Returns the PID output.
   float output() const { return output_; }
 
+  float p() const { return kp_; }
+  void p(float p) { kp_ = p; }
+
+  float i() const { return ki_; }
+  void i(float i) { ki_ = i; }
+
+  float d() const { return kd_; }
+  void d(float d) { kd_ = d; }
+
+  void setParameters(float p, float i, float d) { kp_ = p; ki_ = i; kd_ = d; }
+
 private:
   float kp_;
   float ki_;
