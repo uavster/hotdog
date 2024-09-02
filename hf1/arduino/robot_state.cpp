@@ -156,7 +156,8 @@ void BaseState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc,
   last_odom_timer_ticks_ = timer_ticks;
   odom_center_.x += x_inc;
   odom_center_.y += y_inc;
-  // Serial.printf("odom_yaw_inc:%f odom_yaw_:%f perimeter_inc:%f curve_radius:%f distance_inc:%f distance_inc_yaw:%f x_inc:%f y_inc:%f odom_center_x:%f odom_center_y:%f odom_center_vx:%f odom_center_vy:%f\n", odom_yaw_inc, odom_yaw_, perimeter_inc, curve_radius, distance_inc, distance_inc_yaw, x_inc, y_inc, odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y);
+  // Serial.printf("left_wheel_ticks_:%d right_wheel_ticks_:%d\n", left_wheel_ticks_, right_wheel_ticks_);
+  // Serial.printf("odom_yaw_:%f distance_inc:%f distance_inc_yaw:%f x_inc:%f y_inc:%f odom_center_x:%f odom_center_y:%f odom_center_vx:%f odom_center_vy:%f\n", odom_yaw_, distance_inc, distance_inc_yaw, x_inc, y_inc, odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y);
 
   // Update the observation covariance elements that depend on the odometry sampling period.
   // This is an approximation under the assumption that time_inc is constant. It might not be
@@ -219,5 +220,5 @@ float BaseState::yaw() const {
   // As dmuir's answer above points out, we have to normalize the estimated yaw state, too.
   // When the state is at the transition edge between pi and -pi, the innovation (eventhough
   // normalized) may take the state above pi or below -pi.
-  return remainderf(kalman_.x(4), 2 * M_PI);
+  return NormalizeRadians(kalman_.x(4));
 }

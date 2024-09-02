@@ -16,6 +16,7 @@ class Point {
     Point(): x(0), y(0) {}
     Point(float x_, float y_) : x(x_), y(y_) {}
     Point operator-(const Point &p) { return Point(x - p.x, y - p.y); }
+    float norm() const { return sqrtf(x * x + y * y); }
 };
 
 #define kNumStateVars 5
