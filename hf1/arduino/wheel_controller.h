@@ -37,6 +37,8 @@ public:
   // Periodically updates the speed controller.
   void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;
 
+  bool is_turning_forward() const { return is_turning_forward_; }
+
 private:
   float DutyCycleFromLinearSpeed(float meters_per_second) const;
 
@@ -48,6 +50,9 @@ private:
   int32_t num_wheel_ticks_start_;
   float average_wheel_speed_;
   bool is_turning_forward_;
+  float target_speed_;
+  float initial_target_speed_;
+  float target_speed_slope_;
   
   PID pid_;
 };
