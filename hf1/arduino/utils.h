@@ -48,4 +48,6 @@ template<typename T> T *ASSERT_NOT_NULL(T * const ptr) {
   return ptr;
 }
 
+float NormalizeRadians(float radians);
+
 #endif  // UTILS_INCLUDED__

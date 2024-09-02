@@ -1,5 +1,6 @@
 #include "utils.h"
 #include <math.h>
+#include <algorithm>
 
 void Uint64ToString(uint64_t number, char *str) {
   int str_length = 1;
@@ -11,4 +12,8 @@ void Uint64ToString(uint64_t number, char *str) {
     number /= 10;
   }
   str[str_length] = '\0';
+}
+
+float NormalizeRadians(float radians) {
+  return remainderf(radians, 2 * M_PI);
 }
