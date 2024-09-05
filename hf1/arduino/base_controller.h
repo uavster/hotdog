@@ -42,7 +42,11 @@ private:
 
 // Controller commanding the base speed controller to achieve the desired position and yaw
 // of the robot's base within a tolerance. Convergence is not guaranteed in any given time
-// horizon. 
+// horizon.
+//
+// This controller is based on:
+// Y. Kanayama, Y. Kimura, F. Miyazaki, and T. Noguchi, "A stable tracking control method 
+// for an autonomous mobile robot," Proc. IEEE Int. Conf. Rob. Autom., 1990, pp. 384–389.
 class BaseStateController : public PeriodicRunnable {
 public:
   BaseStateController(BaseSpeedController *base_speed_controller);
@@ -117,7 +121,7 @@ private:
 // trajectory, the robot will stop. But if the waypoint is not the last one, the robot will 
 // skip to the next one.
 // 
-// This controller is based on the paper:
+// This controller is based on:
 // R. L. S. Sousa, M. D. do Nascimento Forte, F. G. Nogueira, B. C. Torrico, 
 // “Trajectory tracking control of a nonholonomic mobile robot with differential drive”, 
 // in Proc. IEEE Biennial Congress of Argentina (ARGENCON), pp. 1–6, 2016.
