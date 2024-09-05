@@ -5,10 +5,18 @@
 #include "robot_state_estimator.h"
 
 #define kLoopPeriod 0.33  // [s]
+#define kBaseTrajectoryControllerLoopPeriod 0.1 // [s]
 
 #define kKx 3.0   // [1/s]
 #define kKy 64.0 // [1/m^2]
 #define kKyaw 32.0    // [1/m]
+
+#define kBaseTrajectoryControllerK1 0.8
+#define kBaseTrajectoryControllerK2 3.0*3
+#define kBaseTrajectoryControllerK3 0.8
+
+#define kBaseTrajectoryTangentialSpeedMax 0.4
+#define kBaseTrajectoryAngularSpeedMax (2*M_PI/3)
 
 #define kMaxPositionErrorForAtState 0.15 // [m]
 #define kMaxYawErrorForAtState ((45.0/4 * M_PI) / 180)  // [rad]
@@ -89,8 +97,8 @@ void BaseStateController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosTyp
   // Reference angular speed is assumed to be 0.
   float angular_speed_command = reference_forward_speed_ * (kKy * lateral_error + kKyaw * sin(yaw_error));
   angular_speed_command = std::clamp(angular_speed_command, -0.8, 0.8);
-  Serial.printf("%f * (%f * %f + %f * sin(%f))\n", reference_forward_speed_, kKy, lateral_error, kKyaw, yaw_error);
-  Serial.printf("fw_error:%f lat_error:%f yaw_error:%f fw_cmd:%f ang_cmd:%f\n", forward_error, lateral_error, yaw_error, linear_speed_command, angular_speed_command);
+  // Serial.printf("%f * (%f * %f + %f * sin(%f))\n", reference_forward_speed_, kKy, lateral_error, kKyaw, yaw_error);
+  // Serial.printf("fw_error:%f lat_error:%f yaw_error:%f fw_cmd:%f ang_cmd:%f\n", forward_error, lateral_error, yaw_error, linear_speed_command, angular_speed_command);
   base_speed_controller_.SetTargetSpeeds(linear_speed_command, angular_speed_command);
 }
 
@@ -107,3 +115,107 @@ bool BaseStateController::IsAtTargetState() const {
   const float yaw_error = NormalizeRadians(yaw_target_ - base_state.yaw());
   return position_error.norm() <= kMaxPositionErrorForAtState && abs(yaw_error) <= kMaxYawErrorForAtState;
 }
+
+const Point &BaseTrajectoryView::position(int index) const {
+  return waypoints_[index].position();
+}
+
+StatusOr<int> BaseTrajectoryView::FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index) const {
+  int i = prev_result_index;
+  if (i < 0 || num_waypoints_ == 0 || seconds < waypoints_[i].seconds()) { return Status::kUnavailableError; }
+  while(i < num_waypoints_ && seconds >= waypoints_[i].seconds()) { ++i; }
+  return i - 1;
+}
+
+float BaseTrajectoryView::seconds(int index) const {
+  return waypoints_[index].seconds();
+}
+
+Point BaseTrajectoryView::velocity(int index) const {
+  if (index >= num_waypoints_ - 1) {
+    index = num_waypoints_ - 2;
+  }
+  return (position(index + 1) - position(index)) / (seconds(index + 1) - seconds(index));
+}
+
+Point BaseTrajectoryView::acceleration(int index) const {
+  if (index >= num_waypoints_ - 1) {
+    index = num_waypoints_ - 2;
+  }
+  return (velocity(index + 1) - velocity(index)) / (seconds(index + 1) - seconds(index));
+}
+
+BaseTrajectoryController::BaseTrajectoryController(BaseSpeedController *base_speed_controller) : 
+  PeriodicRunnable(kBaseTrajectoryControllerLoopPeriod), base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)), current_waypoint_index_(0), is_started_(false) {}
+
+void BaseTrajectoryController::trajectory(const BaseTrajectoryView &trajectory) {
+  trajectory_ = trajectory;
+  current_waypoint_index_ = 0;
+  is_started_ = false;
+}
+
+void BaseTrajectoryController::Run() {
+  PeriodicRunnable::Run();
+  base_speed_controller_.Run();
+}
+
+void BaseTrajectoryController::StartTrajectory() {
+  current_waypoint_index_ = 0;
+  is_started_ = true;
+  start_seconds_ = GetTimerSeconds();
+}
+
+void BaseTrajectoryController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) {
+  if (!is_started_) { return; }
+  const TimerSecondsType now_seconds = SecondsFromNanos(now_nanos) - start_seconds_;
+  const auto maybe_index = trajectory_.FindWaypointIndexBeforeSeconds(now_seconds, current_waypoint_index_);
+  if (!maybe_index.ok()) { return; }
+  const int index = *maybe_index;
+  if (index == trajectory_.num_waypoints() - 1) {
+    base_speed_controller_.SetTargetSpeeds(0, 0);
+    return;
+  }
+  current_waypoint_index_ = index;
+
+  // Get reference states.
+  TimerSecondsType time_fraction = (now_seconds - trajectory_.seconds(index)) / (trajectory_.seconds(index + 1) - trajectory_.seconds(index));
+  const Point ref_position = trajectory_.position(index) + time_fraction * (trajectory_.position(index + 1) - trajectory_.position(index));
+  const Point ref_velocity = trajectory_.velocity(index) + time_fraction * (trajectory_.velocity(index + 1) - trajectory_.velocity(index));
+  const Point ref_acceleration = trajectory_.acceleration(index) + time_fraction * (trajectory_.acceleration(index + 1) - trajectory_.acceleration(index));
+  const float ref_yaw = atan2f(ref_velocity.y, ref_velocity.x);
+
+  // Get errors in the base's local frame.
+  const BaseState &base_state = GetBaseState();
+  const float cos_yaw = cos(base_state.yaw());
+  const float sin_yaw = sin(base_state.yaw());
+  const Point position_error = ref_position - base_state.center();
+  const float forward_error = position_error.x * cos_yaw + position_error.y * sin_yaw;
+  const float lateral_error = -position_error.x * sin_yaw + position_error.y * cos_yaw;  
+  const float yaw_error = NormalizeRadians(ref_yaw - base_state.yaw());
+
+  // Get feedforward velocities.
+  const float feedfoward_tangential_velocity = ref_velocity.norm();
+  if (abs(feedfoward_tangential_velocity) < 1e-6) {
+    base_speed_controller_.SetTargetSpeeds(0, 0);
+    return;
+  }  
+  const float feedfoward_angular_velocity = (ref_velocity.x * ref_acceleration.y - ref_velocity.y * ref_acceleration.x) / feedfoward_tangential_velocity;
+  // Serial.printf("feedfoward_tangential_velocity:%f feedfoward_angular_velocity:%f\n", feedfoward_tangential_velocity, feedfoward_angular_velocity);
+  // Get feedforward commands.
+  const float feedforward_tangential_command = cos(yaw_error) * feedfoward_tangential_velocity;
+  const float feedforward_angular_command = feedfoward_angular_velocity;
+
+  // Get feedback commands.
+  const float feedback_tangential_command = kBaseTrajectoryControllerK1 * forward_error;
+  const float feedback_angular_command = kBaseTrajectoryControllerK2 * lateral_error + kBaseTrajectoryControllerK3 * yaw_error;
+
+  // Get velocity commands.
+  const float tangential_command = feedforward_tangential_command + feedback_tangential_command;
+  const float angular_command = feedforward_angular_command + feedback_angular_command;
+  const float tangential_command_limitted = std::clamp(tangential_command, -kBaseTrajectoryTangentialSpeedMax, kBaseTrajectoryTangentialSpeedMax);
+  const float angular_command_limitted = std::clamp(angular_command, -kBaseTrajectoryAngularSpeedMax, kBaseTrajectoryAngularSpeedMax);
+
+  // Serial.printf("%f %f\n", tangential_command_limitted, angular_command_limitted);
+  base_speed_controller_.SetTargetSpeeds(tangential_command_limitted, angular_command_limitted);
+}
+

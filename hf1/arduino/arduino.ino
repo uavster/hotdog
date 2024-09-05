@@ -48,6 +48,23 @@ WheelSpeedController left_wheel(&GetLeftWheelTickCount, &SetLeftMotorDutyCycle);
 WheelSpeedController right_wheel(&GetRightWheelTickCount, &SetRightMotorDutyCycle);
 BaseSpeedController base_speed_controller(&left_wheel, &right_wheel);
 BaseStateController base_state_controller(&base_speed_controller);
+BaseTrajectoryController base_trajectory_controller(&base_speed_controller);
+
+// const BaseWaypoint waypoints[] = { 
+//   BaseWaypoint(0, Point(0, 0), 0), 
+//   BaseWaypoint(2.7, Point(1-0.3/3, 0), M_PI/2), 
+//   BaseWaypoint(3, Point(1, 0), M_PI/2), 
+//   BaseWaypoint(3.3, Point(1, -0.3/3), M_PI/2), 
+//   BaseWaypoint(5.7, Point(1, -1+0.3/3), M_PI/2), 
+//   BaseWaypoint(6, Point(1, -1), M_PI), 
+//   BaseWaypoint(6.3, Point(1-0.3/3, -1), M_PI), 
+//   BaseWaypoint(8.7, Point(0+0.3/3, -1), M_PI), 
+//   BaseWaypoint(9, Point(0, -1), -M_PI/2), 
+//   BaseWaypoint(9.3, Point(0, -1+0.3/3), -M_PI/2), 
+//   BaseWaypoint(11.7, Point(0, 0-0.3/3), -M_PI/2), 
+//   BaseWaypoint(12, Point(0, 0), 0) };
+
+BaseWaypoint waypoints[10 * 4];
 
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
@@ -141,8 +158,16 @@ void setup() {
   
   Serial.println("Ready.");
 
-  base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI / 4, 0.3, 0);
+  // base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI / 4, 0.3, 0);  
   // base_speed_controller.SetTargetSpeeds(0.1, 10 * M_PI);
+  for (int i = 0; i < 10; ++i) {
+    waypoints[i] = BaseWaypoint(i * 0.3, Point(i * 0.1, 0), 0);
+    waypoints[i+10] = BaseWaypoint((i+10) * 0.3, Point(1, -i * 0.1), 0);
+    waypoints[i+20] = BaseWaypoint((i+20) * 0.3, Point(1 - i * 0.1, -1), 0);
+    waypoints[i+30] = BaseWaypoint((i+30) * 0.3, Point(0, -1+0.1*i), 0);
+  }
+  base_trajectory_controller.trajectory(BaseTrajectoryView(sizeof(waypoints) / sizeof(waypoints[0]), waypoints));
+  base_trajectory_controller.StartTrajectory();
   // Serial.printf("target_linear_speed:%f target_angular_speed:%f radius:%f\n", base_speed_controller.target_linear_speed(), base_speed_controller.target_angular_speed(), base_speed_controller.curve_radius());
 }
 
@@ -247,13 +272,14 @@ SpeedControllerTest speed_controller_test(&base_speed_controller);
 
 void loop() {
   RunRobotStateEstimator();
-  Serial.printf("%d|cx:%f cy:%f a:%f vx:%f vy:%f\n", base_state_controller.IsAtTargetState() ? 1:0, GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
+  // Serial.printf("%d|cx:%f cy:%f a:%f vx:%f vy:%f\n", base_state_controller.IsAtTargetState() ? 1:0, GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
 
-  if (!base_state_controller.IsAtTargetState()) {
-    base_state_controller.Run();
-  } else {
-    base_speed_controller.SetTargetSpeeds(0, 0);
-  }
+  // if (!base_state_controller.IsAtTargetState()) {
+  //   base_state_controller.Run();
+  // } else {
+  //   base_speed_controller.SetTargetSpeeds(0, 0);
+  // }
+  base_trajectory_controller.Run();
   NotifyLeftMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
   NotifyRightMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
   
