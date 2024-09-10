@@ -48,6 +48,14 @@ template<typename T> T *ASSERT_NOT_NULL(T * const ptr) {
   return ptr;
 }
 
+// Maps `radians` to [-pi, pi).
 float NormalizeRadians(float radians);
+
+// Returns the array index for a monotonic index.
+// A monotonics index may ever increase or decrease, while the corresponding array index
+// will restart every array_size units in both positive and negative directions.
+// The result has the same sign as array_size.
+int IndexMod(int index, int array_size);
+float IndexModf(float index, float array_size);
 
 #endif  // UTILS_INCLUDED__

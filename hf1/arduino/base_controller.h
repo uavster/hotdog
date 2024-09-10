@@ -74,7 +74,7 @@ private:
 class BaseWaypoint {
 public:
   BaseWaypoint() : seconds_(0), yaw_(0) {}
-  BaseWaypoint(TimerSecondsType seconds, const Point &position, float yaw) 
+  BaseWaypoint(TimerSecondsType seconds, const Point &position, float yaw = 0.0f) 
     : seconds_(seconds), position_(position), yaw_(yaw) {}
 
   TimerSecondsType seconds() const { return seconds_; }
@@ -92,13 +92,17 @@ private:
 // view objects referencing them.
 class BaseTrajectoryView {
 public:
-  BaseTrajectoryView() : num_waypoints_(0), waypoints_(NULL) {}
+  BaseTrajectoryView() : num_waypoints_(0), waypoints_(NULL), loop_at_seconds_(-1) {}
 
   // Does not take ownsership of the pointee, which must outlive this object.
   BaseTrajectoryView(int num_waypoints, const BaseWaypoint *waypoints)
-    : num_waypoints_(num_waypoints), waypoints_(waypoints) {}
+    : num_waypoints_(num_waypoints), waypoints_(waypoints), loop_at_seconds_(-1) {}
 
   int num_waypoints() const { return num_waypoints_; }
+
+  BaseTrajectoryView &EnableLooping(TimerSecondsType after_seconds = 0);
+  BaseTrajectoryView &DisableLooping();
+  bool IsLoopingEnabled() const;
 
   StatusOr<int> FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index = 0) const;
 
@@ -110,16 +114,21 @@ public:
 private:
   int num_waypoints_;
   const BaseWaypoint *waypoints_;
+  TimerSecondsType loop_at_seconds_; // looping disabled if negative.
 };
 
 // Controller commanding the base speed controller to move the robot's base over a sequence
-// of waypoints. It tries to reach each waypoint at the waypoint's time. The base will not
-// drive over a waypoint if it was not able to reach it on time. A far away waypoint with 
-// a time very near to the previous waypoint's time will not be reachable. Also, any obstacle 
-// and driving hurdle or error can result in not reaching a waypoint in time. When the 
-// waypoint's time contraint cannot be met and the waypoint is the last one in the 
-// trajectory, the robot will stop. But if the waypoint is not the last one, the robot will 
-// skip to the next one.
+// of waypoints. It tries to reach each waypoint at the waypoint's time. 
+// 
+// The base will not drive over a waypoint if it was not able to reach it on time. A far away 
+// waypoint with a time very near to the previous waypoint's time will not be reachable, 
+// either because the robot's maximum speed is insufficient, or because the time between 
+// waypoints is under the controller's sampling period (0.1 seconds).
+//
+// Also, any obstacle and driving hurdle or error can result in not reaching a waypoint in 
+// time. When the waypoint's time contraint cannot be met and the waypoint is the last one 
+// in the trajectory, the robot will stop. But if the waypoint is not the last one, the 
+// robot will skip to the next one.
 // 
 // This controller is based on:
 // R. L. S. Sousa, M. D. do Nascimento Forte, F. G. Nogueira, B. C. Torrico, 
@@ -130,8 +139,11 @@ public:
   BaseTrajectoryController(BaseSpeedController *base_speed_controller);
 
   void trajectory(const BaseTrajectoryView &trajectory);
+  int current_waypoint_index() const { return current_waypoint_index_; }
 
   void StartTrajectory();
+  void StopTrajectory();
+
   void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;
   void Run();
 
@@ -141,6 +153,7 @@ private:
   int current_waypoint_index_;
   bool is_started_;
   TimerSecondsType start_seconds_;
+  bool does_loop_;
 };
 
 #endif  // ROBOT_SPEED_CONTROLLER_

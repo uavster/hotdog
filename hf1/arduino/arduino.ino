@@ -64,7 +64,7 @@ BaseTrajectoryController base_trajectory_controller(&base_speed_controller);
 //   BaseWaypoint(11.7, Point(0, 0-0.3/3), -M_PI/2), 
 //   BaseWaypoint(12, Point(0, 0), 0) };
 
-BaseWaypoint waypoints[10 * 4];
+BaseWaypoint waypoints[80];
 
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
@@ -160,13 +160,27 @@ void setup() {
 
   // base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI / 4, 0.3, 0);  
   // base_speed_controller.SetTargetSpeeds(0.1, 10 * M_PI);
-  for (int i = 0; i < 10; ++i) {
-    waypoints[i] = BaseWaypoint(i * 0.3, Point(i * 0.1, 0), 0);
-    waypoints[i+10] = BaseWaypoint((i+10) * 0.3, Point(1, -i * 0.1), 0);
-    waypoints[i+20] = BaseWaypoint((i+20) * 0.3, Point(1 - i * 0.1, -1), 0);
-    waypoints[i+30] = BaseWaypoint((i+30) * 0.3, Point(0, -1+0.1*i), 0);
+
+  // const int num_waypoints = 40;
+  // const int points_per_segment = num_waypoints / 4;
+  // for (int i = 0; i < points_per_segment; ++i) {
+  //   waypoints[i] = BaseWaypoint(i * 0.3, Point(i * 0.1, 0));
+  //   waypoints[i+points_per_segment] = BaseWaypoint((i+points_per_segment) * 0.3, Point(1, -i * 0.1));
+  //   waypoints[i+2*points_per_segment] = BaseWaypoint((i+2*points_per_segment) * 0.3, Point(1 - i * 0.1, -1));
+  //   waypoints[i+3*points_per_segment] = BaseWaypoint((i+3*points_per_segment) * 0.3, Point(0, -1+0.1*i));
+  // }
+
+  const int num_waypoints = sizeof(waypoints) / sizeof(waypoints[0]);
+  const float total_trajectory_seconds = 20.0;
+  for (int i = 0; i < num_waypoints; ++i) {
+    const float t = i * total_trajectory_seconds / num_waypoints;
+    const float w = 2 * M_PI / total_trajectory_seconds;
+    const float x = sin(w * t);
+    const float y = -1 + cos(w * t);
+    waypoints[i] = BaseWaypoint(t, Point(x, y));
   }
-  base_trajectory_controller.trajectory(BaseTrajectoryView(sizeof(waypoints) / sizeof(waypoints[0]), waypoints));
+
+  base_trajectory_controller.trajectory(BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/1.0));
   base_trajectory_controller.StartTrajectory();
   // Serial.printf("target_linear_speed:%f target_angular_speed:%f radius:%f\n", base_speed_controller.target_linear_speed(), base_speed_controller.target_angular_speed(), base_speed_controller.curve_radius());
 }

@@ -17,3 +17,19 @@ void Uint64ToString(uint64_t number, char *str) {
 float NormalizeRadians(float radians) {
   return remainderf(radians, 2 * M_PI);
 }
+
+int IndexMod(int index, int array_size) {
+  if (array_size >= 0) {
+    return index >= 0 ? index % array_size : array_size - (-index % array_size);
+  } else {
+    return index <= 0 ? index % array_size : array_size + (index % array_size);
+  }
+}
+
+float IndexModf(float index, float array_size) {
+  if (array_size >= 0) {
+    return index >= 0 ? fmodf(index, array_size) : array_size - fmodf(-index, array_size);
+  } else {
+    return index <= 0 ? fmodf(index, array_size) : array_size + fmodf(index, array_size);
+  }  
+}

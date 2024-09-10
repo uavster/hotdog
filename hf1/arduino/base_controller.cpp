@@ -1,3 +1,4 @@
+#include <iterator>
 #include <algorithm>
 #include "base_controller.h"
 #include "utils.h"
@@ -116,37 +117,65 @@ bool BaseStateController::IsAtTargetState() const {
   return position_error.norm() <= kMaxPositionErrorForAtState && abs(yaw_error) <= kMaxYawErrorForAtState;
 }
 
-const Point &BaseTrajectoryView::position(int index) const {
-  return waypoints_[index].position();
+BaseTrajectoryView &BaseTrajectoryView::EnableLooping(TimerSecondsType after_seconds) { 
+  if (num_waypoints_ == 0) { 
+    loop_at_seconds_ = -1;
+  } else {
+    loop_at_seconds_ = waypoints_[num_waypoints_ - 1].seconds() + after_seconds;
+  }
+  return *this;
+}
+
+BaseTrajectoryView &BaseTrajectoryView::DisableLooping() { 
+  loop_at_seconds_ = -1;
+  return *this;
+}
+
+bool BaseTrajectoryView::IsLoopingEnabled() const { 
+  return loop_at_seconds_ >= 0;
 }
 
 StatusOr<int> BaseTrajectoryView::FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index) const {
+  if (num_waypoints_ == 0 || seconds < this->seconds(0)) { return Status::kUnavailableError; }
   int i = prev_result_index;
-  if (i < 0 || num_waypoints_ == 0 || seconds < waypoints_[i].seconds()) { return Status::kUnavailableError; }
-  while(i < num_waypoints_ && seconds >= waypoints_[i].seconds()) { ++i; }
+  while((IsLoopingEnabled() || i < num_waypoints_) && this->seconds(i) < seconds) { ++i; }
   return i - 1;
 }
 
 float BaseTrajectoryView::seconds(int index) const {
-  return waypoints_[index].seconds();
+  if (IsLoopingEnabled()) {
+    const int normalized_index = IndexMod(index, num_waypoints_);
+    const TimerSecondsType prev_loops_seconds = (loop_at_seconds_ - waypoints_[0].seconds()) * (index / num_waypoints_);
+    return waypoints_[normalized_index].seconds() + prev_loops_seconds;
+  } else {
+    ASSERT(index >= 0);
+    ASSERT(index < num_waypoints_);
+    return waypoints_[index].seconds();
+  }
+}
+
+const Point &BaseTrajectoryView::position(int index) const {
+  if (IsLoopingEnabled()) {
+    return waypoints_[IndexMod(index, num_waypoints_)].position();
+  } else {
+    return waypoints_[min(index, num_waypoints_ - 1)].position();
+  }
 }
 
 Point BaseTrajectoryView::velocity(int index) const {
-  if (index >= num_waypoints_ - 1) {
-    index = num_waypoints_ - 2;
-  }
   return (position(index + 1) - position(index)) / (seconds(index + 1) - seconds(index));
 }
 
 Point BaseTrajectoryView::acceleration(int index) const {
-  if (index >= num_waypoints_ - 1) {
-    index = num_waypoints_ - 2;
-  }
   return (velocity(index + 1) - velocity(index)) / (seconds(index + 1) - seconds(index));
 }
 
 BaseTrajectoryController::BaseTrajectoryController(BaseSpeedController *base_speed_controller) : 
-  PeriodicRunnable(kBaseTrajectoryControllerLoopPeriod), base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)), current_waypoint_index_(0), is_started_(false) {}
+  PeriodicRunnable(kBaseTrajectoryControllerLoopPeriod), 
+  base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)), 
+  current_waypoint_index_(0), 
+  is_started_(false),
+  does_loop_(false) {}
 
 void BaseTrajectoryController::trajectory(const BaseTrajectoryView &trajectory) {
   trajectory_ = trajectory;
@@ -165,24 +194,32 @@ void BaseTrajectoryController::StartTrajectory() {
   start_seconds_ = GetTimerSeconds();
 }
 
+void BaseTrajectoryController::StopTrajectory() {
+  is_started_ = false;
+}
+
 void BaseTrajectoryController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) {
   if (!is_started_) { return; }
   const TimerSecondsType now_seconds = SecondsFromNanos(now_nanos) - start_seconds_;
   const auto maybe_index = trajectory_.FindWaypointIndexBeforeSeconds(now_seconds, current_waypoint_index_);
   if (!maybe_index.ok()) { return; }
   const int index = *maybe_index;
-  if (index == trajectory_.num_waypoints() - 1) {
-    base_speed_controller_.SetTargetSpeeds(0, 0);
+  current_waypoint_index_ = index;
+  Serial.printf("index:%d\n", index);
+  if (!trajectory_.IsLoopingEnabled() && index == trajectory_.num_waypoints() - 1) {
+    StopTrajectory();
     return;
   }
-  current_waypoint_index_ = index;
 
   // Get reference states.
   TimerSecondsType time_fraction = (now_seconds - trajectory_.seconds(index)) / (trajectory_.seconds(index + 1) - trajectory_.seconds(index));
-  const Point ref_position = trajectory_.position(index) + time_fraction * (trajectory_.position(index + 1) - trajectory_.position(index));
+  const Point ref_position = trajectory_.position(index); + time_fraction * (trajectory_.position(index + 1) - trajectory_.position(index));
   const Point ref_velocity = trajectory_.velocity(index) + time_fraction * (trajectory_.velocity(index + 1) - trajectory_.velocity(index));
   const Point ref_acceleration = trajectory_.acceleration(index) + time_fraction * (trajectory_.acceleration(index + 1) - trajectory_.acceleration(index));
   const float ref_yaw = atan2f(ref_velocity.y, ref_velocity.x);
+
+  Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory_.seconds(index), trajectory_.seconds(index+1), ref_position.x, ref_position.y, ref_velocity.x, ref_velocity.y, ref_acceleration.x, ref_acceleration.y);
+  Serial.printf("[state] x:%f y:%f\n", GetBaseState().center().x, GetBaseState().center().y);
 
   // Get errors in the base's local frame.
   const BaseState &base_state = GetBaseState();
@@ -211,7 +248,7 @@ void BaseTrajectoryController::RunAfterPeriod(TimerNanosType now_nanos, TimerNan
 
   // Get velocity commands.
   const float tangential_command = feedforward_tangential_command + feedback_tangential_command;
-  const float angular_command = feedforward_angular_command + feedback_angular_command;
+  const float angular_command = feedback_angular_command + feedforward_angular_command;
   const float tangential_command_limitted = std::clamp(tangential_command, -kBaseTrajectoryTangentialSpeedMax, kBaseTrajectoryTangentialSpeedMax);
   const float angular_command_limitted = std::clamp(angular_command, -kBaseTrajectoryAngularSpeedMax, kBaseTrajectoryAngularSpeedMax);
 
