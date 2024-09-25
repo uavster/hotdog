@@ -6,10 +6,38 @@
 
 #define kSensorID 55
 
+#define kCalibrationMode false
+
 BodyIMU::BodyIMU() : bno_(kSensorID) {}
 
 void BodyIMU::Init() {
-  ASSERT(bno_.begin(OPERATION_MODE_IMUPLUS));
+#if kCalibrationMode  
+  ASSERT(bno_.begin(OPERATION_MODE_NDOF));
+  uint8_t system = 0, gyro = 0, accel = 0, mag = 0;
+  do {
+    bno_.getCalibration(&system, &gyro, &accel, &mag);
+    Serial.printf("Body IMU calibration status - system:%d gyro:%d accel:%d mag:%d\n", system, gyro, accel, mag);
+    SleepForSeconds(0.5);
+  } while(!bno_.isFullyCalibrated());
+  Serial.printf("Body IMU calibration status - system:%d gyro:%d accel:%d mag:%d\n", system, gyro, accel, mag);  
+  adafruit_bno055_offsets_t calibration_data;
+  ASSERT(bno_.getSensorOffsets(calibration_data));
+  for (size_t i = 0; i < sizeof(adafruit_bno055_offsets_t); ++i) {
+    Serial.printf("0x%x", reinterpret_cast<uint8_t *>(&calibration_data)[i]);
+    if (i < sizeof(adafruit_bno055_offsets_t) - 1) {
+      Serial.printf(", ");
+    }
+  }
+  while(true) {}
+#else
+  const static uint8_t calibration_data[] = { 
+    0xe8, 0xff, 0xd8, 0xff, 0xd7, 0xff, 0xe, 0x1, 0x42, 0xf8, 0xbf, 
+    0x0, 0x0, 0x0, 0xff, 0xff, 0x1, 0x0, 0xe8, 0x3, 0x33, 0x2 
+  };
+  ASSERT(bno_.begin(OPERATION_MODE_CONFIG));
+  bno_.setSensorOffsets(calibration_data);
+  bno_.setMode(OPERATION_MODE_IMUPLUS);
+#endif
 }
 
 imu::Vector<3> BodyIMU::GetYawPitchRoll() {

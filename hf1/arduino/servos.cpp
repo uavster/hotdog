@@ -1,5 +1,5 @@
 #include "kinetis.h"
-#include "servo_control.h"
+#include "servos.h"
 #include "Arduino.h"
 #include <algorithm>
 
