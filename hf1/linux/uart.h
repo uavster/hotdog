@@ -1,3 +1,6 @@
+#ifndef UART_INCLUDED__
+#define UART_INCLUDED__
+
 class Uart {
 public:
     enum Timeout { kInfinite = -1 };
@@ -36,3 +39,5 @@ public:
 private:
     int fd_;
 };
+
+#endif  // UART_INCLUDED__

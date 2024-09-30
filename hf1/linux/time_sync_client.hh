@@ -2,6 +2,9 @@
 #include <p2p_application_protocol.h>
 #include <network.h>
 #include <JetsonGPIO.h>
+#include "logger_interface.h"
+#include <sstream>
+#include <iostream>
 
 #define kTimeSyncRequestPinNumber 33
 #define kTimeSyncLoopbackPinNumber 31
@@ -58,18 +61,21 @@ template <int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness>
 void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
     switch(state_) {
         case WARMUP:
+        std::cout << "a" << std::endl;
             if (system_timer_.GetLocalNanoseconds() - creation_time_ < kWarmupDurationNs) { break; }
 
             state_ = IDLE;
             break;
 
         case IDLE:
+        std::cout << "b" << std::endl;
             if (sync_requested_) {
                 state_ = GENERATE_SYNC_EDGE;
             }
             break;
 
         case GENERATE_SYNC_EDGE: {
+        std::cout << "c" << std::endl;
             // Create a rising edge in the time sync signal.
             last_edge_set_local_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
             mutex_.lock();
@@ -81,6 +87,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
         }
 
         case WAIT_FOR_LOCAL_EDGE: {
+        std::cout << "d" << std::endl;
             std::lock_guard<std::mutex> guard(mutex_);
             if (last_edge_detect_local_timestamp_ns_ == -1ULL) { break; }
 
@@ -99,12 +106,14 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
         }
 
         case WAIT_TO_REGENERATE_SYNC_EDGE:
+        std::cout << "e" << std::endl;
             if (system_timer_.GetLocalNanoseconds() - last_edge_attempt_timestamp_ns_ < kMinTimeBetweenSyncEdges) { break; }
 
             state_ = GENERATE_SYNC_EDGE;
             break;
 
         case SEND_TIME_SYNC_REQUEST: {
+        std::cout << "f" << std::endl;
             // Schedule a request with low priority, so that regular time sync does not block urgent communications.
             auto maybe_new_packet = p2p_packet_stream_.output().NewPacket(kTimeSyncPacketsPriority);
             if (!maybe_new_packet.ok()) { break; }
@@ -122,6 +131,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
         }
         
         case WAIT_FOR_TIME_SYNC_REPLY: {
+        std::cout << "g" << std::endl;
             if (system_timer_.GetLocalNanoseconds() - request_sent_timestamp_ns_ > kMaxTimeSyncReplyDelayNs) { 
                 // The other end must have missed the sync signal (e.g. it started after this end): start over.
                 state_ = GENERATE_SYNC_EDGE;
@@ -140,7 +150,9 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             const auto *time_sync_reply = reinterpret_cast<const P2PTimeSyncReplyContent *>(&maybe_oldest_packet_view->content()[sizeof(P2PApplicationPacketHeader)]);
             if (time_sync_reply->sync_edge_local_timestamp_ns > last_edge_estimated_local_timestamp_ns_) {
                 system_timer_.global_offset_nanoseconds() = NetworkToLocal<kLocalEndianness>(time_sync_reply->sync_edge_local_timestamp_ns) - last_edge_estimated_local_timestamp_ns_;
-                std::cout << "Global timer +" << system_timer_.global_offset_nanoseconds() << " ns" << std::endl;
+                std::ostringstream oss;
+                oss << "Global timer +" << system_timer_.global_offset_nanoseconds() << " ns";
+                LOG_INFO(oss.str().c_str());
             }
             p2p_packet_stream_.input().Consume(kTimeSyncPacketsPriority);
 

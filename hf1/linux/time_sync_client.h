@@ -4,6 +4,7 @@
 #include <p2p_packet_stream.h>
 #include <network.h>
 #include <mutex>
+#include <atomic>
 
 template<int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness> class TimeSyncClient {
 public:
@@ -17,6 +18,8 @@ public:
     // Initiates the time synchronization with the low-level computer.
     void RequestTimeSync();
 
+    bool sync_in_progress() const { return sync_requested_; }
+
 protected:
     // The GPIO library only supports equality-comparable functions, so we need this static accessing the singleton TimeSyncClient.
     static void EdgeLoopbackCallback();
@@ -28,7 +31,7 @@ private:
     uint64_t creation_time_;
     enum { WARMUP, IDLE, GENERATE_SYNC_EDGE, WAIT_TO_REGENERATE_SYNC_EDGE, WAIT_FOR_LOCAL_EDGE, SEND_TIME_SYNC_REQUEST, WAIT_FOR_TIME_SYNC_REPLY } state_;    
     std::mutex mutex_;
-    bool sync_requested_;
+    std::atomic<bool> sync_requested_;
     uint64_t last_edge_set_local_timestamp_ns_;
     uint64_t last_edge_detect_local_timestamp_ns_;
     uint64_t last_edge_estimated_local_timestamp_ns_;
