@@ -11,8 +11,8 @@
 #define kSerialPath "/dev/ttyTHS1"
 #define kBaudRate B1000000
 
-Uart::Uart() {
-	fd_ = open(kSerialPath, O_RDWR | O_NONBLOCK);
+Uart::Uart(bool is_async) {
+	fd_ = open(kSerialPath, O_RDWR | (is_async ? O_NONBLOCK : 0));
 	ASSERTM(fd_ >= 0, "Error opening serial port");
 
 	// Lock device file.
@@ -62,4 +62,28 @@ Uart::PollResult Uart::Poll() {
     }
     
     return result;
+}
+
+bool Uart::CanRead() {
+    struct pollfd serial_poll;
+    serial_poll.fd = fd_;
+    serial_poll.events = POLLIN;
+    serial_poll.revents = 0;
+
+    int poll_res = poll(&serial_poll, 1, 100);
+    ASSERT(poll_res != -1);
+
+    return serial_poll.revents & POLLIN;
+}
+
+bool Uart::CanWrite() {
+    struct pollfd serial_poll;
+    serial_poll.fd = fd_;
+    serial_poll.events = POLLIN;
+    serial_poll.revents = 0;
+
+    int poll_res = poll(&serial_poll, 1, 100);
+    ASSERT(poll_res != -1);
+
+    return serial_poll.revents & POLLIN;
 }
