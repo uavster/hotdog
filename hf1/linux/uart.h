@@ -1,6 +1,8 @@
 class Uart {
 public:
-    Uart(bool is_async = false);
+    enum Timeout { kInfinite = -1 };
+
+    Uart();
     virtual ~Uart();
 
     struct PollResult {
@@ -8,24 +10,27 @@ public:
         bool can_send;
     };
 
-    // Tells if there are bytes available to read.
-    // If this object was created with is_async==true, the call returns immediately.
-    // If this object was created with is_async==false, the call blocks until there are
-    // bytes available to read.
-    bool CanRead();
+    // Waits until there is data available to read or the timeout expires.
+    // A timeout of zero returns immediately, while a timeout of Timeout::kInfinite won't
+    // return until buffer space is available.
+    bool CanRead(int timeout_ms);
 
-    // Tells if there is buffer space available to write.
-    // If this object was created with is_async==true, the call returns immediately.
-    // If this object was created with is_async==false, the call blocks until there are
-    // bytes available to read.
-    bool CanWrite();
+    // Waits until there is buffer space available to write or the timeout expires.
+    // A timeout of zero returns immediately, while a timeout of Timeout::kInfinite won't
+    // return until data is available.
+    bool CanWrite(int timeout_ms);
     
-    // Tells if there are bytes available to read or space available to write.
-    // If this object was created with is_async==true, the call returns immediately.
-    // If this object was created with is_async==false, the call blocks until either
-    // condition is true.
-    PollResult Poll();
+    // Waits until there are bytes available to read or space available to write, or the
+    // timeout expires.
+    // A timeout of zero returns immediately, while a timeout of Timeout::kInfinite won't
+    // return until data is available or can be written.
+    PollResult CanReadOrWrite(int timeout_ms);
 
+    // Returns the UART's file descriptor. 
+    // Reads or writes to this file descriptor will never block. This does not mean that
+    // all the intended data is read or written. The read and write functions will output
+    // the number of bytes that were processed successfully and the caller will have to
+    // adapt accordingly.
     int fd() const { return fd_; }    
 
 private:

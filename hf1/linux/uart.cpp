@@ -11,8 +11,8 @@
 #define kSerialPath "/dev/ttyTHS1"
 #define kBaudRate B1000000
 
-Uart::Uart(bool is_async) {
-	fd_ = open(kSerialPath, O_RDWR | (is_async ? O_NONBLOCK : 0));
+Uart::Uart() {
+	fd_ = open(kSerialPath, O_RDWR | O_NONBLOCK);
 	ASSERTM(fd_ >= 0, "Error opening serial port");
 
 	// Lock device file.
@@ -46,13 +46,13 @@ Uart::~Uart() {
     }
 }
 
-Uart::PollResult Uart::Poll() {
+Uart::PollResult Uart::CanReadOrWrite(int timeout_ms) {
     struct pollfd serial_poll;
     serial_poll.fd = fd_;
     serial_poll.events = POLLIN | POLLOUT;
     serial_poll.revents = 0;
 
-    int poll_res = poll(&serial_poll, 1, 100);
+    int poll_res = poll(&serial_poll, 1, timeout_ms);
     ASSERT(poll_res != -1);
 
     PollResult result = { .can_receive = false, .can_send = false };    
@@ -64,25 +64,25 @@ Uart::PollResult Uart::Poll() {
     return result;
 }
 
-bool Uart::CanRead() {
+bool Uart::CanRead(int timeout_ms) {
     struct pollfd serial_poll;
     serial_poll.fd = fd_;
     serial_poll.events = POLLIN;
     serial_poll.revents = 0;
 
-    int poll_res = poll(&serial_poll, 1, 100);
+    int poll_res = poll(&serial_poll, 1, timeout_ms);
     ASSERT(poll_res != -1);
 
     return serial_poll.revents & POLLIN;
 }
 
-bool Uart::CanWrite() {
+bool Uart::CanWrite(int timeout_ms) {
     struct pollfd serial_poll;
     serial_poll.fd = fd_;
     serial_poll.events = POLLIN;
     serial_poll.revents = 0;
 
-    int poll_res = poll(&serial_poll, 1, 100);
+    int poll_res = poll(&serial_poll, 1, timeout_ms);
     ASSERT(poll_res != -1);
 
     return serial_poll.revents & POLLIN;
