@@ -74,14 +74,18 @@ bool P2PPacketOutputStream<kCapacity, LocalEndianness>::Commit(P2PPriority prior
   if (seq_number == -1ULL) {
     ++current_sequence_number_[priority];
   }
+
+  packet_committed_callback_(packet);
+
   return true;
 }
 
-template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kCapacity, LocalEndianness>::Run() {
+template<int kCapacity, Endianness LocalEndianness> int P2PPacketInputStream<kCapacity, LocalEndianness>::Run() {
+  int num_bytes_read = 0;
   switch (state_) {
     case kWaitingForPacket:
       {
-        if (byte_stream_.Read(&incoming_header_.start_token, 1) < 1) {
+        if ((num_bytes_read = byte_stream_.Read(&incoming_header_.start_token, 1)) < 1) {
           break;
         }
         if (incoming_header_.start_token == kP2PStartToken) {
@@ -130,11 +134,11 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           break;
         }
         uint8_t *current_byte = &reinterpret_cast<uint8_t *>(&incoming_header_)[current_field_read_bytes_];
-        int read_bytes = byte_stream_.Read(current_byte, 1);
-        if (read_bytes < 1) {
+        num_bytes_read = byte_stream_.Read(current_byte, 1);
+        if (num_bytes_read < 1) {
           break;
         }
-        current_field_read_bytes_ += read_bytes;
+        current_field_read_bytes_ += num_bytes_read;
         if (*current_byte == kP2PStartToken) {
           // Must be a new packet after a link interruption because priority takeover is
           // not legal mid-header.
@@ -159,11 +163,11 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           break;
         }
         uint8_t *next_content_byte = &packet.content()[current_field_read_bytes_];
-        int read_bytes = byte_stream_.Read(next_content_byte, 1);
-        if (read_bytes < 1) {
+        num_bytes_read = byte_stream_.Read(next_content_byte, 1);
+        if (num_bytes_read < 1) {
           break;
         }
-        current_field_read_bytes_ += read_bytes;
+        current_field_read_bytes_ += num_bytes_read;
         if (*next_content_byte == kP2PStartToken) {
           if (current_field_read_bytes_ < packet.length()) {
             // It could be a start token, if the next byte is not a special token.
@@ -188,11 +192,11 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
         // Read next byte and check if it's a special token.
         // No need to check if we reached the content length here, as a content byte matching the start token should always be followed by a special token.
         uint8_t *next_content_byte = &packet.content()[current_field_read_bytes_];
-        int read_bytes = byte_stream_.Read(next_content_byte, 1);
-        if (read_bytes < 1) {
+        num_bytes_read = byte_stream_.Read(next_content_byte, 1);
+        if (num_bytes_read < 1) {
           break;
         }
-        current_field_read_bytes_ += read_bytes;
+        current_field_read_bytes_ += num_bytes_read;
         if (*next_content_byte == kP2PSpecialToken) {
           // Not a start token, but a content byte.
           state_ = kReadingContent;
@@ -225,11 +229,11 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           break;
         }
         uint8_t *current_byte = packet.content() + packet.length() + current_field_read_bytes_;
-        int read_bytes = byte_stream_.Read(current_byte, 1);
-        if (read_bytes < 1) {
+        num_bytes_read = byte_stream_.Read(current_byte, 1);
+        if (num_bytes_read < 1) {
           break;
         }
-        current_field_read_bytes_ += read_bytes;
+        current_field_read_bytes_ += num_bytes_read;
 
         if (*current_byte == kP2PStartToken) {
           // New packet after interrupts, as no priority takeover is allowed mid-footer.
@@ -248,7 +252,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
           // Adapt endianness of footer fields.
           packet.checksum() = NetworkToLocal<LocalEndianness>(packet.checksum());
           if (packet.PrepareToRead()) {
-            if (packet_filter_ == NULL || packet_filter_(packet, packet_filter_arg_)) {
+            if (packet_filter_(packet)) {
               packet.counted_in_stats() = false;
               packet.commit_time_ns() = timer_.GetLocalNanoseconds();
               packet_buffer_.Commit(incoming_header_.priority);
@@ -259,6 +263,7 @@ template<int kCapacity, Endianness LocalEndianness> void P2PPacketInputStream<kC
       }
       break;
   }
+  return num_bytes_read;
 }
 
 template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStream<kCapacity, LocalEndianness>::Run() {
@@ -372,7 +377,7 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
             }
           }
 
-          if (packet_filter_ == NULL || packet_filter_(*current_packet_, packet_filter_arg_)) {
+          if (packet_filter_(*current_packet_)) {
             packet_buffer_.Consume(current_packet_->header()->priority);
           }
 
@@ -448,8 +453,8 @@ P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::P2PPacketStre
       handshake_id_(guid_factory.CreateGUID<kSequenceNumberNumBytes, kP2PLowestToken>()), handshake_done_(false) {
   ResetInput();
 
-  input_.SetPacketFilter(&ShouldCommitInputPacket, this);
-  output_.SetPacketFilter(&ShouldConsumeOutputPacket, this);
+  input_.packet_filter(P2PPacketFilter(&ShouldCommitInputPacket, this));
+  output_.packet_filter(P2PPacketFilter(&ShouldConsumeOutputPacket, this));
 
   // Schedule handshake packet. The handshake reply is a regular ACK with is_init.
   P2PPriority init_priority = P2PPriority::kHigh;

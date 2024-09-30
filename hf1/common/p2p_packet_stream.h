@@ -168,6 +168,48 @@ private:
   const P2PPacket *packet_;
 };
 
+template<typename TFunctionPtr, typename TArg> class P2PPacketCallback {
+public:
+  P2PPacketCallback() : function_(NULL) {}
+  P2PPacketCallback(TFunctionPtr fn, TArg user_data) 
+    : function_(fn), arg_(user_data) {
+  }
+  
+  TFunctionPtr function() const { return function_; }
+  TArg arg() const { return arg_; }  
+
+private:
+  TFunctionPtr function_;
+  TArg arg_;
+};
+
+class P2PPacketFilter : public P2PPacketCallback<bool (*)(const P2PPacket &, void *), void *> {
+public:
+  P2PPacketFilter() : P2PPacketCallback<bool (*)(const P2PPacket &, void *), void *>() {}
+  P2PPacketFilter(bool (*fn)(const P2PPacket &, void *), void *args) 
+    : P2PPacketCallback<bool (*)(const P2PPacket &, void *), void *>(fn, args) {}
+
+  bool operator()(const P2PPacket &p) {
+    if (function() == NULL) {
+      return true;
+    }
+    return function()(p, arg());
+  }
+};
+
+class P2PPacketCommittedCallback : public P2PPacketCallback<void (*)(const P2PPacket &, void *), void *> {
+public:
+  P2PPacketCommittedCallback() : P2PPacketCallback<void (*)(const P2PPacket &, void *), void *>() {}
+  P2PPacketCommittedCallback(void (*fn)(const P2PPacket &, void *), void *args) 
+    : P2PPacketCallback<void (*)(const P2PPacket &, void *), void *>(fn, args) {}
+
+  void operator()(const P2PPacket &p) {
+    if (function() != NULL) {
+      function()(p, arg());
+    }
+  }
+};
+
 // Represents a buffered input stream of best-effort packets with priorities. 
 // Higher-priority packets are received and delivered to the caller earlier than lower-priority 
 // ones thanks to a preemption and continuation mechanism.
@@ -181,7 +223,7 @@ public:
   // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketInputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
-    : byte_stream_(*byte_stream), timer_(*timer), packet_filter_(NULL) {
+    : byte_stream_(*byte_stream), timer_(*timer) {
       Reset();
     }
 
@@ -199,11 +241,12 @@ public:
   bool Consume(P2PPriority priority) { return packet_buffer_.Consume(priority); }
 
   // Not all platforms support lambdas.
-  void SetPacketFilter(bool (*fn)(const P2PPacket &, void *), void *user_data) { packet_filter_ = fn; packet_filter_arg_ = user_data; }
+  void packet_filter(const P2PPacketFilter &filter) { packet_filter_ = filter; }
+  const P2PPacketFilter &packet_filter() { return packet_filter_; }
 
   // Runs the stream logic. Must be called from a run loop continuously, or when there is
-  // data available in the byte stream.
-  void Run();
+  // data available in the byte stream. Returns the number of bytes read and processed.
+  int Run();
 
   // Reception statistics.
   class Stats {
@@ -249,8 +292,7 @@ private:
   unsigned int current_field_read_bytes_;
   enum State { kWaitingForPacket, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
   P2PHeader incoming_header_;
-  bool (*packet_filter_)(const P2PPacket &, void *);
-  void *packet_filter_arg_;
+  P2PPacketFilter packet_filter_;
   uint8_t write_offset_before_break_[P2PPriority::kNumLevels];
   
   Stats stats_;
@@ -267,7 +309,7 @@ public:
   // Does not take ownership of the byte stream or timer, which must outlive this object.
   // Only one packet stream can be associated to each byte stream at a time.
   P2PPacketOutputStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer)
-    : byte_stream_(*byte_stream), timer_(*timer), packet_filter_(NULL) {
+    : byte_stream_(*byte_stream), timer_(*timer) {
       Reset();
     }
 
@@ -289,15 +331,16 @@ public:
   // and NewPacket() returns a different view.
   bool Commit(P2PPriority priority, bool guarantee_delivery, uint64_t seq_number = -1ULL);
 
+  P2PPacketCommittedCallback packet_committed_callback() { return packet_committed_callback_; }
+  void packet_committed_callback(const P2PPacketCommittedCallback &callback) { packet_committed_callback_ = callback; }
+
   // Not all platforms support lambdas.
-  void SetPacketFilter(bool (*fn)(const P2PPacket &, void *), void *user_data) { packet_filter_ = fn; packet_filter_arg_ = user_data; }
+  void packet_filter(const P2PPacketFilter &filter) { packet_filter_ = filter; }
+  const P2PPacketFilter &packet_filter() { return packet_filter_; }
 
   // Runs the stream and returns the minimum number of microseconds the caller may wait
   // until calling Run() again. Multi-threaded platforms can use this value to yield time
   // to other threads.
-  // If just_sent_packet_view is not NULL, it is filled with a view to the packet that Run()
-  // just finished sending. The view is invalid, if Run() did not finish sending any packet
-  // within the call.
   uint64_t Run();
 
   // Transmission statistics.
@@ -356,8 +399,8 @@ private:
   uint64_t current_sequence_number_[P2PPriority::kNumLevels];
   uint64_t last_sent_sequence_number_[P2PPriority::kNumLevels];
   enum State { kGettingNextPacket, kSendingHeaderBurst, kWaitingForHeaderBurstIngestion, kSendingBurst, kWaitingForBurstIngestion, kWaitingForPartialBurstIngestionBeforeHigherPriorityPacket } state_;  
-  bool (*packet_filter_)(const P2PPacket &, void *);
-  void *packet_filter_arg_;
+  P2PPacketFilter packet_filter_;
+  P2PPacketCommittedCallback packet_committed_callback_;
 
   Stats stats_;
 };
