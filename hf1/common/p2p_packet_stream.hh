@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 
 template<int kCapacity, Endianness LocalEndianness>
 void P2PPacketInputStream<kCapacity, LocalEndianness>::Reset() {
@@ -531,7 +532,6 @@ bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::Schedule
 template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness>
 bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::ShouldCommitInputPacket(const P2PPacket &last_rx_packet, void *self_ptr) {
   P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
-
   if (!self.handshake_done_) {
     if (!last_rx_packet.header()->is_init) { 
       // Reject all packets until handshake. This ensures that any old ACKs or continuation in

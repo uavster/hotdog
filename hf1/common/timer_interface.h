@@ -15,9 +15,10 @@ public:
   // The nanosecond count may jump to the future faster than real time, if the local time fell
   // behind the time of other computers.
   // Timer resolution is platform-dependent.
-  virtual uint64_t GetGlobalNanoseconds() { return GetLocalNanoseconds() + global_offset_nanoseconds_; }
+  virtual uint64_t GetGlobalNanoseconds() const { return GetLocalNanoseconds() + global_offset_nanoseconds_; }
 
-  // Sets the time offset of the global time for synchronization purposes.
+  // Gets/sets the time offset of the global time for synchronization purposes.
+  const uint64_t &global_offset_nanoseconds() const { return global_offset_nanoseconds_; }
   uint64_t &global_offset_nanoseconds() { return global_offset_nanoseconds_; }
 
 private:
