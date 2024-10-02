@@ -1,3 +1,6 @@
+// #ifndef P2P_BYTE_STREAM_ARDUINO_
+// #define P2P_BYTE_STREAM_ARDUINO_
+
 #include "p2p_byte_stream_interface.h"
 #include "Stream.h"
 
@@ -16,3 +19,5 @@ public:
 protected:
   Stream &stream() const;
 };
+
+// #endif  // P2P_BYTE_STREAM_ARDUINO_
