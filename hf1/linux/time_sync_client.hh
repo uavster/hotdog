@@ -176,7 +176,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             // The edge was received some time between setting the output pin and receiving the event from the loopback pin: use the mid-point.
             last_edge_estimated_local_timestamp_ns_ = (last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_copy_) / 2;
             reinterpret_cast<P2PTimeSyncRequestContent *>(&maybe_new_packet->content()[sizeof(P2PApplicationPacketHeader)])->sync_edge_local_timestamp_ns = LocalToNetwork<kLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
-            p2p_packet_stream_.output().Commit(kTimeSyncPacketsPriority, /*guarantee_delivery=*/true);
+            p2p_packet_stream_.output().Commit(kTimeSyncPacketsPriority, /*guarantee_delivery=*/false);
             request_sent_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
             state_ = WAIT_FOR_TIME_SYNC_REPLY;
             break;

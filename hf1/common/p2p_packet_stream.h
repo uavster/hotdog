@@ -329,6 +329,13 @@ public:
   // Commits changes to the new packet. Must be called for the packet to be sent.
   // Afterwards, previous packet views returned by NewPacket() cannot be trusted to be valid,
   // and NewPacket() returns a different view.
+  // If `guarantee_delivery` is true, the packet will be retransmitted until the other end 
+  // acknowledges its reception. Use it with care because, in the meantime, the transmission of other 
+  // output packets with the same or lower priority will be put on hold. Take this especially into 
+  // account if a long disruption in the other end's reception is expected (e.g. a delay in calling
+  // the communication handling code or a link disconnection). In that case, the lower or equal
+  // priority levels in the output queue could quickly fill up if there are processeses transmitting
+  // periodically.
   bool Commit(P2PPriority priority, bool guarantee_delivery, uint64_t seq_number = -1ULL);
 
   P2PPacketCommittedCallback packet_committed_callback() { return packet_committed_callback_; }
