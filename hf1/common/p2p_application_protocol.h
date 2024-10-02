@@ -4,8 +4,12 @@
 #include <stdint.h>
 #include <packed_number.h>
 
+// Time synchronization.
 #define kP2PCommandTimeSyncRequest 1
 #define kP2PCommandTimeSyncReply 2
+
+// Head pose commands.
+#define kP2PCommandSetHeadPose 3
 
 #pragma pack(push, 1)
 
@@ -20,6 +24,11 @@ typedef struct {
 typedef struct {
     uint64_t sync_edge_local_timestamp_ns;
 } P2PTimeSyncReplyContent;
+
+typedef struct {
+    float pitch_radians;
+    float roll_radians;
+} P2PSetHeadPoseRequestContent;
 
 #pragma pack(pop)
 
