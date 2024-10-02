@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <iostream>
 
 template<int kCapacity, Endianness LocalEndianness>
 void P2PPacketInputStream<kCapacity, LocalEndianness>::Reset() {
