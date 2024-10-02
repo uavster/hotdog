@@ -285,7 +285,7 @@ private:
 SpeedControllerTest speed_controller_test(&base_speed_controller);
 
 void loop() {
-  RunRobotStateEstimator();
+  // RunRobotStateEstimator();
   // Serial.printf("%d|cx:%f cy:%f a:%f vx:%f vy:%f\n", base_state_controller.IsAtTargetState() ? 1:0, GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
 
   // if (!base_state_controller.IsAtTargetState()) {
@@ -293,9 +293,10 @@ void loop() {
   // } else {
   //   base_speed_controller.SetTargetSpeeds(0, 0);
   // }
-  base_trajectory_controller.Run();
-  NotifyLeftMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
-  NotifyRightMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
+
+  // base_trajectory_controller.Run();
+  // NotifyLeftMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
+  // NotifyRightMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
   
   // speed_controller_test.Run();
   // base_speed_controller.Run();
@@ -310,6 +311,7 @@ void loop() {
   const uint64_t negating_period_ns = 200000000ULL;
 
   if (p2p_stream.input().OldestPacket().ok()) {
+    // Serial.printf("Got packet\n");
     P2PPriority priority = p2p_stream.input().OldestPacket()->priority();
     if (p2p_stream.input().OldestPacket()->content()[0] == 3) {
       uint8_t command = p2p_stream.input().OldestPacket()->content()[1];
