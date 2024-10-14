@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "base_controller.h"
 #include "utils.h"
+#include "logger_interface.h"
 #include "robot_model.h"
 #include "robot_state_estimator.h"
 

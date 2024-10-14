@@ -30,4 +30,9 @@ LoggerInterface *GetLogger();
 #define ASSERT(x) if (!(x)) { GetLogger()->Fatal(#x, __FILE__, __LINE__, nullptr); }
 #define ASSERTM(x, m) if (!(x)) { GetLogger()->Fatal(#x, __FILE__, __LINE__, m); }
 
+template<typename T> T *ASSERT_NOT_NULL(T * const ptr) {
+  ASSERT(ptr != nullptr);
+  return ptr;
+}
+
 #endif  // LOGGER_INTERFACE_

@@ -2,6 +2,7 @@
 #include "wheel_controller.h"
 #include "robot_model.h"
 #include "utils.h"
+#include "logger_interface.h"
 #include <algorithm>
 
 #define kControlLoopPeriodSeconds 1e-2
