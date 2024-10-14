@@ -84,7 +84,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
                   reinterpret_cast<const P2PApplicationPacketHeader *>(maybe_oldest_packet_view->content())->stage != P2PActionStage::kReply) { 
                 break;
               }
-              ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + sizeof(P2PTimeSyncReplyContent));
+              ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + sizeof(P2PSyncTimeReply));
               p2p_packet_stream_.input().Consume(maybe_oldest_packet_view->priority());
             }
 
@@ -172,12 +172,12 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             }
 
             // It is guaranteed that the rising edge will have been processed in the other end by the time the request is received.
-            maybe_new_packet->length() = sizeof(P2PApplicationPacketHeader) + sizeof(P2PTimeSyncRequestContent);
+            maybe_new_packet->length() = sizeof(P2PApplicationPacketHeader) + sizeof(P2PSyncTimeRequest);
             reinterpret_cast<P2PApplicationPacketHeader *>(maybe_new_packet->content())->action = P2PAction::kTimeSync;
             reinterpret_cast<P2PApplicationPacketHeader *>(maybe_new_packet->content())->stage = P2PActionStage::kRequest;
             // The edge was received some time between setting the output pin and receiving the event from the loopback pin: use the mid-point.
             last_edge_estimated_local_timestamp_ns_ = (last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_copy_) / 2;
-            reinterpret_cast<P2PTimeSyncRequestContent *>(&maybe_new_packet->content()[sizeof(P2PApplicationPacketHeader)])->sync_edge_local_timestamp_ns = LocalToNetwork<kLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
+            reinterpret_cast<P2PSyncTimeRequest *>(&maybe_new_packet->content()[sizeof(P2PApplicationPacketHeader)])->sync_edge_local_timestamp_ns = LocalToNetwork<kLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
             p2p_packet_stream_.output().Commit(kTimeSyncPacketsPriority, /*guarantee_delivery=*/false);
             request_sent_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
             state_ = WAIT_FOR_TIME_SYNC_REPLY;
@@ -200,8 +200,8 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
                 break;
             }
 
-            ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + sizeof(P2PTimeSyncReplyContent));
-            const auto *time_sync_reply = reinterpret_cast<const P2PTimeSyncReplyContent *>(&maybe_oldest_packet_view->content()[sizeof(P2PApplicationPacketHeader)]);
+            ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + sizeof(P2PSyncTimeReply));
+            const auto *time_sync_reply = reinterpret_cast<const P2PSyncTimeReply *>(&maybe_oldest_packet_view->content()[sizeof(P2PApplicationPacketHeader)]);
             const auto sync_edge_remote_timestamp_ns = NetworkToLocal<kLocalEndianness>(time_sync_reply->sync_edge_local_timestamp_ns);
             if (sync_edge_remote_timestamp_ns >= last_edge_estimated_local_timestamp_ns_) {
                 // Only advance the clock that is behind, so that all clocks stay monotonic.
