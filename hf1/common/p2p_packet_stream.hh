@@ -43,6 +43,7 @@ StatusOr<P2PMutablePacketView> P2PPacketOutputStream<kCapacity, LocalEndianness>
     return Status::kUnavailableError;
   }
   P2PPacket &packet = packet_buffer_.NewValue(priority);
+  packet.header()->priority = priority;
   packet.header()->is_continuation = 0;
   packet.header()->requires_ack = 0;
   packet.header()->is_ack = 0;

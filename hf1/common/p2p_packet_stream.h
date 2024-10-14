@@ -126,6 +126,11 @@ public:
     return packet_->content();
   }
 
+  int priority() const {
+    ASSERT(packet_ != NULL);
+    return packet_->header()->priority;
+  }
+
 private:
   P2PPacket *packet() {
     return packet_;

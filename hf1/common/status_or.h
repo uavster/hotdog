@@ -2,7 +2,7 @@
 #define STATUS_OR_INCLUDED_
 
 enum Status {
-  kSuccess, kUnavailableError
+  kSuccess, kUnavailableError, kMalformedError
 };
 
 template<typename ValueType> class StatusOr {
@@ -17,6 +17,7 @@ public:
   const ValueType &operator*() const { return value_; }
 
   bool ok() const { return status_ == kSuccess; }
+  Status status() const { return status_; }
 
 private:
   Status status_;

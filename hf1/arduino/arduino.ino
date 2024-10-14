@@ -10,12 +10,13 @@
 #include "timer_arduino.h"
 #include "guid_factory.h"
 #include "logger.h"
-#include "time_sync_server.h"
 #include "robot_state_estimator.h"
 #include "wheel_controller.h"
 #include "base_controller.h"
 #include "p2p_packet_stream_arduino.h"
-#include "head_pose_server.h"
+#include "p2p_action_server.h"
+#include "sync_time_action_handler.h"
+#include "set_head_pose_action_handler.h"
 
 Logger logger;
 
@@ -27,8 +28,9 @@ P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
 GUIDFactory guid_factory;
 P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
-TimeSyncServer<kP2PInputCapacity, kP2POutputCapacity, kP2PLocalEndianness> time_sync_server(&p2p_stream, &timer);
-HeadPoseServer head_pose_server(&p2p_stream);
+P2PActionServer p2p_action_server(&p2p_stream);
+SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
+SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
 
 TimerNanosType last_msg_time_ns = 0;
 
@@ -101,8 +103,9 @@ void setup() {
     lost_packets[i] = 0;
   }
 
-  Serial.println("Initializing time server...");
-  time_sync_server.Init();
+  Serial.println("Register actions in action server...");
+  p2p_action_server.Register(&set_head_pose_action_handler);
+  p2p_action_server.Register(&sync_time_action_handler);
 
   last_msg_time_ns = GetTimerNanoseconds();
   
@@ -253,8 +256,7 @@ void loop() {
 
   p2p_stream.input().Run();
   p2p_stream.output().Run();
-  time_sync_server.Run();
-  head_pose_server.Run();
+  p2p_action_server.Run();
 
   // uint64_t now_ns = GetTimerNanoseconds();
 
