@@ -76,7 +76,7 @@ bool SyncTimeActionHandler::Run() {
   // at a later time, and this packet will not hold back other unguaranteed packets of equal priority or less.
   // This should not be a problem as long as the synchronization action period is low enough to keep 
   // desynchronization at bay despite the previously lost action.
-  p2p_stream().output().Commit(request_priority(), /*guarantee_delivery=*/true);
+  maybe_reply->Commit(/*guarantee_delivery=*/false);
 
   last_edge_detect_local_timestamp_ns_ = -1ULL;
   // Clear any interrupt request that might not be current and reenable the IRQ,
