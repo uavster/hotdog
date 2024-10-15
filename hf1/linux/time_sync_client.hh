@@ -42,7 +42,7 @@ extern void *time_sync_client_singleton;
 
 template <int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness>
 TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::TimeSyncClient(P2PPacketStream<kInputCapacity, kOutputCapacity, kLocalEndianness> *p2p_packet_stream, TimerInterface *system_timer)
-    : p2p_packet_stream_(*p2p_packet_stream), system_timer_(*system_timer), state_(WARMUP), sync_requested_(false), last_sync_status_(SyncStatus::kNotAttempted), last_sync_offset_ns_(0) {
+    : p2p_packet_stream_(*p2p_packet_stream), system_timer_(*system_timer), state_(kWarmup), sync_requested_(false), last_sync_status_(SyncStatus::kNotAttempted), last_sync_offset_ns_(0) {
     ASSERT(time_sync_client_singleton == nullptr);
     time_sync_client_singleton = this;
     GPIO::setmode(GPIO::BOARD);
@@ -68,13 +68,13 @@ TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::~TimeSyncClie
 template <int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness>
 void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
     switch(state_) {
-        case WARMUP:
+        case kWarmup:
             if (system_timer_.GetLocalNanoseconds() - creation_time_ < kWarmupDurationNs) { break; }
 
-            state_ = IDLE;
+            state_ = kIdle;
             break;
 
-        case IDLE: {
+        case kIdle: {
             // Clean input stream from previous responses from the time sync server.
             while(true) {
               const auto maybe_oldest_packet_view = p2p_packet_stream_.input().OldestPacket();
@@ -91,20 +91,20 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             // Start synchronization if requested.
             if (sync_requested_) {
                 num_sync_attempts_ = 0;
-                state_ = GENERATE_SYNC_EDGE_AND_WAIT_FOR_LOOPBACK;
+                state_ = kGenerateSyncEdgeAndWaitForLoopback;
                 last_sync_status_ = SyncStatus::kInProgress;
             }
             break;
         }
 
-        case GENERATE_SYNC_EDGE_AND_WAIT_FOR_LOOPBACK: {
+        case kGenerateSyncEdgeAndWaitForLoopback: {
             // Reset request signal.
             GPIO::output(kTimeSyncRequestPinNumber, GPIO::LOW);
 
             if ((++num_sync_attempts_) > kMaxNumSyncEdgeRetriesBeforFailure) {
               // Too many times: declare failure.
               sync_requested_ = false;
-              state_ = IDLE;
+              state_ = kIdle;
               last_sync_status_ = SyncStatus::kError;
               LOG_ERROR("Too many failed synchronization attempts.");
               break;
@@ -127,7 +127,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
               if (system_timer_.GetLocalNanoseconds() - last_edge_set_local_timestamp_ns_ > kMaxSetDetectDurationNs) {
                   // Too late for a quality edge: retry.
                   last_edge_attempt_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
-                  state_ = WAIT_TO_REGENERATE_SYNC_EDGE;
+                  state_ = kWaitToRegenerateSyncEdge;
                   break;
               }
               // There's still time: check if we got the edge.
@@ -136,24 +136,24 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
                 last_edge_detect_local_timestamp_ns_copy_ = last_edge_detect_local_timestamp_ns_;
               }
             } while(last_edge_detect_local_timestamp_ns_copy_ == -1ULL);
-            if (state_ != GENERATE_SYNC_EDGE_AND_WAIT_FOR_LOOPBACK) {
+            if (state_ != kGenerateSyncEdgeAndWaitForLoopback) {
               // Something went wrong: move to the new state.
               break;
             }
             // The rising edge has been detected soon enough for good synchronization.
-            state_ = SEND_TIME_SYNC_REQUEST;
+            state_ = kSendTimeSyncRequest;
             // Reset request pin.
             GPIO::output(kTimeSyncRequestPinNumber, GPIO::LOW);
             break;
         }
 
-        case WAIT_TO_REGENERATE_SYNC_EDGE:
+        case kWaitToRegenerateSyncEdge:
             if (system_timer_.GetLocalNanoseconds() - last_edge_attempt_timestamp_ns_ < kMinTimeBetweenSyncEdgesNs) { break; }
 
-            state_ = GENERATE_SYNC_EDGE_AND_WAIT_FOR_LOOPBACK;
+            state_ = kGenerateSyncEdgeAndWaitForLoopback;
             break;
 
-        case SEND_TIME_SYNC_REQUEST: {
+        case kSendTimeSyncRequest: {
             // Schedule a request with low priority, so that regular time sync does not block urgent communications.
             auto maybe_new_packet = p2p_packet_stream_.output().NewPacket(kTimeSyncPacketsPriority);
             if (!maybe_new_packet.ok()) {
@@ -161,7 +161,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
                   // The output buffer is saturated for too long: fail now and let the caller retry at
                   // a later time.
                   sync_requested_ = false;
-                  state_ = IDLE;
+                  state_ = kIdle;
                   last_sync_status_ = SyncStatus::kError;
                   LOG_ERROR("P2P output queue is saturated.");
                   break;
@@ -180,14 +180,14 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             reinterpret_cast<P2PSyncTimeRequest *>(&maybe_new_packet->content()[sizeof(P2PApplicationPacketHeader)])->sync_edge_local_timestamp_ns = LocalToNetwork<kLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
             p2p_packet_stream_.output().Commit(kTimeSyncPacketsPriority, /*guarantee_delivery=*/false);
             request_sent_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
-            state_ = WAIT_FOR_TIME_SYNC_REPLY;
+            state_ = kWaitForTimeSyncReply;
             break;
         }
         
-        case WAIT_FOR_TIME_SYNC_REPLY: {
+        case kWaitForTimeSyncReply: {
             if (system_timer_.GetLocalNanoseconds() - request_sent_timestamp_ns_ > kMaxTimeSyncReplyDelayNs) { 
                 // The other end must have missed the sync signal (e.g. it started after this end): start over.                
-                state_ = GENERATE_SYNC_EDGE_AND_WAIT_FOR_LOOPBACK;
+                state_ = kGenerateSyncEdgeAndWaitForLoopback;
                 break;
             }
 
@@ -213,7 +213,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::Run() {
             p2p_packet_stream_.input().Consume(maybe_oldest_packet_view->priority());
 
             sync_requested_ = false;
-            state_ = IDLE;
+            state_ = kIdle;
             last_sync_status_ = SyncStatus::kOk;
             break;
         }

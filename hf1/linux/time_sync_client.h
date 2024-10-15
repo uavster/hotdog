@@ -44,7 +44,7 @@ private:
     P2PPacketStream<kInputCapacity, kOutputCapacity, kLocalEndianness> &p2p_packet_stream_;
     TimerInterface &system_timer_;
     uint64_t creation_time_;
-    enum { WARMUP, IDLE, GENERATE_SYNC_EDGE_AND_WAIT_FOR_LOOPBACK, WAIT_TO_REGENERATE_SYNC_EDGE, SEND_TIME_SYNC_REQUEST, WAIT_FOR_TIME_SYNC_REPLY } state_;    
+    enum { kWarmup, kIdle, kGenerateSyncEdgeAndWaitForLoopback, kWaitToRegenerateSyncEdge, kSendTimeSyncRequest, kWaitForTimeSyncReply } state_;    
     std::mutex mutex_;
     std::atomic<bool> sync_requested_;
     uint64_t last_edge_set_local_timestamp_ns_;
