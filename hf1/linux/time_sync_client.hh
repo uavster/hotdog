@@ -43,6 +43,7 @@ extern void *time_sync_client_singleton;
 template <int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness>
 TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::TimeSyncClient(P2PPacketStream<kInputCapacity, kOutputCapacity, kLocalEndianness> *p2p_packet_stream, TimerInterface *system_timer)
     : p2p_packet_stream_(*p2p_packet_stream), system_timer_(*system_timer), state_(kWarmup), sync_requested_(false), last_sync_status_(SyncStatus::kNotAttempted), last_sync_offset_ns_(0) {
+    
     ASSERT(time_sync_client_singleton == nullptr);
     time_sync_client_singleton = this;
     GPIO::setmode(GPIO::BOARD);
@@ -62,7 +63,7 @@ void TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::EdgeLoop
 template <int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness>
 TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness>::~TimeSyncClient() {
     GPIO::remove_event_detect(kTimeSyncLoopbackPinNumber);
-    GPIO::cleanup();    
+    GPIO::cleanup({ kTimeSyncRequestPinNumber, kTimeSyncLoopbackPinNumber});    
 }
 
 template <int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness>

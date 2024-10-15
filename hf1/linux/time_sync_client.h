@@ -40,7 +40,6 @@ protected:
     static void EdgeLoopbackCallback();
 
 private:
-    static TimeSyncClient<kInputCapacity, kOutputCapacity, kLocalEndianness> *singleton_;
     P2PPacketStream<kInputCapacity, kOutputCapacity, kLocalEndianness> &p2p_packet_stream_;
     TimerInterface &system_timer_;
     uint64_t creation_time_;
