@@ -39,6 +39,9 @@ typedef struct {
     uint8_t stage: 2;
 } P2PApplicationPacketHeader;
 
+// Void action.
+typedef struct {} P2PVoid;
+
 // Time synchronization.
 typedef struct {
     uint64_t sync_edge_local_timestamp_ns;
