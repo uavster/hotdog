@@ -6,6 +6,7 @@
 #include <mutex>
 #include <atomic>
 
+// All necessary operations for time synchronization. 
 template<int kInputCapacity, int kOutputCapacity, Endianness kLocalEndianness> class TimeSyncClient {
 public:
     // Does not take ownsership of the pointees, which must outlive this object.
@@ -33,8 +34,6 @@ public:
     // A negative value is the adjustment subctracted as an offset from the remote time to get the
     // global time.
     int64_t last_sync_offset_ns() const { return last_sync_offset_ns_; }
-
-    const TimerInterface &system_timer() { return system_timer_; }
 
 protected:
     // The GPIO library only supports equality-comparable functions, so we need this static accessing the singleton TimeSyncClient.
