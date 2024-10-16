@@ -3,6 +3,7 @@
 #include <sstream>
 #include "logger_interface.h"
 #include <mutex>
+#include <iostream>
 
 bool P2PActionClientHandlerBase::Request(int payload_length, const void *payload, std::optional<P2PPriority> priority, std::optional<bool> guarantee_delivery) {
   ASSERTM(allows_concurrent_requests_ || state_ == kIdle, 
@@ -18,7 +19,7 @@ bool P2PActionClientHandlerBase::Request(int payload_length, const void *payload
   P2PApplicationPacketHeader *header = reinterpret_cast<P2PApplicationPacketHeader *>(maybe_new_packet->content());
   header->action = action_;
   header->stage = P2PActionStage::kRequest;
-  header->request_id = current_request_id_++;
+  header->request_id = ++current_request_id_;
   memcpy(maybe_new_packet->content() + sizeof(P2PApplicationPacketHeader), payload, payload_length);
   p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery.has_value() ? *guarantee_delivery : guarantee_delivery_);
 

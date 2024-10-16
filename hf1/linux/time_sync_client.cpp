@@ -170,11 +170,9 @@ void TimeSyncClient::Run() {
                   state_ = kIdle;
                   last_sync_status_ = SyncStatus::kError;
                   LOG_ERROR("P2P output queue is saturated.");
-                  break;
-              } else {
-                  // Try again for an available slot.
-                  break;
               }
+              // Try again for an available slot.
+              break;
             }
 
             request_sent_timestamp_ns_ = system_timer_.GetLocalNanoseconds();

@@ -91,11 +91,12 @@ public:
 
   // Does not take ownership of the pointee, which must outlive this object.
   void AssociateTimeSyncClient(TimeSyncClient *time_sync_client) {
-    time_sync_client_ = time_sync_client_;
+    ASSERTM(time_sync_client_ == nullptr, "SyncTimeActionClientHandler can only be associated to one TimeSyncClient.");
+    time_sync_client_ = time_sync_client;
   }
 
   void OnReply(const P2PSyncTimeReply &reply) override {
-    ASSERT(time_sync_client_ != nullptr);
+    ASSERTM(time_sync_client_ != nullptr, "SyncTimeActionClientHandler was not associated to a TimeSyncClient.");
     time_sync_client_->OnReply(reply);
   }
 
