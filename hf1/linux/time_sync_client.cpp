@@ -161,7 +161,8 @@ void TimeSyncClient::Run() {
             P2PSyncTimeRequest request;
             // The edge was received some time between setting the output pin and receiving the event from the loopback pin: use the mid-point.
             // It is guaranteed that the rising edge will have been processed in the other end by the time the request is received.
-            request.sync_edge_local_timestamp_ns = LocalToNetwork<kP2PLocalEndianness>((last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_copy_) / 2);
+            last_edge_estimated_local_timestamp_ns_ = (last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_copy_) / 2;
+            request.sync_edge_local_timestamp_ns = LocalToNetwork<kP2PLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
             if (!sync_action_handler_.Request(request)) {
               if (system_timer_.GetLocalNanoseconds() - last_edge_detect_local_timestamp_ns_copy_ > kMaxTimeSyncRequestDelayNs) {
                   // The output buffer is saturated for too long: fail now and let the caller retry at
@@ -197,12 +198,12 @@ void TimeSyncClient::Run() {
             }
 
             const auto sync_edge_remote_timestamp_ns = NetworkToLocal<kP2PLocalEndianness>(maybe_reply->sync_edge_local_timestamp_ns);
-            if (sync_edge_remote_timestamp_ns >= last_edge_detect_local_timestamp_ns_copy_) {
+            if (sync_edge_remote_timestamp_ns >= last_edge_estimated_local_timestamp_ns_) {
                 // Only advance the clock that is behind, so that all clocks stay monotonic.
-                last_sync_offset_ns_ = sync_edge_remote_timestamp_ns - last_edge_detect_local_timestamp_ns_copy_;
+                last_sync_offset_ns_ = sync_edge_remote_timestamp_ns - last_edge_estimated_local_timestamp_ns_;
                 system_timer_.global_offset_nanoseconds() = last_sync_offset_ns_;
             } else {
-              last_sync_offset_ns_ = -(last_edge_detect_local_timestamp_ns_copy_ - sync_edge_remote_timestamp_ns);
+              last_sync_offset_ns_ = -(last_edge_estimated_local_timestamp_ns_ - sync_edge_remote_timestamp_ns);
             }
 
             sync_requested_ = false;
