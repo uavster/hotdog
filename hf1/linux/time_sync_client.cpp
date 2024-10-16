@@ -197,12 +197,12 @@ void TimeSyncClient::Run() {
             }
 
             const auto sync_edge_remote_timestamp_ns = NetworkToLocal<kP2PLocalEndianness>(maybe_reply->sync_edge_local_timestamp_ns);
-            if (sync_edge_remote_timestamp_ns >= last_edge_estimated_local_timestamp_ns_) {
+            if (sync_edge_remote_timestamp_ns >= last_edge_detect_local_timestamp_ns_copy_) {
                 // Only advance the clock that is behind, so that all clocks stay monotonic.
-                last_sync_offset_ns_ = sync_edge_remote_timestamp_ns - last_edge_estimated_local_timestamp_ns_;
+                last_sync_offset_ns_ = sync_edge_remote_timestamp_ns - last_edge_detect_local_timestamp_ns_copy_;
                 system_timer_.global_offset_nanoseconds() = last_sync_offset_ns_;
             } else {
-              last_sync_offset_ns_ = -(last_edge_estimated_local_timestamp_ns_ - sync_edge_remote_timestamp_ns);
+              last_sync_offset_ns_ = -(last_edge_detect_local_timestamp_ns_copy_ - sync_edge_remote_timestamp_ns);
             }
 
             sync_requested_ = false;
