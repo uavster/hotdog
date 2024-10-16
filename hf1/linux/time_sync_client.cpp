@@ -9,8 +9,6 @@
 #define kTimeSyncRequestPinNumber 33
 #define kTimeSyncLoopbackPinNumber 31
 
-#define kTimeSyncPacketsPriority P2PPriority::kLow
-
 // This is the time to wait before requesting the time sync for the first time.
 // It ensures that the GPIO library has finished initializing everything we need.
 #define kWarmupDurationNs 100'000'000ULL
@@ -40,7 +38,7 @@
 
 static void *time_sync_client_singleton;
 
-TimeSyncClient::TimeSyncClient(SyncTimeActionHandler *sync_action_handler, TimerInterface *system_timer)
+TimeSyncClient::TimeSyncClient(SyncTimeActionClientHandler *sync_action_handler, TimerInterface *system_timer)
     : sync_action_handler_(*ASSERT_NOT_NULL(sync_action_handler)), 
       system_timer_(*ASSERT_NOT_NULL(system_timer)), 
       state_(kWarmup), sync_requested_(false), 
@@ -70,7 +68,7 @@ TimeSyncClient::~TimeSyncClient() {
     GPIO::cleanup({ kTimeSyncRequestPinNumber, kTimeSyncLoopbackPinNumber});    
 }
 
-void TimeSyncClient::ResetReply(const P2PSyncTimeReply &reply) {
+void TimeSyncClient::ResetReply() {
     std::lock_guard<std::mutex> guard(reply_mutex_);
     reply_ = std::nullopt;
 }
@@ -80,7 +78,7 @@ void TimeSyncClient::OnReply(const P2PSyncTimeReply &reply) {
     reply_ = reply;
 }
 
-std::optional<P2PSyncTimeReply> TimeSyncClient::reply() const {
+std::optional<P2PSyncTimeReply> TimeSyncClient::reply() {
     std::lock_guard<std::mutex> guard(reply_mutex_);
     return reply_;
 }
@@ -164,8 +162,7 @@ void TimeSyncClient::Run() {
             // The edge was received some time between setting the output pin and receiving the event from the loopback pin: use the mid-point.
             // It is guaranteed that the rising edge will have been processed in the other end by the time the request is received.
             request.sync_edge_local_timestamp_ns = LocalToNetwork<kP2PLocalEndianness>((last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_copy_) / 2);
-            // Schedule a request with low priority, so that regular time sync does not block urgent communications.
-            if (!sync_action_handler_.Request(request, kTimeSyncPacketsPriority, /*guarantee_delivery=*/false)) {
+            if (!sync_action_handler_.Request(request)) {
               if (system_timer_.GetLocalNanoseconds() - last_edge_detect_local_timestamp_ns_copy_ > kMaxTimeSyncRequestDelayNs) {
                   // The output buffer is saturated for too long: fail now and let the caller retry at
                   // a later time.
@@ -190,6 +187,8 @@ void TimeSyncClient::Run() {
             if (system_timer_.GetLocalNanoseconds() - request_sent_timestamp_ns_ > kMaxTimeSyncReplyDelayNs) { 
                 // The other end must have missed the sync signal (e.g. it started after this end): start over.                
                 state_ = kGenerateSyncEdgeAndWaitForLoopback;
+                // Cancel the action before retrying.
+                sync_action_handler_.Cancel();
                 break;
             }
 
@@ -199,7 +198,7 @@ void TimeSyncClient::Run() {
               break;
             }
 
-            const auto sync_edge_remote_timestamp_ns = NetworkToLocal<kLocalEndianness>(maybe_reply->sync_edge_local_timestamp_ns);
+            const auto sync_edge_remote_timestamp_ns = NetworkToLocal<kP2PLocalEndianness>(maybe_reply->sync_edge_local_timestamp_ns);
             if (sync_edge_remote_timestamp_ns >= last_edge_estimated_local_timestamp_ns_) {
                 // Only advance the clock that is behind, so that all clocks stay monotonic.
                 last_sync_offset_ns_ = sync_edge_remote_timestamp_ns - last_edge_estimated_local_timestamp_ns_;

@@ -98,6 +98,7 @@ void P2PActionServer::Run() {
       // The request determines the action's priority. This affects the reply and progress 
       // priorities, not the action's scheduling.
       handler->request_priority(maybe_packet->priority());
+      handler->request_id(app_header->request_id);
       if (handler->OnRequest()) {
         if (handler->Run()) {
           // The action goes on. Further calls to run will operate on a copy, as the input 

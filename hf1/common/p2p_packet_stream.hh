@@ -107,6 +107,10 @@ template<int kCapacity, Endianness LocalEndianness> int P2PPacketInputStream<kCa
             state_ = kWaitingForPacket;
             break;
           }
+          // TODO: Do not just overwrite the oldest packet in the ring buffer. Look for a 
+          // slot that does not require guaranteed delivery, move all entries to its oldest
+          // side towards its newest side, and use the newest free slot. This should free
+          // up one slot while keeping the time order.
           P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
           if (!incoming_header_.is_continuation) {
             for (unsigned int i = 0; i < sizeof(P2PHeader); ++i) {
