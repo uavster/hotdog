@@ -81,6 +81,7 @@ public:
   void Register(P2PActionClientHandlerBase *handler);
 
   // Dispatches reply and progress packets to handler callbacks.
+  // Should be called with the p2p_mutex passed to the P2PActionClientHandlers locked.
   void Run();
 
   P2PPacketStreamLinux &p2p_stream() { return p2p_stream_; }
