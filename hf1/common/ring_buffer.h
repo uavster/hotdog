@@ -81,20 +81,20 @@ template<typename ValueType, int kCapacity> class RingBuffer {
       return value;
     }
 
-    typedef int (*fn)(const ValueType &, const ValueType &) SortPredicate;
+    typedef int (*SortPredicate)(const ValueType &, const ValueType &);
 
     // Sorts the entries according to the given predicate.
     // May invalidate the pointers obtained with NewValue() and OldestValue().
     void Sort(SortPredicate predicate) {
       // Flatten the indices to sort.
       int indices[size_];
-      for (int i = read_index_, int j = 0; i < write_index_; i = ((i + 1) % kCapacity), ++j) { 
+      for (int i = read_index_, j = 0; i < write_index_; i = ((i + 1) % kCapacity), ++j) { 
         indices[j] = indices_[i];
       }
       sort_predicate_ = predicate;
       qsort(indices, size_, sizeof(int), &IndexBasedComparison);
       // Unflatten sorted indices.
-      for (int i = read_index_, int j = 0; i < write_index_; i = ((i + 1) % kCapacity), ++j) { 
+      for (int i = read_index_, j = 0; i < write_index_; i = ((i + 1) % kCapacity), ++j) { 
         indices_[i] = indices_[j];
       }
     }
