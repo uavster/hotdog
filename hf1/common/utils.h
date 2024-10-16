@@ -4,9 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <functional>
-#include <DebugLog.h>
 
-void Uint64ToString(uint64_t number, char *str);
+#ifdef ARDUINO
+#include <DebugLog.h>
 
 template<typename ParamType> class EndOfScopeExecutor {
 public:
@@ -42,6 +42,10 @@ private:
 //   }
 // }
 #define PUSH_POP_WRAPPER(state_type, push_fn, pop_fn) for(struct { bool done; EndOfScopeExecutor<state_type> pop_executor; } s = { .done = false, .pop_executor = EndOfScopeExecutor<state_type>(&pop_fn, push_fn()) }; !s.done; s.done = true)
+
+#endif
+
+void Uint64ToString(uint64_t number, char *str);
 
 // Maps `radians` to [-pi, pi).
 float NormalizeRadians(float radians);

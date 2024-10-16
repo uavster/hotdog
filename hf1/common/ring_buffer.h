@@ -2,6 +2,7 @@
 #define RING_BUFFER__
 
 #include <stddef.h>
+#include "utils.h"
 
 template<typename ValueType, int kCapacity> class RingBuffer {
   public:
@@ -30,7 +31,7 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     // Returns a pointer to the i-th oldest value in the buffer, or NULL if there are not enough
     // elements in the buffer.
     // The caller must consider that the pointee may mutate if someone edits the memory
-    // returned by NewValue(). If an IRQ calls does that, the caller should either copy the 
+    // returned by NewValue(). If an IRQ call does that, the caller should either copy the 
     // value or extend mutual exclusion throughout value access.
     // This function does not block. 
     ValueType *OldestValue(int i = 0) {
@@ -41,12 +42,16 @@ template<typename ValueType, int kCapacity> class RingBuffer {
       if (Size() <= i) { return NULL; }
       return &values_[indices_[(read_index_ + i) % kCapacity]];
     }
-
-    // Discards the oldest value in the buffer. Returns true if success, or false if there is
-    // no value to consume.
+    
+    // Discards the i-th oldest value in the buffer. Returns true if success, or false if
+    // there is no such value to consume.
     // Invalidates the pointer obtained with OldestValue().
-    bool Consume() {
-      if (Size() == 0) { return false; }
+    bool Consume(int i = 0) {
+      if (Size() <= i) { return false; }
+      // Move indices one position to the right up to i.
+      for (int k = 0, j = (read_index_ + i) % kCapacity; k < i; ++k, j = IndexMod(j - 1, kCapacity)) {
+        indices_[j] = indices_[IndexMod(j - 1, kCapacity)];
+      }
       IncReadIndex();
       --size_;
       return true;
@@ -88,13 +93,13 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     void Sort(SortPredicate predicate) {
       // Flatten the indices to sort.
       int indices[size_];
-      for (int i = read_index_, j = 0; i < write_index_; i = ((i + 1) % kCapacity), ++j) { 
+      for (int i = read_index_, j = 0; j < size_; i = ((i + 1) % kCapacity), ++j) { 
         indices[j] = indices_[i];
       }
       sort_predicate_ = predicate;
       qsort(indices, size_, sizeof(int), &IndexBasedComparison);
       // Unflatten sorted indices.
-      for (int i = read_index_, j = 0; i < write_index_; i = ((i + 1) % kCapacity), ++j) { 
+      for (int i = read_index_, j = 0; j < size_; i = ((i + 1) % kCapacity), ++j) { 
         indices_[i] = indices_[j];
       }
     }
