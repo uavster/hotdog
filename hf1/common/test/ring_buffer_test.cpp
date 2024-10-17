@@ -185,3 +185,47 @@ TEST(RingBufferTest, SizeIsZeroAfterClear) {
   buffer.Clear();
   EXPECT_EQ(buffer.Size(), 0);
 }
+
+TEST(RingBuffer, SizeReturnsZeroAfterClear) {
+  RingBuffer<int, /*kCapacity=*/4> buffer;
+  buffer.Write(52);
+  buffer.Write(53);
+  buffer.Write(54);
+  ASSERT_EQ(buffer.Size(), 3);
+
+  buffer.Clear();
+  EXPECT_EQ(buffer.Size(), 0);
+}
+
+TEST(RingBuffer, IsFullReturnsFalseIfEmpty) {
+  RingBuffer<int, /*kCapacity=*/4> buffer;
+
+  EXPECT_FALSE(buffer.IsFull());
+}
+
+TEST(RingBuffer, IsFullReturnsFalseIfNotFull) {
+  RingBuffer<int, /*kCapacity=*/4> buffer;
+  buffer.Write(52);
+  buffer.Write(53);
+
+  EXPECT_FALSE(buffer.IsFull());
+}
+
+TEST(RingBuffer, IsFullReturnsTrueIfAtCapacity) {
+  RingBuffer<int, /*kCapacity=*/4> buffer;
+  buffer.Write(52);
+  buffer.Write(53);
+  buffer.Write(54);
+
+  EXPECT_TRUE(buffer.IsFull());
+}
+
+TEST(RingBuffer, IsFullReturnsTrueAfterRollover) {
+  RingBuffer<int, /*kCapacity=*/4> buffer;
+  buffer.Write(52);
+  buffer.Write(53);
+  buffer.Write(54);
+  buffer.Write(55);
+
+  EXPECT_TRUE(buffer.IsFull());
+}

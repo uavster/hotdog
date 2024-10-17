@@ -25,6 +25,10 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     inline int Size() const {
       return size_;
     }
+        
+    bool IsFull() const {
+      return size_ >= kCapacity - 1;
+    }
 
     // Empties the buffer.
     // Invalidates pointers obtained with OldestValue() and NewValue().
