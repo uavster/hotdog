@@ -174,3 +174,14 @@ TEST(RingBufferTest, WriteKeepsOrderAfterConsumeWithIndex) {
   EXPECT_EQ(*buffer.OldestValue(1), 54);
   EXPECT_EQ(*buffer.OldestValue(2), 27);
 }
+
+TEST(RingBufferTest, SizeIsZeroAfterClear) {
+  RingBuffer<int, /*kCapacity=*/4> buffer;
+  buffer.Write(52);
+  buffer.Write(53);
+  buffer.Write(54);
+  ASSERT_EQ(buffer.Size(), 3);
+
+  buffer.Clear();
+  EXPECT_EQ(buffer.Size(), 0);
+}
