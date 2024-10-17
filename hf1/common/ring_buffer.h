@@ -3,16 +3,25 @@
 
 #include <stddef.h>
 #include "utils.h"
+#include "logger_interface.h"
 
+// A zero-copy ring buffer.
+// Values are read and written in place.
+// The newest value is always reserved for writing, so the maximum number of values the
+// buffer can store is kCapacity - 1.
 template<typename ValueType, int kCapacity> class RingBuffer {
   public:
+    static_assert(kCapacity > 1);
+
     RingBuffer() { Clear(); }
 
     inline int Capacity() const {
       return kCapacity;
     }
 
-    // Returns the number of values in the buffer.
+    // Returns the number of values that can be read from the buffer.
+    // When the buffer full, this returns kCapacity - 1, as one value is always reserved
+    // for writing.
     inline int Size() const {
       return size_;
     }
@@ -67,7 +76,9 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     // Makes the the newest value visible to readers.
     void Commit() {
       IncWriteIndex();
-      ++size_;
+      if (size_ < kCapacity - 1) {
+        ++size_;
+      }
       if (write_index_ == read_index_) {
         // Claim oldest unread slot for writing
         IncReadIndex();
@@ -81,27 +92,10 @@ template<typename ValueType, int kCapacity> class RingBuffer {
     }
 
     const ValueType Read() {
+      ASSERT(OldestValue() != nullptr);
       const ValueType value = *OldestValue();
       Consume();
       return value;
-    }
-
-    typedef int (*SortPredicate)(const ValueType &, const ValueType &);
-
-    // Sorts the entries according to the given predicate.
-    // May invalidate the pointers obtained with NewValue() and OldestValue().
-    void Sort(SortPredicate predicate) {
-      // Flatten the indices to sort.
-      int indices[size_];
-      for (int i = read_index_, j = 0; j < size_; i = ((i + 1) % kCapacity), ++j) { 
-        indices[j] = indices_[i];
-      }
-      sort_predicate_ = predicate;
-      qsort(indices, size_, sizeof(int), &IndexBasedComparison);
-      // Unflatten sorted indices.
-      for (int i = read_index_, j = 0; j < size_; i = ((i + 1) % kCapacity), ++j) { 
-        indices_[i] = indices_[j];
-      }
     }
 
   protected:
@@ -113,19 +107,12 @@ template<typename ValueType, int kCapacity> class RingBuffer {
       write_index_ = (write_index_ + 1) % kCapacity;
     }
 
-    int IndexBasedComparison(const void *p1, const void *p2) {
-      const int i1 = *reinterpret_cast<const int *>(p1);
-      const int i2 = *reinterpret_cast<const int *>(p2);
-      return sort_predicate_(values_[i1], values_[i2]);
-    }
-
   private:
     ValueType values_[kCapacity];
     int indices_[kCapacity];
     int read_index_;
     int write_index_;
     volatile int size_;
-    SortPredicate sort_predicate_;
 };
 
 #endif  // RING_BUFFER__
