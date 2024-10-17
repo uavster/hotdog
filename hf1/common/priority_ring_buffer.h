@@ -5,6 +5,10 @@
 
 template<typename ValueType, int kCapacity, typename PriorityType> class PriorityRingBuffer {
 public:
+  bool IsFull(PriorityType priority) const {
+    return buffer_[priority].IsFull();
+  }
+  
   ValueType *OldestValue() {
     for (int i = 0; i < PriorityType::kNumLevels; ++i) {
       ValueType *value = buffer_[i].OldestValue();
@@ -32,8 +36,8 @@ public:
     return buffer_[priority].OldestValue(i);
   }
 
-  bool Consume(PriorityType priority) {
-    return buffer_[priority].Consume();
+  bool Consume(PriorityType priority, int i = 0) {
+    return buffer_[priority].Consume(i);
   }
 
   ValueType &NewValue(PriorityType priority) {

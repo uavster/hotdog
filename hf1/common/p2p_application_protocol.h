@@ -34,10 +34,23 @@ typedef enum {
 
 #pragma pack(push, 1)
 
+typedef uint8_t P2PActionRequestID;
+
 typedef struct {
-    uint8_t action : 6;
-    uint8_t stage: 2;
+    uint8_t action : 6;   // The type of action [P2PAction].
+    uint8_t stage: 2;     // The action stage [P2PActionStage].
+    // Identifies the action request. 
+    // This is a monotonically increasing counter for action requests. Action cancellations, 
+    // replies and progress updates must indicate in this field the ID of the action request
+    // they refer to. 
+    // This field can only disambiguate as many requests as different values it can hold; 
+    // this limits the number of request-cancellation pairs that can coexist in the output 
+    // packet stream.
+    P2PActionRequestID request_id;  
 } P2PApplicationPacketHeader;
+
+// Void action.
+typedef struct {} P2PVoid;
 
 // Time synchronization.
 typedef struct {

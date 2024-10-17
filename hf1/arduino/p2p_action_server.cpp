@@ -70,7 +70,11 @@ StatusOr<const P2PPacketView> P2PActionServer::GetRequestOrCancellation() const 
     return Status::kMalformedError;
   }
 
-  ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + handler->GetExpectedRequestSize());
+  if (app_header->stage == P2PActionStage::kRequest) {
+    ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + handler->GetExpectedRequestSize());
+  } else {
+    ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader));
+  }
 
   return maybe_oldest_packet_view;
 }
@@ -98,6 +102,7 @@ void P2PActionServer::Run() {
       // The request determines the action's priority. This affects the reply and progress 
       // priorities, not the action's scheduling.
       handler->request_priority(maybe_packet->priority());
+      handler->request_id(app_header->request_id);
       if (handler->OnRequest()) {
         if (handler->Run()) {
           // The action goes on. Further calls to run will operate on a copy, as the input 

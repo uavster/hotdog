@@ -42,6 +42,8 @@ public:
   void run_state(RunState state) { run_state_ = state; }
   void request_priority(P2PPriority priority) { request_priority_ = priority; }
   P2PPriority request_priority() const { return request_priority_; }
+  P2PActionRequestID request_id() const { return request_id_; }
+  void request_id(P2PActionRequestID rid) { request_id_ = rid; }
   P2PPacketStreamArduino &p2p_stream() { return *p2p_stream_; }
 
   const uint8_t *request_bytes() const { return request_bytes_; }
@@ -81,6 +83,7 @@ private:
   bool is_initialized_;
   P2PAction action_;
   P2PPriority request_priority_;
+  P2PActionRequestID request_id_;
   P2PPacketStreamArduino *p2p_stream_;
   RunState run_state_;
   P2PPacketView app_packet_view_;

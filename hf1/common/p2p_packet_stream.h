@@ -297,9 +297,12 @@ private:
   unsigned int current_field_read_bytes_;
   enum State { kWaitingForPacket, kReadingHeader, kReadingContent, kDisambiguatingStartTokenInContent, kReadingFooter } state_;
   P2PHeader incoming_header_;
+  P2PPacket *incoming_packet_[P2PPriority::kNumLevels];
   P2PPacketFilter packet_filter_;
   uint8_t write_offset_before_break_[P2PPriority::kNumLevels];
-  
+  uint64_t current_sequence_number_[P2PPriority::kNumLevels];
+  P2PPacket discarded_packet_placeholder_;
+
   Stats stats_;
 };
 

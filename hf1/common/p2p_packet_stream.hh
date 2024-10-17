@@ -5,6 +5,7 @@ void P2PPacketInputStream<kCapacity, LocalEndianness>::Reset() {
   packet_buffer_.Clear();
   for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
     write_offset_before_break_[i] = 0;
+    incoming_packet_[i] = nullptr;
   }
   state_ = kWaitingForPacket;
 }
@@ -107,8 +108,41 @@ template<int kCapacity, Endianness LocalEndianness> int P2PPacketInputStream<kCa
             state_ = kWaitingForPacket;
             break;
           }
-          P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
+
           if (!incoming_header_.is_continuation) {
+            // New packet.
+
+            if (!packet_buffer_.IsFull(incoming_header_.priority)) {
+              // There is buffer space: get the next empty slot.
+              incoming_packet_[incoming_header_.priority] = &packet_buffer_.NewValue(incoming_header_.priority);
+            } else {
+              // No space available.
+              if (!incoming_header_.requires_ack) {
+                // It's a regular packet: finish receiving it without writing it in the 
+                // input queue.
+                incoming_packet_[incoming_header_.priority] = &discarded_packet_placeholder_;
+              } else {
+                // It's a guaranteed-delivery packet: discard one regular packet to make room.
+                for (int i = 0; i < packet_buffer_.Size(incoming_header_.priority); ++i) {
+                  if (!packet_buffer_.OldestValue(incoming_header_.priority, i)->header()->requires_ack) {
+                    packet_buffer_.Consume(incoming_header_.priority, i);
+                    break;
+                  }
+                }
+                if (!packet_buffer_.IsFull(incoming_header_.priority)) {
+                  // We were able to discard one regular packet: use the new room for the 
+                  // guaranteed-delivery packet.
+                  incoming_packet_[incoming_header_.priority] = &packet_buffer_.NewValue(incoming_header_.priority);
+                } else {
+                  // There were no regular packets to discard: finish reading the packet, but
+                  // store it in bogus location to still react to inconsistencies. The other
+                  // end should keep resending it until we have input buffer space to receive it.
+                  incoming_packet_[incoming_header_.priority] = &discarded_packet_placeholder_;
+                }
+              }              
+            }
+
+            P2PPacket &packet = *incoming_packet_[incoming_header_.priority];
             for (unsigned int i = 0; i < sizeof(P2PHeader); ++i) {
               reinterpret_cast<uint8_t *>(&packet)[i] = reinterpret_cast<uint8_t *>(&incoming_header_)[i];
             }
@@ -117,6 +151,10 @@ template<int kCapacity, Endianness LocalEndianness> int P2PPacketInputStream<kCa
             write_offset_before_break_[incoming_header_.priority] = 0;
             current_field_read_bytes_ = 0;
           } else {
+            // Continuing a packet previously interrupted by a higher-priority packet.
+
+            ASSERT(incoming_packet_[incoming_header_.priority] != nullptr);
+            P2PPacket &packet = *incoming_packet_[incoming_header_.priority];
             // The length field for a packet continuation is the remaining length.
             int remaining_length = NetworkToLocal<LocalEndianness>(incoming_header_.length);
             if (incoming_header_.sequence_number != packet.sequence_number() || 
@@ -157,7 +195,8 @@ template<int kCapacity, Endianness LocalEndianness> int P2PPacketInputStream<kCa
 
     case kReadingContent:
       {
-        P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
+        ASSERT(incoming_packet_[incoming_header_.priority] != nullptr);
+        P2PPacket &packet = *incoming_packet_[incoming_header_.priority];
         if (current_field_read_bytes_ >= packet.length()) {
           state_ = kReadingFooter;
           current_field_read_bytes_ = 0;
@@ -189,7 +228,8 @@ template<int kCapacity, Endianness LocalEndianness> int P2PPacketInputStream<kCa
 
     case kDisambiguatingStartTokenInContent:
       {
-        P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
+        ASSERT(incoming_packet_[incoming_header_.priority] != nullptr);
+        P2PPacket &packet = *incoming_packet_[incoming_header_.priority];
         // Read next byte and check if it's a special token.
         // No need to check if we reached the content length here, as a content byte matching the start token should always be followed by a special token.
         uint8_t *next_content_byte = &packet.content()[current_field_read_bytes_];
@@ -224,7 +264,8 @@ template<int kCapacity, Endianness LocalEndianness> int P2PPacketInputStream<kCa
 
     case kReadingFooter:
       {
-        P2PPacket &packet = packet_buffer_.NewValue(incoming_header_.priority);
+        ASSERT(incoming_packet_[incoming_header_.priority] != nullptr);
+        P2PPacket &packet = *incoming_packet_[incoming_header_.priority];
         if (current_field_read_bytes_ >= sizeof(P2PFooter)) {
           state_ = kWaitingForPacket;
           break;

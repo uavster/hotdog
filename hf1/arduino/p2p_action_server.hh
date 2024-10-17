@@ -23,6 +23,7 @@ StatusOr<P2PActionPacketAdapter<TReply>> P2PActionHandler<TRequest, TReply, TPro
   P2PApplicationPacketHeader *header = reinterpret_cast<P2PApplicationPacketHeader *>(maybe_packet->content());
   header->action = action();
   header->stage = P2PActionStage::kReply;
+  header->request_id = request_id();
   return P2PActionPacketAdapter<TReply>(this, *maybe_packet);
 }
 
@@ -36,5 +37,6 @@ StatusOr<P2PActionPacketAdapter<TProgress>> P2PActionHandler<TRequest, TReply, T
   P2PApplicationPacketHeader *header = reinterpret_cast<P2PApplicationPacketHeader *>(maybe_packet->content());
   header->action = action();
   header->stage = P2PActionStage::kProgress;
+  header->request_id = request_id();
   return P2PActionPacketAdapter<TProgress>(this, *maybe_packet);
 }
