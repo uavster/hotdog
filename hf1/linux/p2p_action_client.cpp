@@ -89,6 +89,8 @@ void P2PActionClient::Run() {
     std::ostringstream oss;
     oss << "Unknown action " << header->action << ".";
     LOG_ERROR(oss.str().c_str());
+    p2p_stream_.input().Consume(maybe_packet->priority());
+    return;
   }
 
   P2PActionClientHandlerBase *handler = handlers_[header->action];
@@ -96,11 +98,13 @@ void P2PActionClient::Run() {
     std::ostringstream oss;
     oss << "No handler installed for action " << header->action << ".";
     LOG_WARNING(oss.str().c_str());    
+    p2p_stream_.input().Consume(maybe_packet->priority());
     return;
   }
 
   if (header->request_id != handler->current_request_id()) {
     // This is a response from a previous action that was cancelled.
+    p2p_stream_.input().Consume(maybe_packet->priority());
     return;
   }
 
@@ -119,6 +123,5 @@ void P2PActionClient::Run() {
       break;
     }
   }
-
   p2p_stream_.input().Consume(maybe_packet->priority());
 }
