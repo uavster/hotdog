@@ -17,6 +17,7 @@
 #include "p2p_action_server.h"
 #include "sync_time_action_handler.h"
 #include "set_head_pose_action_handler.h"
+#include "set_base_velocity_action_handler.h"
 
 Logger logger;
 
@@ -28,9 +29,6 @@ P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
 GUIDFactory guid_factory;
 P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
-P2PActionServer p2p_action_server(&p2p_stream);
-SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
-SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
 
 TimerNanosType last_msg_time_ns = 0;
 
@@ -46,6 +44,11 @@ WheelSpeedController right_wheel(&GetRightWheelTickCount, &SetRightMotorDutyCycl
 BaseSpeedController base_speed_controller(&left_wheel, &right_wheel);
 BaseStateController base_state_controller(&base_speed_controller);
 BaseTrajectoryController base_trajectory_controller(&base_speed_controller);
+
+P2PActionServer p2p_action_server(&p2p_stream);
+SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
+SetBaseVelocityActionHandler set_base_velocity_action_handler(&p2p_stream, &base_speed_controller);
+SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
 
 // const BaseWaypoint waypoints[] = { 
 //   BaseWaypoint(0, Point(0, 0), 0), 
@@ -104,8 +107,9 @@ void setup() {
   }
 
   Serial.println("Register actions in action server...");
-  p2p_action_server.Register(&set_head_pose_action_handler);
   p2p_action_server.Register(&sync_time_action_handler);
+  p2p_action_server.Register(&set_head_pose_action_handler);
+  p2p_action_server.Register(&set_base_velocity_action_handler);
 
   last_msg_time_ns = GetTimerNanoseconds();
   
@@ -257,6 +261,8 @@ void loop() {
   p2p_stream.input().Run();
   p2p_stream.output().Run();
   p2p_action_server.Run();
+
+  // base_speed_controller.Run();
 
   // uint64_t now_ns = GetTimerNanoseconds();
 
