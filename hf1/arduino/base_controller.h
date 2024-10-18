@@ -30,8 +30,8 @@ public:
 
   void Run();
 
-  const WheelSpeedController &left_wheel_speed_controller() const { return left_wheel_; }
-  const WheelSpeedController &right_wheel_speed_controller() const { return right_wheel_; }
+  WheelSpeedController &left_wheel_speed_controller() const { return left_wheel_; }
+  WheelSpeedController &right_wheel_speed_controller() const { return right_wheel_; }
 
 private:
   WheelSpeedController &left_wheel_;
