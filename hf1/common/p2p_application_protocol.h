@@ -19,6 +19,7 @@ typedef enum {
   kPing = 0,
   kTimeSync,
   kSetHeadPose,
+  kSetBaseVelocity,
 
   kCount  // Must be the last entry in the enum.
 } P2PAction;
@@ -66,6 +67,12 @@ typedef struct {
     float pitch_radians;
     float roll_radians;
 } P2PSetHeadPoseRequest;
+
+// Set base velocity.
+typedef struct {
+    float forward_meters_per_second;
+    float counterclockwise_radians_per_second;
+} P2PSetBaseVelocityRequest;
 
 #pragma pack(pop)
 
