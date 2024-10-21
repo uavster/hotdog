@@ -9,20 +9,13 @@
 #include <atomic>
 #include <optional>
 
-// Packets are low priority and without guaranteed delivery to ease all other traffic.
-// If delivery fails, the client will retry.
-#define kTimeSyncPacketsDefaultPriority P2PPriority::kLow
-#define kTimeSyncPacketsDefaultGuaranteeDelivery false
-
-class SyncTimeActionClientHandler;
-
 // Synchronizes time with the Arduino end when requested.
 // It uses a GPIO signal readable by both ends to take a snapshot of both timers, which 
 // are then exchanged over the P2P link.
 // Only one instance of this class may exist at a time.
 class TimeSyncClient {
 public:
-    friend class SyncTimeActionClientHandler;
+    using SyncTimeActionClientHandler = P2PActionClientHandler<P2PSyncTimeRequest, P2PSyncTimeReply, P2PVoid>;
 
     // Does not take ownsership of the pointees, which must outlive this object.
     TimeSyncClient(SyncTimeActionClientHandler *sync_action_handler, TimerInterface *system_timer);
@@ -78,30 +71,6 @@ private:
 
     std::mutex reply_mutex_;
     std::optional<P2PSyncTimeReply> reply_;
-};
-
-// Provides a mechanism for the TimeSyncClient to send time sync requests to the motion
-// controller and receive replies over the P2P link.
-class SyncTimeActionClientHandler : public P2PActionClientHandler<P2PSyncTimeRequest, P2PSyncTimeReply, P2PVoid> {
-public:
-  // Does not take ownsership of the pointees, which must outlive this object.
-  SyncTimeActionClientHandler(P2PAction action, P2PPacketStreamLinux *p2p_stream, std::mutex *p2p_mutex) :
-    P2PActionClientHandler<P2PSyncTimeRequest, P2PSyncTimeReply, P2PVoid>(action, kTimeSyncPacketsDefaultPriority, kTimeSyncPacketsDefaultGuaranteeDelivery, p2p_stream, p2p_mutex, /*allows_concurrent_requests=*/false), 
-    time_sync_client_(nullptr) {}
-
-  // Does not take ownership of the pointee, which must outlive this object.
-  void AssociateTimeSyncClient(TimeSyncClient *time_sync_client) {
-    ASSERTM(time_sync_client_ == nullptr, "SyncTimeActionClientHandler can only be associated to one TimeSyncClient.");
-    time_sync_client_ = time_sync_client;
-  }
-
-  void OnReply(const P2PSyncTimeReply &reply) override {
-    ASSERTM(time_sync_client_ != nullptr, "SyncTimeActionClientHandler was not associated to a TimeSyncClient.");
-    time_sync_client_->OnReply(reply);
-  }
-
-private:
-  TimeSyncClient *time_sync_client_;
 };
 
 #endif  // TIME_SYNC_CLIENT_INCLUDED_

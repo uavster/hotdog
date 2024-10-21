@@ -47,9 +47,6 @@ TimeSyncClient::TimeSyncClient(SyncTimeActionClientHandler *sync_action_handler,
     
     ASSERT(time_sync_client_singleton == nullptr);
     time_sync_client_singleton = this;
-    // Tell the time sync action handler to notify this client with replies from the motion
-    // controller.
-    sync_action_handler_.AssociateTimeSyncClient(this);
     GPIO::setmode(GPIO::BOARD);
     GPIO::setup(kTimeSyncRequestPinNumber, GPIO::OUT, GPIO::LOW);
     GPIO::setup(kTimeSyncLoopbackPinNumber, GPIO::IN);
@@ -163,7 +160,10 @@ void TimeSyncClient::Run() {
             // It is guaranteed that the rising edge will have been processed in the other end by the time the request is received.
             last_edge_estimated_local_timestamp_ns_ = (last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_copy_) / 2;
             request.sync_edge_local_timestamp_ns = LocalToNetwork<kP2PLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
-            if (!sync_action_handler_.Request(request)) {
+            if (!sync_action_handler_.Request(request, [this](const P2PSyncTimeRequest &request, const P2PSyncTimeReply &reply) {
+              this->OnReply(reply);
+            }, 
+            [](const P2PSyncTimeRequest &request, const P2PVoid &progress) {})) {
               if (system_timer_.GetLocalNanoseconds() - last_edge_detect_local_timestamp_ns_copy_ > kMaxTimeSyncRequestDelayNs) {
                   // The output buffer is saturated for too long: fail now and let the caller retry at
                   // a later time.
