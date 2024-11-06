@@ -3,9 +3,9 @@
 
 #include "wheel_controller.h"
 #include "periodic_runnable.h"
-#include "robot_state.h"
+#include "base_state.h"
 #include "timer.h"
-#include "status_or.h"
+#include "trajectory.h"
 
 // Controller commanding the wheel speed controllers to achieve the desired forward and 
 // angular speeds of the robot's base.
@@ -68,54 +68,17 @@ private:
   float reference_angular_speed_;
 };
 
+using BaseTargetState = State<BaseStateVars, 0>;
+
 // Defines the state of the robot's base at a given time. The controller class decides what
 // part of the state to use. For instance, some controllers may ignore the time and/or the 
 // yaw angle.
-class BaseWaypoint {
-public:
-  BaseWaypoint() : seconds_(0), yaw_(0) {}
-  BaseWaypoint(TimerSecondsType seconds, const Point &position, float yaw = 0.0f) 
-    : seconds_(seconds), position_(position), yaw_(yaw) {}
-
-  TimerSecondsType seconds() const { return seconds_; }
-  const Point &position() const { return position_; }
-  float yaw() const { return yaw_; }
-
-private:
-  TimerSecondsType seconds_;
-  Point position_;
-  float yaw_;
-};
+using BaseWaypoint = Waypoint<BaseTargetState>;
 
 // A view of a collection of base waypoints.
 // The view does not own the memory containing the waypoints, so they must outlive any 
 // view objects referencing them.
-class BaseTrajectoryView {
-public:
-  BaseTrajectoryView() : num_waypoints_(0), waypoints_(NULL), loop_at_seconds_(-1) {}
-
-  // Does not take ownsership of the pointee, which must outlive this object.
-  BaseTrajectoryView(int num_waypoints, const BaseWaypoint *waypoints)
-    : num_waypoints_(num_waypoints), waypoints_(waypoints), loop_at_seconds_(-1) {}
-
-  int num_waypoints() const { return num_waypoints_; }
-
-  BaseTrajectoryView &EnableLooping(TimerSecondsType after_seconds = 0);
-  BaseTrajectoryView &DisableLooping();
-  bool IsLoopingEnabled() const;
-
-  StatusOr<int> FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index = 0) const;
-
-  const Point &position(int index) const;
-  Point velocity(int index) const;
-  Point acceleration(int index) const;
-  float seconds(int index) const;
-
-private:
-  int num_waypoints_;
-  const BaseWaypoint *waypoints_;
-  TimerSecondsType loop_at_seconds_; // looping disabled if negative.
-};
+using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
 
 // Controller commanding the base speed controller to move the robot's base over a sequence
 // of waypoints. It tries to reach each waypoint at the waypoint's time. 
@@ -146,6 +109,8 @@ public:
 
   void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;
   void Run();
+
+  const BaseSpeedController &base_speed_controller() const { return base_speed_controller_; }
 
 private:
   BaseSpeedController &base_speed_controller_;

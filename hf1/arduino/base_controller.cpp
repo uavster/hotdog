@@ -86,12 +86,12 @@ void BaseStateController::Run() {
 void BaseStateController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) {
   // Get errors in the base's local frame.
   const BaseState &base_state = GetBaseState();
-  const float cos_yaw = cos(base_state.yaw());
-  const float sin_yaw = sin(base_state.yaw());
-  const Point position_error = center_position_target_ - base_state.center();
+  const float cos_yaw = cos(base_state.location().yaw());
+  const float sin_yaw = sin(base_state.location().yaw());
+  const Point position_error = center_position_target_ - base_state.location().position();
   const float forward_error = position_error.x * cos_yaw + position_error.y * sin_yaw;
   const float lateral_error = -position_error.x * sin_yaw + position_error.y * cos_yaw;  
-  const float yaw_error = NormalizeRadians(yaw_target_ - base_state.yaw());
+  const float yaw_error = NormalizeRadians(yaw_target_ - base_state.location().yaw());
 
   // Calculate commands for the base's speed controller from errors and reference speed.
   float linear_speed_command = reference_forward_speed_ * cos(yaw_error) + kKx * forward_error;
@@ -113,62 +113,9 @@ void BaseStateController::SetTargetState(const Point &center_position_target, fl
 
 bool BaseStateController::IsAtTargetState() const {
   const BaseState &base_state = GetBaseState();
-  const Point position_error = center_position_target_ - base_state.center();
-  const float yaw_error = NormalizeRadians(yaw_target_ - base_state.yaw());
+  const Point position_error = center_position_target_ - base_state.location().position();
+  const float yaw_error = NormalizeRadians(yaw_target_ - base_state.location().yaw());
   return position_error.norm() <= kMaxPositionErrorForAtState && abs(yaw_error) <= kMaxYawErrorForAtState;
-}
-
-BaseTrajectoryView &BaseTrajectoryView::EnableLooping(TimerSecondsType after_seconds) { 
-  if (num_waypoints_ == 0) { 
-    loop_at_seconds_ = -1;
-  } else {
-    loop_at_seconds_ = waypoints_[num_waypoints_ - 1].seconds() + after_seconds;
-  }
-  return *this;
-}
-
-BaseTrajectoryView &BaseTrajectoryView::DisableLooping() { 
-  loop_at_seconds_ = -1;
-  return *this;
-}
-
-bool BaseTrajectoryView::IsLoopingEnabled() const { 
-  return loop_at_seconds_ >= 0;
-}
-
-StatusOr<int> BaseTrajectoryView::FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index) const {
-  if (num_waypoints_ == 0 || seconds < this->seconds(0)) { return Status::kUnavailableError; }
-  int i = prev_result_index;
-  while((IsLoopingEnabled() || i < num_waypoints_) && this->seconds(i) < seconds) { ++i; }
-  return i - 1;
-}
-
-float BaseTrajectoryView::seconds(int index) const {
-  if (IsLoopingEnabled()) {
-    const int normalized_index = IndexMod(index, num_waypoints_);
-    const TimerSecondsType prev_loops_seconds = (loop_at_seconds_ - waypoints_[0].seconds()) * (index / num_waypoints_);
-    return waypoints_[normalized_index].seconds() + prev_loops_seconds;
-  } else {
-    ASSERT(index >= 0);
-    ASSERT(index < num_waypoints_);
-    return waypoints_[index].seconds();
-  }
-}
-
-const Point &BaseTrajectoryView::position(int index) const {
-  if (IsLoopingEnabled()) {
-    return waypoints_[IndexMod(index, num_waypoints_)].position();
-  } else {
-    return waypoints_[min(index, num_waypoints_ - 1)].position();
-  }
-}
-
-Point BaseTrajectoryView::velocity(int index) const {
-  return (position(index + 1) - position(index)) / (seconds(index + 1) - seconds(index));
-}
-
-Point BaseTrajectoryView::acceleration(int index) const {
-  return (velocity(index + 1) - velocity(index)) / (seconds(index + 1) - seconds(index));
 }
 
 BaseTrajectoryController::BaseTrajectoryController(BaseSpeedController *base_speed_controller) : 
@@ -214,30 +161,32 @@ void BaseTrajectoryController::RunAfterPeriod(TimerNanosType now_nanos, TimerNan
 
   // Get reference states.
   TimerSecondsType time_fraction = (now_seconds - trajectory_.seconds(index)) / (trajectory_.seconds(index + 1) - trajectory_.seconds(index));
-  const Point ref_position = trajectory_.position(index); + time_fraction * (trajectory_.position(index + 1) - trajectory_.position(index));
-  const Point ref_velocity = trajectory_.velocity(index) + time_fraction * (trajectory_.velocity(index + 1) - trajectory_.velocity(index));
-  const Point ref_acceleration = trajectory_.acceleration(index) + time_fraction * (trajectory_.acceleration(index + 1) - trajectory_.acceleration(index));
-  const float ref_yaw = atan2f(ref_velocity.y, ref_velocity.x);
+  const State ref_position = trajectory_.state(index) + time_fraction * (trajectory_.state(index + 1) - trajectory_.state(index));
+  const State first_derivative_at_index = trajectory_.derivative(/*order=*/1, index);
+  const State ref_velocity = first_derivative_at_index + time_fraction * (trajectory_.derivative(/*order=*/1, index + 1) - first_derivative_at_index);
+  const State second_derivative_at_index = trajectory_.derivative(/*order=*/2, index);
+  const State ref_acceleration = second_derivative_at_index + time_fraction * (trajectory_.derivative(/*order=*/2, index + 1) - second_derivative_at_index);
+  const float ref_yaw = atan2f(ref_velocity.location().position().y, ref_velocity.location().position().x);
 
-  Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory_.seconds(index), trajectory_.seconds(index+1), ref_position.x, ref_position.y, ref_velocity.x, ref_velocity.y, ref_acceleration.x, ref_acceleration.y);
-  Serial.printf("[state] x:%f y:%f\n", GetBaseState().center().x, GetBaseState().center().y);
+  Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory_.seconds(index), trajectory_.seconds(index+1), ref_position.location().position().x, ref_position.location().position().y, ref_velocity.location().position().x, ref_velocity.location().position().y, ref_acceleration.location().position().x, ref_acceleration.location().position().y);
+  Serial.printf("[state] x:%f y:%f\n", GetBaseState().location().position().x, GetBaseState().location().position().y);
 
   // Get errors in the base's local frame.
   const BaseState &base_state = GetBaseState();
-  const float cos_yaw = cos(base_state.yaw());
-  const float sin_yaw = sin(base_state.yaw());
-  const Point position_error = ref_position - base_state.center();
+  const float cos_yaw = cos(base_state.location().yaw());
+  const float sin_yaw = sin(base_state.location().yaw());
+  const Point position_error = ref_position.location().position() - base_state.location().position();
   const float forward_error = position_error.x * cos_yaw + position_error.y * sin_yaw;
   const float lateral_error = -position_error.x * sin_yaw + position_error.y * cos_yaw;  
-  const float yaw_error = NormalizeRadians(ref_yaw - base_state.yaw());
+  const float yaw_error = NormalizeRadians(ref_yaw - base_state.location().yaw());
 
   // Get feedforward velocities.
-  const float feedfoward_tangential_velocity = ref_velocity.norm();
+  const float feedfoward_tangential_velocity = ref_velocity.location().position().norm();
   if (abs(feedfoward_tangential_velocity) < 1e-6) {
     base_speed_controller_.SetTargetSpeeds(0, 0);
     return;
   }  
-  const float feedfoward_angular_velocity = (ref_velocity.x * ref_acceleration.y - ref_velocity.y * ref_acceleration.x) / feedfoward_tangential_velocity;
+  const float feedfoward_angular_velocity = (ref_velocity.location().position().x * ref_acceleration.location().position().y - ref_velocity.location().position().y * ref_acceleration.location().position().x) / feedfoward_tangential_velocity;
   // Serial.printf("feedfoward_tangential_velocity:%f feedfoward_angular_velocity:%f\n", feedfoward_tangential_velocity, feedfoward_angular_velocity);
   // Get feedforward commands.
   const float feedforward_tangential_command = cos(yaw_error) * feedfoward_tangential_velocity;

@@ -3,7 +3,7 @@
 #include "timer.h"
 #include "encoders.h"
 #include "body_imu.h"
-#include "robot_state.h"
+#include "base_state_filter.h"
 
 #define kEventRingBufferCapacity 16
 
@@ -31,7 +31,7 @@ typedef struct {
 
 static BodyIMU body_imu;
 static RingBuffer<Event, kEventRingBufferCapacity> event_buffer;
-static BaseState base_state;
+static BaseStateFilter base_state_filter;
 
 static void LeftEncoderIsr(TimerTicksType timer_ticks) {
   // We have exclusive access to the event buffer while in the ISR.
@@ -118,7 +118,7 @@ void RunRobotStateEstimator() {
     }
   }
   if (num_events == 0) {
-    base_state.EstimateState(GetTimerTicks());
+    base_state_filter.EstimateState(GetTimerTicks());
     return;
   }
   // Sort event order to process chronologically.
@@ -137,40 +137,40 @@ void RunRobotStateEstimator() {
       case kLeftWheelTick:
         // Serial.printf("left wheel tick\n");
         if (i == num_events - 1 || event_pointers[i + 1]->type != kRightWheelTick || event_pointers[i + 1]->timer_ticks != event.timer_ticks) {
-          base_state.NotifyWheelTicks(event.timer_ticks, 1, 0);
+          base_state_filter.NotifyWheelTicks(event.timer_ticks, 1, 0);
         } else {
           // There is a tick from the other wheel at the exact same time.
-          base_state.NotifyWheelTicks(event.timer_ticks, 1, 1);
+          base_state_filter.NotifyWheelTicks(event.timer_ticks, 1, 1);
           ++i;  // The next event has been processed.
         }
         break;
       case kRightWheelTick:
         // Serial.printf("right wheel tick\n");
         if (i == num_events - 1 || event_pointers[i + 1]->type != kLeftWheelTick || event_pointers[i + 1]->timer_ticks != event.timer_ticks) {
-          base_state.NotifyWheelTicks(event.timer_ticks, 0, 1);
+          base_state_filter.NotifyWheelTicks(event.timer_ticks, 0, 1);
         } else {
           // There is a tick from the other wheel at the exact same time.
-          base_state.NotifyWheelTicks(event.timer_ticks, 1, 1);
+          base_state_filter.NotifyWheelTicks(event.timer_ticks, 1, 1);
           ++i;  // The next event has been processed.
         }
         break;
       case kLeftWheelDirectionCommand:
         // Serial.printf("left wheel direction command\n");
-        base_state.NotifyLeftWheelDirection(event.payload.wheel_direction.is_forward);
+        base_state_filter.NotifyLeftWheelDirection(event.payload.wheel_direction.is_forward);
         break;
       case kRightWheelDirectionCommand:
         // Serial.printf("left wheel direction command\n");
-        base_state.NotifyRightWheelDirection(event.payload.wheel_direction.is_forward);
+        base_state_filter.NotifyRightWheelDirection(event.payload.wheel_direction.is_forward);
         break;
       case kIMUReading:
         // Serial.printf("IMU reading\n");
         // Serial.printf("imu_ax:%f imu_ay:%f imu_a:%f\n", event.payload.imu.position_acceleration[0], event.payload.imu.position_acceleration[1], event.payload.imu.attitude[2]);
-        base_state.NotifyIMUReading(event.timer_ticks, event.payload.imu.position_acceleration[0], event.payload.imu.position_acceleration[1], event.payload.imu.attitude[2]);
+        base_state_filter.NotifyIMUReading(event.timer_ticks, event.payload.imu.position_acceleration[0], event.payload.imu.position_acceleration[1], event.payload.imu.attitude[2]);
         break;
     }
   }
 }
 
-const BaseState &GetBaseState() {
-  return base_state;
+BaseState GetBaseState() {
+  return base_state_filter.state();
 }

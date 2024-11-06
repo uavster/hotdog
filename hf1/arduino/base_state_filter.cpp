@@ -1,5 +1,5 @@
 #include <BasicLinearAlgebra.h>
-#include "robot_state.h"
+#include "base_state_filter.h"
 
 // Approximate rate at which the state estimation is updated.
 #define kApproximateUpdateRate 160.0
@@ -30,8 +30,17 @@
 #define kOdomCenterVelocityDecaySeconds ((kWheelRadius * kRadiansPerWheelTick) / 0.5)  // The time between wheel ticks at 0.5 m/s.
 #define kOdomCenterVelocityDecayFactor (exp(log(kOdomCenterVelocityDecayReduction) / (kApproximateUpdateRate * kOdomCenterVelocityDecaySeconds)))
 
-BaseState::BaseState() 
-  : last_odom_timer_ticks_(0), left_wheel_ticks_(0), right_wheel_ticks_(0), left_wheel_moving_backward_(false), right_wheel_moving_backward_(false), odom_yaw_(0.0f), last_imu_timer_ticks_(0), imu_yaw_(0.0f), last_state_update_timer_ticks_(0) {     
+BaseStateFilter::BaseStateFilter() 
+  : last_odom_timer_ticks_(0), 
+    left_wheel_ticks_(0), 
+    right_wheel_ticks_(0), 
+    left_wheel_moving_backward_(false), 
+    right_wheel_moving_backward_(false), 
+    odom_yaw_(0.0f), 
+    last_imu_timer_ticks_(0), 
+    imu_yaw_(0.0f), 
+    last_yaw_estimate_(0), 
+    last_state_update_timer_ticks_(0) {     
   
   // F: state transition model. x_k = F*x_{k-1} + B*u_k + w_k.
   const float time_inc = 1e-3f;  // This value really doesn't matter. It's just makes the matrices below easier to understand.
@@ -93,19 +102,17 @@ BaseState::BaseState()
               };
 }
 
-void BaseState::EstimateState(TimerTicksType timer_ticks) {
+void BaseStateFilter::EstimateState(TimerTicksType timer_ticks) {
   // Recalculate F with Ts=time_since_last_filter_run, and re-run Kalman filter.
   const float state_update_timer_inc = SecondsFromTimerTicks(timer_ticks - last_state_update_timer_ticks_);
   kalman_.F(0, 2) = state_update_timer_inc;
   kalman_.F(1, 3) = state_update_timer_inc;
-  // Serial.printf("state_update_timer_inc: %f\n", state_update_timer_inc);
 
   // Decay odometry velocity, so it goes to zero if no more wheel ticks are received.
   odom_center_velocity_.x *= kOdomCenterVelocityDecayFactor;
   odom_center_velocity_.y *= kOdomCenterVelocityDecayFactor;
   
   // Update state estimation.
-  // Serial.printf("odom:%f %f %f %f %f, imu:%f %f %f\n", odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, odom_yaw_, imu_acceleration_.x, imu_acceleration_.y, imu_yaw_);
   // Avoid yaw discontinuities messing with the Kalman estimate.
   // This was inspired by dmuir's answer at https://stackoverflow.com/questions/64947640/how-to-use-kalman-filter-with-degrees-0-360.
   // Instead of the observed yaw, we pass the state minus the innovation normalized to 
@@ -113,16 +120,25 @@ void BaseState::EstimateState(TimerTicksType timer_ticks) {
   // Passing Y^ = X + remainder(Y-X, 2*pi) instead of Y makes the filter get 
   // Y^-X = remainder(Y-X, 2*pi) as innovation.
   float yaw_state_plus_normalized_odom_yaw_innovation = kalman_.x(4) + remainderf(odom_yaw_ - kalman_.x(4), 2 * M_PI);
-  kalman_.update({ odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, yaw_state_plus_normalized_odom_yaw_innovation }, { imu_acceleration_.x, imu_acceleration_.y, imu_yaw_ });
+  kalman_.update(/*obs=*/{ odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, yaw_state_plus_normalized_odom_yaw_innovation }, 
+                 /*command=*/{ imu_acceleration_.x, imu_acceleration_.y, imu_yaw_ });
 
   // Serial.printf("F = {{ %f %f %f %f %f }, {%f %f %f %f %f}, {%f %f %f %f %f}, { %f %f %f %f %f }, {%f %f %f %f %f}}\n", kalman_.F(0, 0), kalman_.F(0, 1), kalman_.F(0, 2), kalman_.F(0, 3), kalman_.F(0, 4), kalman_.F(1, 0), kalman_.F(1, 1), kalman_.F(1, 2), kalman_.F(1, 3), kalman_.F(1, 4), kalman_.F(2, 0), kalman_.F(2, 1), kalman_.F(2, 2), kalman_.F(2, 3), kalman_.F(2, 4), kalman_.F(3, 0), kalman_.F(3, 1), kalman_.F(3, 2), kalman_.F(3, 3), kalman_.F(3, 4), kalman_.F(4, 0), kalman_.F(4, 1), kalman_.F(4, 2), kalman_.F(4, 3), kalman_.F(4, 4));
   // Serial.printf("B = {{ %f %f %f }, {%f %f %f}, {%f %f %f}, {%f %f %f }, {%f %f %f}}\n", kalman_.B(0, 0), kalman_.B(0, 1), kalman_.B(0, 2), kalman_.B(1, 0), kalman_.B(1, 1), kalman_.B(1, 2), kalman_.B(2, 0), kalman_.B(2, 1), kalman_.B(2, 2), kalman_.B(3, 0), kalman_.B(3, 1), kalman_.B(3, 2), kalman_.B(4, 0), kalman_.B(4, 1), kalman_.B(4, 2));
   // Serial.printf("H = {{ %f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}}\n", kalman_.H(0, 0), kalman_.H(0, 1), kalman_.H(0, 2), kalman_.H(0, 3), kalman_.H(0, 4), kalman_.H(1, 0), kalman_.H(1, 1), kalman_.H(1, 2), kalman_.H(1, 3), kalman_.H(1, 4), kalman_.H(2, 0), kalman_.H(2, 1), kalman_.H(2, 2), kalman_.H(2, 3), kalman_.H(2, 4), kalman_.H(3, 0), kalman_.H(3, 1), kalman_.H(3, 2), kalman_.H(3, 3), kalman_.H(3, 4), kalman_.H(4, 0), kalman_.H(4, 1), kalman_.H(4, 2), kalman_.H(4, 3), kalman_.H(4, 4));  
   
+  // Yaw velocity is not key, so we estimate it roughly outside the Kalman filter to keep
+  // it smaller.
+  if (state_update_timer_inc > 0) {
+    const float current_yaw_estimate = NormalizeRadians(kalman_.x(4));
+    yaw_velocity_ = NormalizeRadians((current_yaw_estimate - last_yaw_estimate_) / state_update_timer_inc);
+    last_yaw_estimate_ = current_yaw_estimate;
+  }
+
   last_state_update_timer_ticks_ = timer_ticks;
 }
 
-void BaseState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc, int right_ticks_inc) {
+void BaseStateFilter::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc, int right_ticks_inc) {
   if (left_wheel_moving_backward_) {
     left_ticks_inc = -left_ticks_inc;
   }
@@ -171,15 +187,15 @@ void BaseState::NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc,
   EstimateState(timer_ticks);
 }
 
-void BaseState::NotifyLeftWheelDirection(bool backward) {
+void BaseStateFilter::NotifyLeftWheelDirection(bool backward) {
   left_wheel_moving_backward_ = backward;
 }
 
-void BaseState::NotifyRightWheelDirection(bool backward) {
+void BaseStateFilter::NotifyRightWheelDirection(bool backward) {
   right_wheel_moving_backward_ = backward;
 }
 
-void BaseState::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x, float accel_y, float yaw) {
+void BaseStateFilter::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x, float accel_y, float yaw) {
   const float imu_time_inc = SecondsFromTimerTicks(timer_ticks - last_imu_timer_ticks_);
   last_imu_timer_ticks_ = timer_ticks;
 
@@ -208,47 +224,12 @@ void BaseState::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x, floa
   EstimateState(timer_ticks);
 }
 
-Point BaseState::center() const {
-  return Point(kalman_.x(0), kalman_.x(1));
-}
-
-Point BaseState::center_velocity() const {
-  return Point(kalman_.x(2), kalman_.x(3));
-}
-
-float BaseState::yaw() const {
+BaseState BaseStateFilter::state() const  {
   // As dmuir's answer above points out, we have to normalize the estimated yaw state, too.
   // When the state is at the transition edge between pi and -pi, the innovation (eventhough
   // normalized) may take the state above pi or below -pi.
-  return NormalizeRadians(kalman_.x(4));
+  return BaseState({ 
+    BaseStateVars(Point(kalman_.x(0), kalman_.x(1)), NormalizeRadians(kalman_.x(4))), 
+    BaseStateVars(Point(kalman_.x(2), kalman_.x(3)), yaw_velocity_)
+  });
 }
-
-Point::Point() : x(0), y(0) {}
-
-Point::Point(float x_, float y_) : x(x_), y(y_) {}
-
-Point Point::operator+(const Point &p) const { 
-  return Point(x + p.x, y + p.y);
-}
-
-Point Point::operator-(const Point &p) const { 
-  return Point(x - p.x, y - p.y); 
-}
-
-Point Point::operator/(float d) const { 
-  return Point(x / d, y / d); 
-}
-
-Point Point::operator*(float d) const { 
-  return Point(x * d, y * d); \
-}
-
-float Point::norm() const { 
-  return sqrtf(x * x + y * y); 
-}
-
-Point operator*(float k, const Point &p) { 
-  return Point(k * p.x, k * p.y); 
-}
-
-

@@ -4,33 +4,21 @@
 #include <Kalman.h>
 #include "robot_model.h"
 #include "timer.h"
+#include "base_state.h"
 
 // Somewhere down the third-party header tree, a macro F is defined, which makes it impossible to access kalman_.F.
 #undef F
-
-class Point {
-  public:
-    float x;
-    float y;
-
-    Point();
-    Point(float x_, float y_);
-    Point operator+(const Point &p) const;
-    Point operator-(const Point &p) const;
-    Point operator/(float d) const;
-    Point operator*(float d) const;
-    float norm() const;
-};
-
-Point operator*(float k, const Point &p);
 
 #define kNumStateVars 5
 #define kNumObservationVars 5
 #define kNumCommandVars 3
 
-class BaseState {
+// The base state is a first order model.
+using BaseState = State<BaseStateVars, /*order=*/1>;
+
+class BaseStateFilter {
   public:
-    BaseState();
+    BaseStateFilter();
     
     void NotifyWheelTicks(TimerTicksType timer_ticks, int left_ticks_inc, int right_ticks_inc);
     void NotifyLeftWheelDirection(bool backward);
@@ -39,9 +27,7 @@ class BaseState {
     void NotifyIMUReading(TimerTicksType timer_ticks, float accel_x, float accel_y, float yaw);
     void EstimateState(TimerTicksType timer_ticks);
 
-    Point center() const;
-    Point center_velocity() const;
-    float yaw() const;
+    BaseState state() const;
 
   private:
     // Odometry.
@@ -58,6 +44,9 @@ class BaseState {
     TimerTicksType last_imu_timer_ticks_;
     Point imu_acceleration_;
     float imu_yaw_;
+
+    float last_yaw_estimate_;
+    float yaw_velocity_;
 
     TimerTicksType last_state_update_timer_ticks_;    
     // Requires BasicLinearAlgebra 3.7 or lower in order to compile (see https://github.com/rfetick/Kalman/issues/9#issuecomment-2225218225).

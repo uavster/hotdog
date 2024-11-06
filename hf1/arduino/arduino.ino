@@ -134,7 +134,7 @@ void setup() {
     const float w = 2 * M_PI / total_trajectory_seconds;
     const float x = sin(w * t);
     const float y = -1 + cos(w * t);
-    waypoints[i] = BaseWaypoint(t, Point(x, y));
+    waypoints[i] = BaseWaypoint(t, BaseTargetState({ BaseStateVars(Point(x, y), 0) }));
   }
 
   base_trajectory_controller.trajectory(BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/1.0));
@@ -242,7 +242,7 @@ private:
 SpeedControllerTest speed_controller_test(&base_speed_controller);
 
 void loop() {
-  // RunRobotStateEstimator();
+  RunRobotStateEstimator();
   // Serial.printf("%d|cx:%f cy:%f a:%f vx:%f vy:%f\n", base_state_controller.IsAtTargetState() ? 1:0, GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
 
   // if (!base_state_controller.IsAtTargetState()) {
@@ -251,9 +251,9 @@ void loop() {
   //   base_speed_controller.SetTargetSpeeds(0, 0);
   // }
 
-  // base_trajectory_controller.Run();
-  // NotifyLeftMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
-  // NotifyRightMotorDirection(GetTimerTicks(), !base_state_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
+  base_trajectory_controller.Run();
+  NotifyLeftMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
+  NotifyRightMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
   
   // speed_controller_test.Run();
   // base_speed_controller.Run();
@@ -261,8 +261,6 @@ void loop() {
   p2p_stream.input().Run();
   p2p_stream.output().Run();
   p2p_action_server.Run();
-
-  // base_speed_controller.Run();
 
   // uint64_t now_ns = GetTimerNanoseconds();
 
