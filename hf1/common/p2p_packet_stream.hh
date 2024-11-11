@@ -40,7 +40,7 @@ void P2PPacketOutputStream<kCapacity, LocalEndianness>::Reset() {
 
 template<int kCapacity, Endianness LocalEndianness>
 StatusOr<P2PMutablePacketView> P2PPacketOutputStream<kCapacity, LocalEndianness>::NewPacket(P2PPriority priority) {
-  if (NumAvailableSlots(priority) == 0) {
+  if (packet_buffer_.IsFull(priority)) {
     return Status::kUnavailableError;
   }
   P2PPacket &packet = packet_buffer_.NewValue(priority);

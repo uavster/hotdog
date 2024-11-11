@@ -321,11 +321,6 @@ public:
       Reset();
     }
 
-  // Returns the number of packet slots available for writing in the stream.
-  int NumAvailableSlots(P2PPriority priority) const {
-    return packet_buffer_.Capacity(priority) - packet_buffer_.Size(priority);
-  }
-
   // Clears the packet buffers and resets the state machine.
   void Reset();
 
