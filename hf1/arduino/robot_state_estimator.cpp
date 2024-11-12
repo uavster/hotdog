@@ -174,3 +174,7 @@ void RunRobotStateEstimator() {
 BaseState GetBaseState() {
   return base_state_filter.state();
 }
+
+TimerNanosType GetBaseStateUpdateNanos() {
+  return base_state_filter.state_update_nanos();
+}

@@ -18,12 +18,17 @@
 #include "sync_time_action_handler.h"
 #include "set_head_pose_action_handler.h"
 #include "set_base_velocity_action_handler.h"
+#include "monitor_base_state_action_handler.h"
 
 Logger logger;
 
 // #include <SPI.h>
 
 // #define kAutomaticTransitions
+
+// Maximum time during which communication can be processed without
+// yielding time to other tasks. 
+#define kMaxRxTxLoopBlockingDurationNs 100'000'000
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
@@ -49,6 +54,7 @@ P2PActionServer p2p_action_server(&p2p_stream);
 SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
 SetBaseVelocityActionHandler set_base_velocity_action_handler(&p2p_stream, &base_speed_controller);
 SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
+MonitorBaseStateActionHandler monitor_base_state_action_handler(&p2p_stream, &timer);
 
 // const BaseWaypoint waypoints[] = { 
 //   BaseWaypoint(0, Point(0, 0), 0), 
@@ -110,6 +116,7 @@ void setup() {
   p2p_action_server.Register(&sync_time_action_handler);
   p2p_action_server.Register(&set_head_pose_action_handler);
   p2p_action_server.Register(&set_base_velocity_action_handler);
+  p2p_action_server.Register(&monitor_base_state_action_handler);
 
   last_msg_time_ns = GetTimerNanoseconds();
   
@@ -258,9 +265,18 @@ void loop() {
   // speed_controller_test.Run();
   // base_speed_controller.Run();
 
-  p2p_stream.input().Run();
-  p2p_stream.output().Run();
-  p2p_action_server.Run();
+  bool process_comms = true;
+  const auto process_comms_start_time_ns = timer.GetLocalNanoseconds();
+  while(process_comms) {
+    // Keep processing communications while there are bytes read
+    // or ready to send.
+    process_comms = p2p_stream.input().Run() > 0;
+    p2p_stream.output().Run();
+    p2p_action_server.Run();
+    process_comms = process_comms || p2p_stream.output().NumCommittedPackets() > 0;
+    // If processing for too long, yield time to other tasks.
+    process_comms = process_comms && (timer.GetLocalNanoseconds() - process_comms_start_time_ns > kMaxRxTxLoopBlockingDurationNs);
+  }
 
   // uint64_t now_ns = GetTimerNanoseconds();
 

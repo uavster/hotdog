@@ -30,6 +30,10 @@ template<typename ValueType, int kCapacity> class RingBuffer {
       return size_ >= kCapacity - 1;
     }
 
+    int NumAvailableSlots() const {
+      return Capacity() - 1 - Size();
+    }
+
     // Empties the buffer.
     // Invalidates pointers obtained with OldestValue() and NewValue().
     void Clear() {

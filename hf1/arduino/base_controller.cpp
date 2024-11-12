@@ -153,7 +153,7 @@ void BaseTrajectoryController::RunAfterPeriod(TimerNanosType now_nanos, TimerNan
   if (!maybe_index.ok()) { return; }
   const int index = *maybe_index;
   current_waypoint_index_ = index;
-  Serial.printf("index:%d\n", index);
+  // Serial.printf("index:%d\n", index);
   if (!trajectory_.IsLoopingEnabled() && index == trajectory_.num_waypoints() - 1) {
     StopTrajectory();
     return;
@@ -168,8 +168,9 @@ void BaseTrajectoryController::RunAfterPeriod(TimerNanosType now_nanos, TimerNan
   const State ref_acceleration = second_derivative_at_index + time_fraction * (trajectory_.derivative(/*order=*/2, index + 1) - second_derivative_at_index);
   const float ref_yaw = atan2f(ref_velocity.location().position().y, ref_velocity.location().position().x);
 
-  Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory_.seconds(index), trajectory_.seconds(index+1), ref_position.location().position().x, ref_position.location().position().y, ref_velocity.location().position().x, ref_velocity.location().position().y, ref_acceleration.location().position().x, ref_acceleration.location().position().y);
-  Serial.printf("[state] x:%f y:%f\n", GetBaseState().location().position().x, GetBaseState().location().position().y);
+  // Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory_.seconds(index), trajectory_.seconds(index+1), ref_position.location().position().x, ref_position.location().position().y, ref_velocity.location().position().x, ref_velocity.location().position().y, ref_acceleration.location().position().x, ref_acceleration.location().position().y);
+  // Serial.printf("[state] x:%f y:%f\n", GetBaseState().location().position().x, GetBaseState().location().position().y);
+  // Serial.printf("[controller] target_lin:%f target_ang:%f left_wheel_ang:%f right_wheel_ang:%f\n", base_speed_controller_.target_linear_speed(), base_speed_controller_.target_angular_speed(), base_speed_controller_.left_wheel_speed_controller().GetAngularSpeed(), base_speed_controller_.right_wheel_speed_controller().GetAngularSpeed());
 
   // Get errors in the base's local frame.
   const BaseState &base_state = GetBaseState();

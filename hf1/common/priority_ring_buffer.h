@@ -8,7 +8,11 @@ public:
   bool IsFull(PriorityType priority) const {
     return buffer_[priority].IsFull();
   }
-  
+
+  int NumAvailableSlots(PriorityType priority) const {
+    return buffer_[priority].NumAvailableSlots();
+  }
+
   ValueType *OldestValue() {
     for (int i = 0; i < PriorityType::kNumLevels; ++i) {
       ValueType *value = buffer_[i].OldestValue();

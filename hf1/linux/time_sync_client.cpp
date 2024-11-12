@@ -160,25 +160,39 @@ void TimeSyncClient::Run() {
             // It is guaranteed that the rising edge will have been processed in the other end by the time the request is received.
             last_edge_estimated_local_timestamp_ns_ = (last_edge_set_local_timestamp_ns_ + last_edge_detect_local_timestamp_ns_copy_) / 2;
             request.sync_edge_local_timestamp_ns = LocalToNetwork<kP2PLocalEndianness>(last_edge_estimated_local_timestamp_ns_);
-            if (!sync_action_handler_.Request(request, [this](const P2PSyncTimeRequest &request, const P2PSyncTimeReply &reply) {
-              this->OnReply(reply);
-            }, 
-            [](const P2PSyncTimeRequest &request, const P2PVoid &progress) {})) {
-              if (system_timer_.GetLocalNanoseconds() - last_edge_detect_local_timestamp_ns_copy_ > kMaxTimeSyncRequestDelayNs) {
-                  // The output buffer is saturated for too long: fail now and let the caller retry at
-                  // a later time.
-                  sync_requested_ = false;
-                  state_ = kIdle;
-                  last_sync_status_ = SyncStatus::kError;
-                  LOG_ERROR("P2P output queue is saturated.");
-              }
-              // Try again for an available slot.
-              break;
+            const Status result = sync_action_handler_.Request(request,
+              [this](const P2PSyncTimeRequest &request, const P2PSyncTimeReply &reply) {
+                this->OnReply(reply);
+              }, 
+              [](const P2PSyncTimeRequest &request, const P2PVoid &progress) {}
+            );
+            switch(result) {
+              case Status::kSuccess:
+                break;
+              case Status::kExistsError:
+                LOG_ERROR("There is already a sync time action in progress.");
+                break;
+              case Status::kUnavailableError:
+                LOG_ERROR("P2P output queue is saturated.");
+                break;
+              default:
+                LOG_ERROR("Unknown error.");
+                break;
             }
-
-            request_sent_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
-            ResetReply();
-            state_ = kWaitForTimeSyncReply;
+            if (result == Status::kSuccess) {
+                request_sent_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
+                ResetReply();
+                state_ = kWaitForTimeSyncReply;
+            } else {
+              if (system_timer_.GetLocalNanoseconds() - last_edge_detect_local_timestamp_ns_copy_ > kMaxTimeSyncRequestDelayNs) {
+                // The output buffer is saturated for too long: fail now and let the caller retry at
+                // a later time.
+                sync_requested_ = false;
+                state_ = kIdle;
+                last_sync_status_ = SyncStatus::kError;
+                // Try again for an available slot.
+              }
+            }
             break;
         }
         
@@ -187,7 +201,20 @@ void TimeSyncClient::Run() {
                 // The other end must have missed the sync signal (e.g. it started after this end): start over.                
                 state_ = kGenerateSyncEdgeAndWaitForLoopback;
                 // Cancel the action before retrying.
-                sync_action_handler_.Cancel();
+                const Status result = sync_action_handler_.Cancel();
+                switch(result) {
+                  case Status::kSuccess:                  
+                    break;
+                  case Status::kDoesNotExistError:
+                    LOG_ERROR("There is no sync time action in progress.");
+                    break;
+                  case Status::kUnavailableError:
+                    LOG_ERROR("P2P output queue is saturated.");
+                    break;
+                  default:
+                    LOG_ERROR("Unknown error.");
+                    break;
+                }
                 break;
             }
 

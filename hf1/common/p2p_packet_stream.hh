@@ -489,6 +489,15 @@ template<int kCapacity, Endianness LocalEndianness> uint64_t P2PPacketOutputStre
   return time_until_next_event;
 }
 
+template<int kCapacity, Endianness LocalEndianness> 
+int P2PPacketOutputStream<kCapacity, LocalEndianness>::NumCommittedPackets() const {
+  int num_packets = 0;
+  for (int priority = 0; priority < P2PPriority::kNumLevels; ++priority) {
+    num_packets += packet_buffer_.Size(priority);
+  }
+  return num_packets;
+}
+
 template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness>
 P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::P2PPacketStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer, GUIDFactoryInterface &guid_factory)
     : input_(byte_stream, timer), output_(byte_stream, timer), 

@@ -2,7 +2,7 @@
 #define STATUS_OR_INCLUDED_
 
 enum Status {
-  kSuccess, kUnavailableError, kMalformedError
+  kSuccess, kUnavailableError, kMalformedError, kExistsError, kDoesNotExistError
 };
 
 template<typename ValueType> class StatusOr {

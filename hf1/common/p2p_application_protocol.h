@@ -20,6 +20,7 @@ typedef enum {
   kTimeSync,
   kSetHeadPose,
   kSetBaseVelocity,
+  kMonitorBaseState,
 
   kCount  // Must be the last entry in the enum.
 } P2PAction;
@@ -73,6 +74,30 @@ typedef struct {
     float forward_meters_per_second;
     float counterclockwise_radians_per_second;
 } P2PSetBaseVelocityRequest;
+
+// Monitor estimated base state.
+typedef struct {
+    // Maximum number of messages that can be sent back, including progress and
+    // result. Once reached, the server sends a reply and the action ends. If 0, 
+    // progress updates are sent non-stop and the client is responsible for 
+    // cancelling the action when done.
+    uint16_t max_updates;
+} P2PMonitorBaseStateRequest;
+
+typedef struct {
+    uint64_t global_timestamp_ns;
+    // Position of the middle point of the axis passing through wheel centers
+    // with respect to the robot's local frame when it was powered up.
+    // The x vector points to the then robot's front. The y vector points to the
+    // then robot's left.
+    float position_x;
+    float position_y;
+    // Rotation angle around the z vector, which points to the sky, following
+    // the right hand rule (counterclockwise, looking at the robot from above).
+    float yaw;
+} P2PMonitorBaseStateProgress;
+
+typedef P2PMonitorBaseStateProgress P2PMonitorBaseStateReply;
 
 #pragma pack(pop)
 

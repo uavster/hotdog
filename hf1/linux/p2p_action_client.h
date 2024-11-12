@@ -7,9 +7,13 @@
 #include "logger_interface.h"
 #include <mutex>
 #include <optional>
+#include <atomic>
 
 class P2PActionClientHandlerBase {
-public:
+public:  
+  // The client has protected access to the action handlers.
+  friend class P2PActionClient;
+
   P2PActionClientHandlerBase(P2PAction action, P2PPriority default_priority, bool default_guarantee_delivery, P2PPacketStreamLinux *p2p_stream, std::mutex *p2p_mutex, bool allows_concurrent_requests = false)
     : action_(action), 
       priority_(default_priority),
@@ -20,17 +24,33 @@ public:
       allows_concurrent_requests_(allows_concurrent_requests), 
       state_(kIdle) {}
 
-  bool Request(int payload_length, const void *payload, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt);
-  bool Cancel(std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt);
+  // Sends an action request message with the given `payload`.
+  // If `priority` and `guarantee_delivery` are passed, they override the default
+  // configuration passed in the constructor.
+  // If successful, it resturn Status::kSuccess.
+  // If the action is already in progress, it returns Status::kExistsError.
+  // If no P2P packet slots are available to send the message, it returns Status::kUnavailableError.
+  Status Request(int payload_length, const void *payload, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt);
+
+  // Sends an action cancellation message.
+  // If `priority` and `guarantee_delivery` are passed, they override the default
+  // configuration passed in the constructor.
+  // If successful, it resturn Status::kSuccess.
+  // If the action was not in progress, it returns Status::kDoesNotExistsError.
+  // If no P2P packet slots are available to send the message, it returns Status::kUnavailableError.
+  Status Cancel(std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt);
 
   P2PAction action() const { return action_; }
   // True if the action is being executed; false, otherwise.
   bool in_progress() const;
-  P2PActionRequestID current_request_id() const { return current_request_id_; }
 
   // Overrides must call the parent.
   virtual void OnReply(int payload_length, const void *payload);
   virtual void OnProgress(int payload_length, const void *payload);
+
+protected:
+  // Must be called with p2p_mutex_ locked.
+  P2PActionRequestID current_request_id() const { return current_request_id_; }
 
 private:
   P2PAction action_;
@@ -39,10 +59,11 @@ private:
   P2PPacketStreamLinux &p2p_stream_;
   P2PActionRequestID current_request_id_;
   std::mutex &p2p_mutex_;
-  bool allows_concurrent_requests_;
+  const bool allows_concurrent_requests_;
 
   using State = enum { kIdle, kWaitingForResponse };
-  State state_;
+  // Since the state is atomic, we can read it without locking.
+  std::atomic<State> state_;
 };
 
 template<typename TRequest, typename TReply = P2PVoid, typename TProgress = P2PVoid> class P2PActionClientHandler : public P2PActionClientHandlerBase {
@@ -55,10 +76,11 @@ public:
   using OnProgressCallback = std::function<void(const TRequest &, const TProgress &)>;
 
   // Takes ownsership of the callbacks.
-  bool Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
+  // See the base class' function for more details.
+  Status Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
     last_request_ = request;
     reply_callback_ = reply_callback;
-    progress_callback = progress_callback;
+    progress_callback_ = progress_callback;
     return P2PActionClientHandlerBase::Request(sizeof(TRequest), &request, priority, guarantee_delivery);
   }
 

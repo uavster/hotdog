@@ -4,6 +4,7 @@
 #include "encoders.h"
 #include "pid.h"
 #include "periodic_runnable.h"
+#include "robot_model.h"
 
 void InitWheelSpeedControl();
 
@@ -33,6 +34,9 @@ public:
   // sudden change would introduce localization error, and the robot might even tumble.
   void SetLinearSpeed(float meters_per_second);
   void SetAngularSpeed(float radians_per_second);
+
+  float GetLinearSpeed() const { return pid_.target(); }
+  float GetAngularSpeed() const { return GetLinearSpeed() / kWheelRadius; }
 
   // Periodically updates the speed controller.
   void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;

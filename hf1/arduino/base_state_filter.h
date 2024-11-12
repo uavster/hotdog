@@ -5,6 +5,7 @@
 #include "robot_model.h"
 #include "timer.h"
 #include "base_state.h"
+#include "timer.h"
 
 // Somewhere down the third-party header tree, a macro F is defined, which makes it impossible to access kalman_.F.
 #undef F
@@ -28,6 +29,9 @@ class BaseStateFilter {
     void EstimateState(TimerTicksType timer_ticks);
 
     BaseState state() const;
+    TimerNanosType state_update_nanos() const {
+      return NanosFromTimerTicks(last_state_update_timer_ticks_);
+    }
 
   private:
     // Odometry.

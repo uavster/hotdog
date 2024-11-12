@@ -324,6 +324,18 @@ public:
   // Clears the packet buffers and resets the state machine.
   void Reset();
 
+  // Returns the number of packet slot available for writing.
+  int NumAvailableSlots(P2PPriority priority) const {
+    return packet_buffer_.NumAvailableSlots(priority);
+  }
+
+  // Returns the number of committed packets waiting to be sent for a given priority.
+  int NumCommittedPackets(P2PPriority priority) const {
+    return packet_buffer_.Size(priority);
+  }
+  // Returns the number of committed packets waiting to be sent for all priorities.
+  int NumCommittedPackets() const;    
+
   // Returns a view to a new packet with `priority` in the stream, or kUnavailableError if no
   // space is available in the stream for the given priority. Commit() must be called with the
   // for the same `priority` for the packet to be finalized.
