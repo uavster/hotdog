@@ -47,29 +47,33 @@ BaseStateFilter::BaseStateFilter()
   // This is a first-order model of the robot's position. The robot's yaw comes entirely
   // from the IMU ("command") and the odometry, so its coefficient is zero in the state
   // transition model.
-  kalman_.F = { 1, 0, time_inc, 0, 0,
-                0, 1, 0, time_inc, 0,
-                0, 0, 1, 0, 0,
-                0, 0, 0, 1, 0,
-                0, 0, 0, 0, 0
+  kalman_.F = { 1, 0, time_inc, 0, 0, 0, 
+                0, 1, 0, time_inc, 0, 0, 
+                0, 0, 1, 0, 0, 0, 
+                0, 0, 0, 1, 0, 0,
+                0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0
               };
 
   // B: control-input model. x_k = F*x_{k-1} + B*u_k + w_k.
   const float time_inc_2 = time_inc * time_inc;
   kalman_.B = {
-                0.5f * time_inc_2, 0, 0,
-                0, 0.5f * time_inc_2, 0, 
-                time_inc, 0, 0, 
-                0, time_inc, 0,
-                0, 0, 1
+                0.5f * time_inc_2, 0, 0, 0,
+                0, 0.5f * time_inc_2, 0, 0,
+                time_inc, 0, 0, 0, 
+                0, time_inc, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1
               };
 
   // H: observation model. y_k = H*x_k + v_k.
-  kalman_.H = { 1, 0, 0, 0, 0, 
-                0, 1, 0, 0, 0,
-                0, 0, 1, 0, 0, 
-                0, 0, 0, 1, 0, 
-                0, 0, 0, 0, 1 };
+  kalman_.H = { 1, 0, 0, 0, 0, 0, 
+                0, 1, 0, 0, 0, 0,
+                0, 0, 1, 0, 0, 0,
+                0, 0, 0, 1, 0, 0,
+                0, 0, 0, 0, 1, 0,
+                0, 0, 0, 0, 0, 1
+              };
 
   // Q: covariance matrix of process noise.
   const float time_inc_4 = time_inc_2 * time_inc_2;
@@ -78,12 +82,18 @@ BaseStateFilter::BaseStateFilter()
   const float qvx = kStdevIMUAccelX * kStdevIMUAccelX * time_inc_2;
   const float qvy = kStdevIMUAccelY * kStdevIMUAccelY * time_inc_2;
   const float qpa = kStdevIMUYaw * kStdevIMUYaw;
+  // Since yaw is represented as a complex number, we need the noise variance in each component.
+  // Assume that the noise mean is 0.
+  const float one_minus_exp_minus_qpa = 1 - expf(-qpa);
+  const float qcospa = 0.5f * one_minus_exp_minus_qpa * one_minus_exp_minus_qpa;
+  const float qsinpa = 0.5f * (1.0f - expf(-2.0f * qpa));
   kalman_.Q = {
-                qpx, 0, 0, 0, 0,
-                0, qpy, 0, 0, 0,
-                0, 0, qvx, 0, 0,
-                0, 0, 0, qvy, 0,
-                0, 0, 0, 0, qpa
+                qpx, 0, 0, 0, 0, 0,
+                0, qpy, 0, 0, 0, 0,
+                0, 0, qvx, 0, 0, 0,
+                0, 0, 0, qvy, 0, 0,
+                0, 0, 0, 0, qcospa, 0,
+                0, 0, 0, 0, 0, qsinpa
               };
 
   // R: covariance matrix of observation noise.
@@ -93,12 +103,18 @@ BaseStateFilter::BaseStateFilter()
   // Velocity is calculated from position, 
   const float rvx = (2 * rpx * rpx) / time_inc_2;  // [(m/s)^2]
   const float rvy = (2 * rpy * rpy) / time_inc_2;  // [(m/s)^2]
+  // Since yaw is represented as a complex number, we need the noise variance in each component.
+  // Assume that the noise mean is 0.
+  const float one_minus_exp_minus_rpa = 1 - expf(-rpa);
+  const float rcospa = 0.5f * one_minus_exp_minus_rpa * one_minus_exp_minus_rpa;
+  const float rsinpa = 0.5f * (1.0f - expf(-2.0f * rpa));
   kalman_.R = {
-                rpx, 0, 0, 0, 0,
-                0, rpy, 0, 0, 0,
-                0, 0, rvx, 0, 0,
-                0, 0, 0, rvy, 0,
-                0, 0, 0, 0, rpa
+                rpx, 0, 0, 0, 0, 0,
+                0, rpy, 0, 0, 0, 0,
+                0, 0, rvx, 0, 0, 0,
+                0, 0, 0, rvy, 0, 0,
+                0, 0, 0, 0, rcospa, 0,
+                0, 0, 0, 0, 0, rsinpa
               };
 }
 
@@ -113,25 +129,20 @@ void BaseStateFilter::EstimateState(TimerTicksType timer_ticks) {
   odom_center_velocity_.y *= kOdomCenterVelocityDecayFactor;
   
   // Update state estimation.
-  // Avoid yaw discontinuities messing with the Kalman estimate.
-  // This was inspired by dmuir's answer at https://stackoverflow.com/questions/64947640/how-to-use-kalman-filter-with-degrees-0-360.
-  // Instead of the observed yaw, we pass the state minus the innovation normalized to 
-  // [-pi, pi), so that the filter gets the innovation normalized:
-  // Passing Y^ = X + remainder(Y-X, 2*pi) instead of Y makes the filter get 
-  // Y^-X = remainder(Y-X, 2*pi) as innovation.
-  float yaw_state_plus_normalized_odom_yaw_innovation = kalman_.x(4) + remainderf(odom_yaw_ - kalman_.x(4), 2 * M_PI);
-  kalman_.update(/*obs=*/{ odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, yaw_state_plus_normalized_odom_yaw_innovation }, 
-                 /*command=*/{ imu_acceleration_.x, imu_acceleration_.y, imu_yaw_ });
+  // Avoid yaw discontinuities messing with the Kalman estimate by representing the yaw as a
+  // complex number on the unit circle.
+  kalman_.update(/*obs=*/{ odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, cosf(odom_yaw_), sinf(odom_yaw_) }, 
+                 /*command=*/{ imu_acceleration_.x, imu_acceleration_.y, cosf(imu_yaw_), sinf(imu_yaw_) });
 
   // Serial.printf("F = {{ %f %f %f %f %f }, {%f %f %f %f %f}, {%f %f %f %f %f}, { %f %f %f %f %f }, {%f %f %f %f %f}}\n", kalman_.F(0, 0), kalman_.F(0, 1), kalman_.F(0, 2), kalman_.F(0, 3), kalman_.F(0, 4), kalman_.F(1, 0), kalman_.F(1, 1), kalman_.F(1, 2), kalman_.F(1, 3), kalman_.F(1, 4), kalman_.F(2, 0), kalman_.F(2, 1), kalman_.F(2, 2), kalman_.F(2, 3), kalman_.F(2, 4), kalman_.F(3, 0), kalman_.F(3, 1), kalman_.F(3, 2), kalman_.F(3, 3), kalman_.F(3, 4), kalman_.F(4, 0), kalman_.F(4, 1), kalman_.F(4, 2), kalman_.F(4, 3), kalman_.F(4, 4));
   // Serial.printf("B = {{ %f %f %f }, {%f %f %f}, {%f %f %f}, {%f %f %f }, {%f %f %f}}\n", kalman_.B(0, 0), kalman_.B(0, 1), kalman_.B(0, 2), kalman_.B(1, 0), kalman_.B(1, 1), kalman_.B(1, 2), kalman_.B(2, 0), kalman_.B(2, 1), kalman_.B(2, 2), kalman_.B(3, 0), kalman_.B(3, 1), kalman_.B(3, 2), kalman_.B(4, 0), kalman_.B(4, 1), kalman_.B(4, 2));
   // Serial.printf("H = {{ %f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}, {%f %f %f %f %f}}\n", kalman_.H(0, 0), kalman_.H(0, 1), kalman_.H(0, 2), kalman_.H(0, 3), kalman_.H(0, 4), kalman_.H(1, 0), kalman_.H(1, 1), kalman_.H(1, 2), kalman_.H(1, 3), kalman_.H(1, 4), kalman_.H(2, 0), kalman_.H(2, 1), kalman_.H(2, 2), kalman_.H(2, 3), kalman_.H(2, 4), kalman_.H(3, 0), kalman_.H(3, 1), kalman_.H(3, 2), kalman_.H(3, 3), kalman_.H(3, 4), kalman_.H(4, 0), kalman_.H(4, 1), kalman_.H(4, 2), kalman_.H(4, 3), kalman_.H(4, 4));  
   
   // Yaw velocity is not key, so we estimate it roughly outside the Kalman filter to keep
-  // it smaller.
+  // the matrices smaller.
   if (state_update_timer_inc > 0) {
-    const float current_yaw_estimate = NormalizeRadians(kalman_.x(4));
-    yaw_velocity_ = NormalizeRadians((current_yaw_estimate - last_yaw_estimate_) / state_update_timer_inc);
+    const float current_yaw_estimate = atan2f(kalman_.x(5), kalman_.x(4));
+    yaw_velocity_ = (current_yaw_estimate - last_yaw_estimate_) / state_update_timer_inc;
     last_yaw_estimate_ = current_yaw_estimate;
   }
 
@@ -153,18 +164,18 @@ void BaseStateFilter::NotifyWheelTicks(TimerTicksType timer_ticks, int left_tick
     const float odom_yaw_inc = ((kRadiansPerWheelTick * kWheelRadius) * (right_ticks_inc - left_ticks_inc)) / kRobotDistanceBetweenTireCenters;
     const float perimeter_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
     const float curve_radius = perimeter_inc / abs(odom_yaw_inc);
-    distance_inc = curve_radius * sqrt(2 * (1 - cos(odom_yaw_inc)));
+    distance_inc = curve_radius * sqrtf(2.0f * (1.0f - cosf(odom_yaw_inc)));
     distance_inc_yaw = odom_yaw_ + 0.5f * odom_yaw_inc;
   } else {
     distance_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
     distance_inc_yaw = odom_yaw_;
   }
-  const float x_inc = distance_inc * cos(distance_inc_yaw);
-  const float y_inc = distance_inc * sin(distance_inc_yaw);
+  const float x_inc = distance_inc * cosf(distance_inc_yaw);
+  const float y_inc = distance_inc * sinf(distance_inc_yaw);
   odom_yaw_ = ((kRadiansPerWheelTick * kWheelRadius) * (right_wheel_ticks_ - left_wheel_ticks_)) / kRobotDistanceBetweenTireCenters;
 
   const float odom_timer_inc = SecondsFromTimerTicks(timer_ticks - last_odom_timer_ticks_);
-  if (odom_timer_inc >= sqrt(x_inc * x_inc + y_inc * y_inc) / kOdomCenterSpeedMax) {
+  if (odom_timer_inc >= sqrtf(x_inc * x_inc + y_inc * y_inc) / kOdomCenterSpeedMax) {
     // There could be input capture edges in the buffer before the timer started
     odom_center_velocity_.x = x_inc / odom_timer_inc;
     odom_center_velocity_.y = y_inc / odom_timer_inc;
@@ -199,8 +210,8 @@ void BaseStateFilter::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x
   const float imu_time_inc = SecondsFromTimerTicks(timer_ticks - last_imu_timer_ticks_);
   last_imu_timer_ticks_ = timer_ticks;
 
-  const float cos_yaw = cos(yaw);
-  const float sin_yaw = sin(yaw);
+  const float cos_yaw = cosf(yaw);
+  const float sin_yaw = sinf(yaw);
   imu_acceleration_.x = accel_x * cos_yaw - accel_y * sin_yaw;
   imu_acceleration_.y = accel_x * sin_yaw + accel_y * cos_yaw;
   imu_yaw_ = yaw;
@@ -229,7 +240,7 @@ BaseState BaseStateFilter::state() const  {
   // When the state is at the transition edge between pi and -pi, the innovation (eventhough
   // normalized) may take the state above pi or below -pi.
   return BaseState({ 
-    BaseStateVars(Point(kalman_.x(0), kalman_.x(1)), NormalizeRadians(kalman_.x(4))), 
+    BaseStateVars(Point(kalman_.x(0), kalman_.x(1)), atan2f(kalman_.x(5), kalman_.x(4))), 
     BaseStateVars(Point(kalman_.x(2), kalman_.x(3)), yaw_velocity_)
   });
 }

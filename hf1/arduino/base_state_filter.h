@@ -10,9 +10,11 @@
 // Somewhere down the third-party header tree, a macro F is defined, which makes it impossible to access kalman_.F.
 #undef F
 
-#define kNumStateVars 5
-#define kNumObservationVars 5
-#define kNumCommandVars 3
+// The yaw angle is represented as a complex number on the unit circle, so that interpolation
+// results are always continuous. This is analogous to a 2D quaternion.
+#define kNumStateVars 6   // x, y, x', y', cos(yaw), sin(yaw)
+#define kNumObservationVars 6   // odom_x, odom_y, odom_x',odom_y', cos(odom_yaw), sin(odom_yaw)
+#define kNumCommandVars 4   // imu_x'', imu_y'', cos(imu_yaw), sin(imu_yaw)
 
 // The base state is a first order model.
 using BaseState = State<BaseStateVars, /*order=*/1>;

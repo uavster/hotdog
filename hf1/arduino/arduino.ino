@@ -250,7 +250,7 @@ SpeedControllerTest speed_controller_test(&base_speed_controller);
 
 void loop() {
   RunRobotStateEstimator();
-  // Serial.printf("%d|cx:%f cy:%f a:%f vx:%f vy:%f\n", base_state_controller.IsAtTargetState() ? 1:0, GetBaseState().center().x, GetBaseState().center().y, GetBaseState().yaw(), GetBaseState().center_velocity().x, GetBaseState().center_velocity().y);
+  // Serial.printf("cx:%f cy:%f a:%f vx:%f vy:%f\n", GetBaseState().location().position().x, GetBaseState().location().position().y, GetBaseState().location().yaw(), GetBaseState().velocity().position().x, GetBaseState().velocity().position().y);
 
   // if (!base_state_controller.IsAtTargetState()) {
   //   base_state_controller.Run();
