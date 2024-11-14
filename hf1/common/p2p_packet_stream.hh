@@ -153,7 +153,12 @@ template<int kCapacity, Endianness LocalEndianness> int P2PPacketInputStream<kCa
           } else {
             // Continuing a packet previously interrupted by a higher-priority packet.
 
-            ASSERT(incoming_packet_[incoming_header_.priority] != nullptr);
+            if (incoming_packet_[incoming_header_.priority] == nullptr) {
+              // This packet was not being tracked. Ignore as it could just be noise resembling a packet.
+              state_ = kWaitingForPacket;
+              break;
+            }
+
             P2PPacket &packet = *incoming_packet_[incoming_header_.priority];
             // The length field for a packet continuation is the remaining length.
             int remaining_length = NetworkToLocal<LocalEndianness>(incoming_header_.length);
