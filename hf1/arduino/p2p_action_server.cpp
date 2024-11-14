@@ -4,6 +4,7 @@
 
 P2PActionServer::P2PActionServer(P2PPacketStreamArduino *p2p_stream)
   : p2p_stream_(*ASSERT_NOT_NULL(p2p_stream)) {
+  p2p_stream_.other_end_started_callback(P2POtherEndStartedCallback(&P2PActionServer::OnOtherEndStarted, this));
 }
 
 P2PActionServer::~P2PActionServer() {
@@ -128,4 +129,16 @@ void P2PActionServer::Run() {
   // The action either ended or the packet was copied to the handler, so it's ok to consume
   // it from the input stream for other packets to be processed.
   p2p_stream_.input().Consume(maybe_packet->priority());
+}
+
+void P2PActionServer::OnOtherEndStarted(void *self_p) {
+  ASSERT(self_p);
+  P2PActionServer &self = *reinterpret_cast<P2PActionServer *>(self_p);
+  for (int i = 0; i < P2PAction::kCount; ++i) {
+    P2PActionHandlerBase *handler = self.handlers_[i];
+    if (handler != NULL) {
+      handler->OnCancel();
+      handler->run_state(P2PActionHandlerBase::RunState::kIdle);
+    }
+  }
 }

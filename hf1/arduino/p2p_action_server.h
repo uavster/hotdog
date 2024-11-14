@@ -137,6 +137,7 @@ private:
   void InitActionsIfNeeded();
   void RunActions();
   StatusOr<const P2PPacketView> GetRequestOrCancellation() const;
+  static void OnOtherEndStarted(void *self_p);
 
   P2PPacketStreamArduino &p2p_stream_;
   P2PActionHandlerBase *handlers_[P2PAction::kCount];
