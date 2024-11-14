@@ -502,6 +502,10 @@ template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness>
 P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::P2PPacketStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer, GUIDFactoryInterface &guid_factory)
     : input_(byte_stream, timer), output_(byte_stream, timer), 
       handshake_id_(guid_factory.CreateGUID<kSequenceNumberNumBytes, kP2PLowestToken>()), handshake_done_(false) {
+  for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
+    last_init_sequence_number_[i] = -1ULL;
+  }
+  
   ResetInput();
 
   input_.packet_filter(P2PPacketFilter(&ShouldCommitInputPacket, this));
@@ -552,9 +556,9 @@ void P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::ResetOut
 }
 
 template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness>
-bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::ScheduleACKWithThrottling(const P2PPacket &packet) {
+bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::IsACKCommittedForPacket(const P2PPacket &packet) {
   // ACKs always have a priority one level higher to avoid deadlocks.
-  P2PPriority ack_priority = packet.header()->priority - 1;
+  const P2PPriority ack_priority = packet.header()->priority - 1;
   bool ack_found = false;
   for (int i = 0; i < output_.packet_buffer_.Size(ack_priority); ++i) {
     const P2PPacket *maybe_ack_packet = output_.packet_buffer_.OldestValue(ack_priority, i);
@@ -564,21 +568,29 @@ bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::Schedule
       break;
     }
   }      
-  if (!ack_found) {
-    StatusOr<P2PMutablePacketView> ack_packet_view = output_.NewPacket(ack_priority);
-    if (!ack_packet_view.ok()) {
-      // Only commit the packet if there is space for the ACK in the output stream.
-      // Let the other end keep retransmitting until there's space for the ACK.
-      return false;
-    }
-    P2PPacket *ack = ack_packet_view->packet();
-    ack->header()->is_ack = 1;
-    ack->header()->is_init = packet.header()->is_init;
-    output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/packet.sequence_number());
-  }
-  return true;
+  return ack_found;
 }
 
+template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness>
+bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::ScheduleACKWithThrottling(const P2PPacket &packet) {
+  if (IsACKCommittedForPacket(packet)) {
+    return true;
+  }
+  // ACKs always have a priority one level higher to avoid deadlocks.
+  const P2PPriority ack_priority = packet.header()->priority - 1;
+  StatusOr<P2PMutablePacketView> ack_packet_view = output_.NewPacket(ack_priority);
+  if (!ack_packet_view.ok()) {
+    // Only commit the packet if there is space for the ACK in the output stream.
+    // Let the other end keep retransmitting until there's space for the ACK.
+    return false;
+  }
+  P2PPacket *ack = ack_packet_view->packet();
+  ack->header()->is_ack = 1;
+  ack->header()->is_init = packet.header()->is_init;
+  output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/packet.sequence_number());
+  return true;
+}
+#include <sstream>
 template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness>
 bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::ShouldCommitInputPacket(const P2PPacket &last_rx_packet, void *self_ptr) {
   P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
@@ -604,10 +616,21 @@ bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::ShouldCo
     // dicarded, but we must wait until the end of the sender's packet in progress to do (b).
     self.ResetInput();
 
+    // Notify listeners that the other end was restarted, only once.
+    const P2PPriority priority = last_rx_packet.header()->priority;
+    // The sequence number can never be equal to last_init_sequence_number at startup (-1) 
+    // because its bytes are limited to the lowest possible token value (start, special) 
+    // of the protocol.
+    if (last_rx_packet.sequence_number() != self.last_init_sequence_number_[priority]) {      
+      self.other_end_started_callback_();
+    }
+    self.last_init_sequence_number_[priority] = last_rx_packet.sequence_number();
+
     // The session was reset, so there should always be space in the output queue at the 
     // ACK's priority, if the handshake is at the highest priority.
     const bool ack_ok = self.ScheduleACKWithThrottling(last_rx_packet);
     ASSERT(ack_ok);
+
     return false;
   }
 
@@ -640,7 +663,7 @@ bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::ShouldCo
       return false;
     }
 
-    P2PPriority priority = last_rx_packet.header()->priority;
+    const P2PPriority priority = last_rx_packet.header()->priority;
     if (self.last_rx_sequence_number_[priority] != -1ULL &&
         last_rx_packet.sequence_number() <= self.last_rx_sequence_number_[priority]) {
       // This packet had been received already: filter it.

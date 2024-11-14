@@ -47,6 +47,7 @@ public:
   // Overrides must call the parent.
   virtual void OnReply(int payload_length, const void *payload);
   virtual void OnProgress(int payload_length, const void *payload);
+  virtual void OnOtherEndStarted();
 
 protected:
   // Must be called with p2p_mutex_ locked.
@@ -74,13 +75,15 @@ public:
 
   using OnReplyCallback = std::function<void(const TRequest &, const TReply &)>;
   using OnProgressCallback = std::function<void(const TRequest &, const TProgress &)>;
+  using OnOtherEndStartedCallback = std::function<void(const TRequest &)>;
 
   // Takes ownsership of the callbacks.
   // See the base class' function for more details.
-  Status Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
+  Status Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, OnOtherEndStartedCallback &&other_end_started_callback = [](const TRequest &r){}, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
     last_request_ = request;
     reply_callback_ = reply_callback;
     progress_callback_ = progress_callback;
+    other_end_started_callback_ = other_end_started_callback;
     return P2PActionClientHandlerBase::Request(sizeof(TRequest), &request, priority, guarantee_delivery);
   }
 
@@ -95,11 +98,16 @@ protected:
     P2PActionClientHandlerBase::OnProgress(payload_length, payload);
     progress_callback_(last_request_, *reinterpret_cast<const TProgress *>(payload));
   }
+  virtual void OnOtherEndStarted() override {
+    P2PActionClientHandlerBase::OnOtherEndStarted();
+    other_end_started_callback_(last_request_);
+  }
 
 private:
   TRequest last_request_;   // Action requests cannot overlap.
-  OnReplyCallback reply_callback_;
-  OnProgressCallback progress_callback_;
+  OnReplyCallback reply_callback_ = [](const TRequest &, const TReply &){};
+  OnProgressCallback progress_callback_ = [](const TRequest &, const TProgress &){};
+  OnOtherEndStartedCallback other_end_started_callback_ = [](const TRequest &){};
 };
 
 class P2PActionClient {
@@ -119,6 +127,10 @@ public:
   void Run();
 
   P2PPacketStreamLinux &p2p_stream() { return p2p_stream_; }
+
+  // Called when the other end is restarted.
+  // Notifies all action handlers.
+  void OnOtherEndStarted();
 
 private:
   P2PPacketStreamLinux &p2p_stream_;

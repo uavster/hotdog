@@ -69,6 +69,10 @@ void P2PActionClientHandlerBase::OnProgress(int payload_length, const void *payl
   // cancellation arrives at the other end after it has sent the progress packet.
 }
 
+void P2PActionClientHandlerBase::OnOtherEndStarted() {
+  state_ = kIdle;
+}
+
 P2PActionClient::P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer)
   : p2p_stream_(*ASSERT_NOT_NULL(p2p_stream)), system_timer_(*ASSERT_NOT_NULL(system_timer)) {
   for (int i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
@@ -130,4 +134,12 @@ void P2PActionClient::Run() {
     }
   }
   p2p_stream_.input().Consume(maybe_packet->priority());
+}
+
+void P2PActionClient::OnOtherEndStarted() {
+  for (int i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
+    if (handlers_[i] != nullptr) {
+      handlers_[i]->OnOtherEndStarted();
+    }
+  }
 }

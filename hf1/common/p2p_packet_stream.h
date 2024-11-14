@@ -173,10 +173,10 @@ private:
   const P2PPacket *packet_;
 };
 
-template<typename TFunctionPtr, typename TArg> class P2PPacketCallback {
+template<typename TFunctionPtr, typename TArg> class P2PCallback {
 public:
-  P2PPacketCallback() : function_(NULL) {}
-  P2PPacketCallback(TFunctionPtr fn, TArg user_data) 
+  P2PCallback() : function_(nullptr) {}
+  P2PCallback(TFunctionPtr fn, TArg user_data) 
     : function_(fn), arg_(user_data) {
   }
   
@@ -188,11 +188,11 @@ private:
   TArg arg_;
 };
 
-class P2PPacketFilter : public P2PPacketCallback<bool (*)(const P2PPacket &, void *), void *> {
+class P2PPacketFilter : public P2PCallback<bool (*)(const P2PPacket &, void *), void *> {
 public:
-  P2PPacketFilter() : P2PPacketCallback<bool (*)(const P2PPacket &, void *), void *>() {}
+  P2PPacketFilter() : P2PCallback<bool (*)(const P2PPacket &, void *), void *>() {}
   P2PPacketFilter(bool (*fn)(const P2PPacket &, void *), void *args) 
-    : P2PPacketCallback<bool (*)(const P2PPacket &, void *), void *>(fn, args) {}
+    : P2PCallback<bool (*)(const P2PPacket &, void *), void *>(fn, args) {}
 
   bool operator()(const P2PPacket &p) {
     if (function() == NULL) {
@@ -202,11 +202,11 @@ public:
   }
 };
 
-class P2PPacketCommittedCallback : public P2PPacketCallback<void (*)(const P2PPacket &, void *), void *> {
+class P2PPacketCommittedCallback : public P2PCallback<void (*)(const P2PPacket &, void *), void *> {
 public:
-  P2PPacketCommittedCallback() : P2PPacketCallback<void (*)(const P2PPacket &, void *), void *>() {}
+  P2PPacketCommittedCallback() : P2PCallback<void (*)(const P2PPacket &, void *), void *>() {}
   P2PPacketCommittedCallback(void (*fn)(const P2PPacket &, void *), void *args) 
-    : P2PPacketCallback<void (*)(const P2PPacket &, void *), void *>(fn, args) {}
+    : P2PCallback<void (*)(const P2PPacket &, void *), void *>(fn, args) {}
 
   void operator()(const P2PPacket &p) {
     if (function() != NULL) {
@@ -353,7 +353,7 @@ public:
   // periodically.
   bool Commit(P2PPriority priority, bool guarantee_delivery, uint64_t seq_number = -1ULL);
 
-  P2PPacketCommittedCallback packet_committed_callback() { return packet_committed_callback_; }
+  P2PPacketCommittedCallback packet_committed_callback() const { return packet_committed_callback_; }
   void packet_committed_callback(const P2PPacketCommittedCallback &callback) { packet_committed_callback_ = callback; }
 
   // Not all platforms support lambdas.
@@ -427,6 +427,19 @@ private:
   Stats stats_;
 };
 
+class P2POtherEndStartedCallback : public P2PCallback<void (*)(void *), void *> {
+public:
+  P2POtherEndStartedCallback() : P2PCallback<void (*)(void *), void *>() {}
+  P2POtherEndStartedCallback(void (*fn)(void *), void *args) 
+    : P2PCallback<void (*)(void *), void *>(fn, args) {}
+
+  void operator()() {
+    if (function() != NULL) {
+      function()(arg());
+    }
+  }
+};
+
 // A buffered input/output stream of packets with priorities. 
 // The caller can choose to send packets reliably or as best effort. 
 // Reliable packets are retransmitted until the other end acknowledges them.
@@ -438,9 +451,23 @@ public:
   P2PPacketInputStream<kInputCapacity, LocalEndianness> &input() { return input_; }
   P2PPacketOutputStream<kOutputCapacity, LocalEndianness> &output() { return output_; }
 
+  // Sets a callback that's called when the other end sends an init packet. The callback is 
+  // used to ensure that all the state previously created in the other end is recreated. 
+  // The function pointed by the callback object must outlive this stream.
+  void other_end_started_callback(const P2POtherEndStartedCallback &callback) {
+    other_end_started_callback_ = callback;
+  }
+  P2POtherEndStartedCallback other_end_started_callback() const { 
+    return other_end_started_callback_;
+  }
+
 protected:
   void ResetInput();
   void ResetOutputSession(const P2PPacket &handshake_request);
+
+  // Returns true if the acknowledge for the passed `packet` was already committed to the
+  // output stream.
+  bool IsACKCommittedForPacket(const P2PPacket &packet);
 
   // Returns false if the ACK packet was to be scheduled, but there was not space in the output
   // buffer. Returns true if no new ACK was required, or if it was scheduled successfully,
@@ -456,6 +483,8 @@ private:
   P2PSequenceNumberType handshake_id_;
   bool handshake_done_;
   uint64_t last_rx_sequence_number_[P2PPriority::kNumLevels];
+  uint64_t last_init_sequence_number_[P2PPriority::kNumLevels];
+  P2POtherEndStartedCallback other_end_started_callback_;
 };
 
 #include "p2p_packet_stream.hh"
