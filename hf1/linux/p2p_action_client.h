@@ -128,11 +128,11 @@ public:
 
   P2PPacketStreamLinux &p2p_stream() { return p2p_stream_; }
 
+private:
   // Called when the other end is restarted.
   // Notifies all action handlers.
-  void OnOtherEndStarted();
+  static void OnOtherEndStarted(void *p_self);
 
-private:
   P2PPacketStreamLinux &p2p_stream_;
   const TimerInterface &system_timer_;
   P2PActionClientHandlerBase *handlers_[P2PAction::kCount];

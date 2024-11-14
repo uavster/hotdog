@@ -75,6 +75,7 @@ void P2PActionClientHandlerBase::OnOtherEndStarted() {
 
 P2PActionClient::P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer)
   : p2p_stream_(*ASSERT_NOT_NULL(p2p_stream)), system_timer_(*ASSERT_NOT_NULL(system_timer)) {
+  p2p_stream_.other_end_started_callback(P2POtherEndStartedCallback(&P2PActionClient::OnOtherEndStarted, this));
   for (int i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
     handlers_[i] = nullptr;
   }
@@ -136,10 +137,12 @@ void P2PActionClient::Run() {
   p2p_stream_.input().Consume(maybe_packet->priority());
 }
 
-void P2PActionClient::OnOtherEndStarted() {
+void P2PActionClient::OnOtherEndStarted(void *p_self) {
+  ASSERT_NOT_NULL(p_self);
+  P2PActionClient &self = *reinterpret_cast<P2PActionClient *>(p_self);
   for (int i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
-    if (handlers_[i] != nullptr) {
-      handlers_[i]->OnOtherEndStarted();
+    if (self.handlers_[i] != nullptr) {
+      self.handlers_[i]->OnOtherEndStarted();
     }
   }
 }
