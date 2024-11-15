@@ -115,6 +115,8 @@ void loop() {
   base_trajectory_controller.Run();
   NotifyLeftMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
   NotifyRightMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
+  left_wheel.Run();
+  right_wheel.Run();
   
   bool process_comms = true;
   const auto process_comms_start_time_ns = timer.GetLocalNanoseconds();

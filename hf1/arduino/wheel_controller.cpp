@@ -67,7 +67,7 @@ int32_t GetRightWheelTickCount() {
 WheelSpeedController::WheelSpeedController(
   WheelTickCountGetter* const wheel_tick_count_getter,
   DutyCycleSetter* const duty_cycle_setter)
-  : PeriodicRunnable(kControlLoopPeriodSeconds),
+  : Controller(kControlLoopPeriodSeconds),
     wheel_tick_count_getter_(*ASSERT_NOT_NULL(wheel_tick_count_getter)),
     duty_cycle_setter_(*ASSERT_NOT_NULL(duty_cycle_setter)),
     last_run_seconds_(-1),
@@ -122,8 +122,8 @@ void WheelSpeedController::SetAngularSpeed(float radians_per_second) {
   SetLinearSpeed(radians_per_second * kWheelRadius);
 }
 
-void WheelSpeedController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) {
-  const float seconds_since_start = SecondsFromNanos(now_nanos) - time_start_;  
+void WheelSpeedController::Update(TimerSecondsType now_seconds) {
+  const float seconds_since_start = now_seconds - time_start_;  
 
   // Ramp up or down the speed target.
   const float current_target = initial_target_speed_ + seconds_since_start * target_speed_slope_;

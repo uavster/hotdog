@@ -6,7 +6,7 @@
 #include "robot_model.h"
 #include "robot_state_estimator.h"
 
-#define kLoopPeriod 0.33  // [s]
+#define kBaseStateControllerLoopPeriod 0.33  // [s]
 #define kBaseTrajectoryControllerLoopPeriod 0.1 // [s]
 
 #define kKx 3.0   // [1/s]
@@ -66,24 +66,14 @@ void BaseSpeedController::SetTargetSpeeds(const float linear, const float angula
   right_wheel_.SetAngularSpeed(wheel_speed_r);
 }
 
-void BaseSpeedController::Run() {
-  left_wheel_.Run();
-  right_wheel_.Run();
-}
-
 BaseStateController::BaseStateController(BaseSpeedController *base_speed_controller) 
-  : PeriodicRunnable(kLoopPeriod), 
+  : Controller(kBaseStateControllerLoopPeriod), 
     base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)),
     yaw_target_(0),
     reference_forward_speed_(0),
     reference_angular_speed_(0) {}
 
-void BaseStateController::Run() {
-  base_speed_controller_.Run();
-  PeriodicRunnable::Run();
-}
-
-void BaseStateController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) {
+void BaseStateController::Update(TimerSecondsType now_seconds) {
   // Get errors in the base's local frame.
   const BaseState &base_state = GetBaseState();
   const float cos_yaw = cos(base_state.location().yaw());
@@ -119,56 +109,21 @@ bool BaseStateController::IsAtTargetState() const {
 }
 
 BaseTrajectoryController::BaseTrajectoryController(BaseSpeedController *base_speed_controller) : 
-  PeriodicRunnable(kBaseTrajectoryControllerLoopPeriod), 
-  base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)), 
-  current_waypoint_index_(0), 
-  is_started_(false),
-  does_loop_(false) {}
+  TrajectoryController<BaseTrajectoryView>(static_cast<TimerSecondsType>(kBaseTrajectoryControllerLoopPeriod)), 
+  base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)) {}
 
-void BaseTrajectoryController::trajectory(const BaseTrajectoryView &trajectory) {
-  trajectory_ = trajectory;
-  current_waypoint_index_ = 0;
-  is_started_ = false;
-}
-
-void BaseTrajectoryController::Run() {
-  PeriodicRunnable::Run();
-  base_speed_controller_.Run();
-}
-
-void BaseTrajectoryController::StartTrajectory() {
-  current_waypoint_index_ = 0;
-  is_started_ = true;
-  start_seconds_ = GetTimerSeconds();
-}
-
-void BaseTrajectoryController::StopTrajectory() {
-  is_started_ = false;
-}
-
-void BaseTrajectoryController::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) {
-  if (!is_started_) { return; }
-  const TimerSecondsType now_seconds = SecondsFromNanos(now_nanos) - start_seconds_;
-  const auto maybe_index = trajectory_.FindWaypointIndexBeforeSeconds(now_seconds, current_waypoint_index_);
-  if (!maybe_index.ok()) { return; }
-  const int index = *maybe_index;
-  current_waypoint_index_ = index;
-  // Serial.printf("index:%d\n", index);
-  if (!trajectory_.IsLoopingEnabled() && index == trajectory_.num_waypoints() - 1) {
-    StopTrajectory();
-    return;
-  }
-
+void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int current_waypoint_index) {
+  Serial.printf("current_waypoint_index: %d\n", current_waypoint_index);
   // Get reference states.
-  TimerSecondsType time_fraction = (now_seconds - trajectory_.seconds(index)) / (trajectory_.seconds(index + 1) - trajectory_.seconds(index));
-  const State ref_position = trajectory_.state(index) + time_fraction * (trajectory_.state(index + 1) - trajectory_.state(index));
-  const State first_derivative_at_index = trajectory_.derivative(/*order=*/1, index);
-  const State ref_velocity = first_derivative_at_index + time_fraction * (trajectory_.derivative(/*order=*/1, index + 1) - first_derivative_at_index);
-  const State second_derivative_at_index = trajectory_.derivative(/*order=*/2, index);
-  const State ref_acceleration = second_derivative_at_index + time_fraction * (trajectory_.derivative(/*order=*/2, index + 1) - second_derivative_at_index);
+  TimerSecondsType time_fraction = (seconds_since_start - trajectory().seconds(current_waypoint_index)) / (trajectory().seconds(current_waypoint_index + 1) - trajectory().seconds(current_waypoint_index));
+  const State ref_position = trajectory().state(current_waypoint_index) + time_fraction * (trajectory().state(current_waypoint_index + 1) - trajectory().state(current_waypoint_index));
+  const State first_derivative_at_index = trajectory().derivative(/*order=*/1, current_waypoint_index);
+  const State ref_velocity = first_derivative_at_index + time_fraction * (trajectory().derivative(/*order=*/1, current_waypoint_index + 1) - first_derivative_at_index);
+  const State second_derivative_at_index = trajectory().derivative(/*order=*/2, current_waypoint_index);
+  const State ref_acceleration = second_derivative_at_index + time_fraction * (trajectory().derivative(/*order=*/2, current_waypoint_index + 1) - second_derivative_at_index);
   const float ref_yaw = atan2f(ref_velocity.location().position().y, ref_velocity.location().position().x);
 
-  // Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory_.seconds(index), trajectory_.seconds(index+1), ref_position.location().position().x, ref_position.location().position().y, ref_velocity.location().position().x, ref_velocity.location().position().y, ref_acceleration.location().position().x, ref_acceleration.location().position().y);
+  // Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory().seconds(current_waypoint_index), trajectory().seconds(current_waypoint_index+1), ref_position.location().position().x, ref_position.location().position().y, ref_velocity.location().position().x, ref_velocity.location().position().y, ref_acceleration.location().position().x, ref_acceleration.location().position().y);
   // Serial.printf("[state] x:%f y:%f\n", GetBaseState().location().position().x, GetBaseState().location().position().y);
   // Serial.printf("[controller] target_lin:%f target_ang:%f left_wheel_ang:%f right_wheel_ang:%f\n", base_speed_controller_.target_linear_speed(), base_speed_controller_.target_angular_speed(), base_speed_controller_.left_wheel_speed_controller().GetAngularSpeed(), base_speed_controller_.right_wheel_speed_controller().GetAngularSpeed());
 

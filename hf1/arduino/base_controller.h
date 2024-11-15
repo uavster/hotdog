@@ -2,10 +2,10 @@
 #define ROBOT_SPEED_CONTROLLER_
 
 #include "wheel_controller.h"
-#include "periodic_runnable.h"
 #include "base_state.h"
 #include "timer.h"
 #include "trajectory.h"
+#include "controller.h"
 
 // Controller commanding the wheel speed controllers to achieve the desired forward and 
 // angular speeds of the robot's base.
@@ -28,8 +28,6 @@ public:
   // Returns the radius of the curve given the adjusted target speeds.
   float curve_radius() const { return target_linear_speed() / target_angular_speed(); }
 
-  void Run();
-
   WheelSpeedController &left_wheel_speed_controller() const { return left_wheel_; }
   WheelSpeedController &right_wheel_speed_controller() const { return right_wheel_; }
 
@@ -47,18 +45,18 @@ private:
 // This controller is based on:
 // Y. Kanayama, Y. Kimura, F. Miyazaki, and T. Noguchi, "A stable tracking control method 
 // for an autonomous mobile robot," Proc. IEEE Int. Conf. Rob. Autom., 1990, pp. 384–389.
-class BaseStateController : public PeriodicRunnable {
+class BaseStateController : public Controller {
 public:
   BaseStateController(BaseSpeedController *base_speed_controller);
 
   void SetTargetState(const Point &center_position_target, float yaw_target, float reference_forward_speed, float reference_angular_speed = 0.0f);
 
-  void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;
-  void Run();
-
   const BaseSpeedController &base_speed_controller() const { return base_speed_controller_; }
 
   bool IsAtTargetState() const;
+
+protected:
+  void Update(TimerSecondsType now_seconds) override;
 
 private:
   BaseSpeedController &base_speed_controller_;
@@ -89,7 +87,7 @@ using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
 // waypoints is under the controller's sampling period (0.1 seconds).
 //
 // Also, any obstacle and driving hurdle or error can result in not reaching a waypoint in 
-// time. When the waypoint's time contraint cannot be met and the waypoint is the last one 
+// time. When the waypoint's time constraint cannot be met and the waypoint is the last one 
 // in the trajectory, the robot will stop. But if the waypoint is not the last one, the 
 // robot will skip to the next one.
 // 
@@ -97,28 +95,17 @@ using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
 // R. L. S. Sousa, M. D. do Nascimento Forte, F. G. Nogueira, B. C. Torrico, 
 // “Trajectory tracking control of a nonholonomic mobile robot with differential drive”, 
 // in Proc. IEEE Biennial Congress of Argentina (ARGENCON), pp. 1–6, 2016.
-class BaseTrajectoryController : public PeriodicRunnable {
+class BaseTrajectoryController : public TrajectoryController<BaseTrajectoryView> {
 public:
   BaseTrajectoryController(BaseSpeedController *base_speed_controller);
 
-  void trajectory(const BaseTrajectoryView &trajectory);
-  int current_waypoint_index() const { return current_waypoint_index_; }
-
-  void StartTrajectory();
-  void StopTrajectory();
-
-  void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;
-  void Run();
-
   const BaseSpeedController &base_speed_controller() const { return base_speed_controller_; }
+
+protected:
+  virtual void Update(TimerSecondsType seconds_since_start, int current_waypoint_index) override;
 
 private:
   BaseSpeedController &base_speed_controller_;
-  BaseTrajectoryView trajectory_;
-  int current_waypoint_index_;
-  bool is_started_;
-  TimerSecondsType start_seconds_;
-  bool does_loop_;
 };
 
 #endif  // ROBOT_SPEED_CONTROLLER_

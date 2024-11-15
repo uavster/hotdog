@@ -17,6 +17,7 @@ public:
   // Must be called in a busy loop at a higher rate than the runnable period. 
   void Run();
 
+protected:
   // Subclasses may override this function. It is called the first time Run() is called.
   virtual void RunFirstTime(TimerNanosType now_nanos) {}
 

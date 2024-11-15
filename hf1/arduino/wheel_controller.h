@@ -3,7 +3,7 @@
 
 #include "encoders.h"
 #include "pid.h"
-#include "periodic_runnable.h"
+#include "controller.h"
 #include "robot_model.h"
 
 void InitWheelSpeedControl();
@@ -14,7 +14,7 @@ int32_t GetRightWheelTickCount();
 typedef void (DutyCycleSetter)(float duty_cycle);
 typedef int32_t (WheelTickCountGetter)(void);
 
-class WheelSpeedController : public PeriodicRunnable {
+class WheelSpeedController : public Controller {
 public:
   // No ownership of the pointee is taken by this object.
   WheelSpeedController(WheelTickCountGetter * const wheel_tick_count_getter, DutyCycleSetter * const duty_cycle_setter);
@@ -38,10 +38,11 @@ public:
   float GetLinearSpeed() const { return pid_.target(); }
   float GetAngularSpeed() const { return GetLinearSpeed() / kWheelRadius; }
 
-  // Periodically updates the speed controller.
-  void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;
-
   bool is_turning_forward() const { return is_turning_forward_; }
+
+protected:
+  // Periodically updates the speed controller.
+  void Update(TimerSecondsType now_seconds) override;
 
 private:
   float DutyCycleFromLinearSpeed(float meters_per_second) const;
