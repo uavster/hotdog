@@ -36,6 +36,8 @@ class BaseStateFilter {
     }
 
   private:
+    float GetFilteredYaw() const;
+    
     // Odometry.
     TimerTicksType last_odom_timer_ticks_;
     int left_wheel_ticks_;

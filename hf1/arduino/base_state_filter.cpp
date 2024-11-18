@@ -12,7 +12,12 @@
 // Standard deviations of the odometry measures.
 #define kStdevOdomPosX (0.005 / (0.85 * kApproximateUpdateRate))  // +/-5 mm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
 #define kStdevOdomPosY (0.005 / (0.85 * kApproximateUpdateRate))  // +/-5 mm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
-#define kStdevOdomYaw (M_PI / 180 * (10 / (90.0 / 90.0 * kApproximateUpdateRate)))  // +/-10 degreed after 90 degrees turn, at 90 deg/s and the approximate sample rate [rad]
+// For a 90-degree turn in 1 second, we get +/-10 degrees of error. However, testing different
+// trajectories, we see the error can be much higher for sudden movements, so we apply an error
+// multiplier to account for the worst case, as it can have devastating effects on the
+// localization accuracy in the long term. In this way, yaw is mostly determined by the IMU
+// measurement whose accuracy is stable across our acceleration range.
+#define kStdevOdomYaw (100 * (M_PI / 180 * (10 / (90.0 / 90.0 * kApproximateUpdateRate))))  // +/-10 degreed after 90 degrees turn, at 90 deg/s and the approximate sample rate [rad]
 
 // Any estimate above this value is rejected.
 // Meant to prevent too high estimates due to co-occuring encoder edges.
@@ -165,10 +170,10 @@ void BaseStateFilter::NotifyWheelTicks(TimerTicksType timer_ticks, int left_tick
     const float perimeter_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
     const float curve_radius = perimeter_inc / abs(odom_yaw_inc);
     distance_inc = curve_radius * sqrtf(2.0f * (1.0f - cosf(odom_yaw_inc)));
-    distance_inc_yaw = odom_yaw_ + 0.5f * odom_yaw_inc;
+    distance_inc_yaw = GetFilteredYaw() + 0.5f * odom_yaw_inc;
   } else {
     distance_inc = (kRadiansPerWheelTick * kWheelRadius * (left_ticks_inc + right_ticks_inc)) / 2;
-    distance_inc_yaw = odom_yaw_;
+    distance_inc_yaw = GetFilteredYaw();
   }
   const float x_inc = distance_inc * cosf(distance_inc_yaw);
   const float y_inc = distance_inc * sinf(distance_inc_yaw);
@@ -235,12 +240,16 @@ void BaseStateFilter::NotifyIMUReading(TimerTicksType timer_ticks, float accel_x
   EstimateState(timer_ticks);
 }
 
+float BaseStateFilter::GetFilteredYaw() const {
+  return atan2f(kalman_.x(5), kalman_.x(4));
+}
+
 BaseState BaseStateFilter::state() const  {
   // As dmuir's answer above points out, we have to normalize the estimated yaw state, too.
   // When the state is at the transition edge between pi and -pi, the innovation (eventhough
   // normalized) may take the state above pi or below -pi.
   return BaseState({ 
-    BaseStateVars(Point(kalman_.x(0), kalman_.x(1)), atan2f(kalman_.x(5), kalman_.x(4))), 
+    BaseStateVars(Point(kalman_.x(0), kalman_.x(1)), GetFilteredYaw()), 
     BaseStateVars(Point(kalman_.x(2), kalman_.x(3)), yaw_velocity_)
   });
 }
