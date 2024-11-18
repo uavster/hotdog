@@ -113,7 +113,6 @@ BaseTrajectoryController::BaseTrajectoryController(BaseSpeedController *base_spe
   base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)) {}
 
 void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int current_waypoint_index) {
-  Serial.printf("current_waypoint_index: %d\n", current_waypoint_index);
   // Get reference states.
   TimerSecondsType time_fraction = (seconds_since_start - trajectory().seconds(current_waypoint_index)) / (trajectory().seconds(current_waypoint_index + 1) - trajectory().seconds(current_waypoint_index));
   const State ref_position = trajectory().state(current_waypoint_index) + time_fraction * (trajectory().state(current_waypoint_index + 1) - trajectory().state(current_waypoint_index));
