@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <functional>
+#include <math.h>
 
 #ifdef ARDUINO
 #include <DebugLog.h>
@@ -56,5 +57,12 @@ float NormalizeRadians(float radians);
 // The result has the same sign as array_size.
 int IndexMod(int index, int array_size);
 float IndexModf(float index, float array_size);
+
+template<typename T> T DegreesFromRadians(const T radians) {
+  return (static_cast<T>(180) * radians) / static_cast<T>(M_PI);
+}
+template<typename T> T RadiansFromDegrees(const T degrees) { 
+  return (static_cast<T>(M_PI) * degrees) / static_cast<T>(180);
+} 
 
 #endif  // UTILS_INCLUDED__
