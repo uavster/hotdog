@@ -21,8 +21,9 @@
 #include "monitor_base_state_action_handler.h"
 
 // Maximum time during which communication can be processed without
-// yielding time to other tasks. 
-#define kMaxRxTxLoopBlockingDurationNs 100'000'000
+// yielding time to other tasks.
+// This should be the minium period of all control loops.
+#define kMaxRxTxLoopBlockingDurationNs 10'000'000
 
 Logger logger;
 
@@ -86,24 +87,24 @@ void setup() {
   // base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI / 4, 0.3, 0);  
   // base_speed_controller.SetTargetSpeeds(0.1, 10 * M_PI);
 
-  // const int num_waypoints = 40;
-  // const int points_per_segment = num_waypoints / 4;
-  // for (int i = 0; i < points_per_segment; ++i) {
-  //   waypoints[i] = BaseWaypoint(i * 0.3, BaseTargetState({ BaseStateVars(Point(i * 0.1, 0), 0) }));
-  //   waypoints[i+points_per_segment] = BaseWaypoint((i+points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(1, -i * 0.1), 0) }));
-  //   waypoints[i+2*points_per_segment] = BaseWaypoint((i+2*points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(1 - i * 0.1, -1), 0) }));
-  //   waypoints[i+3*points_per_segment] = BaseWaypoint((i+3*points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(0, -1+0.1*i), 0) }));
-  // }
-
-  const int num_waypoints = sizeof(waypoints) / sizeof(waypoints[0]);
-  const float total_trajectory_seconds = 20.0;
-  for (int i = 0; i < num_waypoints; ++i) {
-    const float t = i * total_trajectory_seconds / num_waypoints;
-    const float w = 2 * M_PI / total_trajectory_seconds;
-    const float x = sin(w * t);
-    const float y = -1 + cos(w * t);
-    waypoints[i] = BaseWaypoint(t, BaseTargetState({ BaseStateVars(Point(x, y), 0) }));
+  const int num_waypoints = 40;
+  const int points_per_segment = num_waypoints / 4;
+  for (int i = 0; i < points_per_segment; ++i) {
+    waypoints[i] = BaseWaypoint(i * 0.3, BaseTargetState({ BaseStateVars(Point(i * 0.1, 0), 0) }));
+    waypoints[i+points_per_segment] = BaseWaypoint((i+points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(1, -i * 0.1), 0) }));
+    waypoints[i+2*points_per_segment] = BaseWaypoint((i+2*points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(1 - i * 0.1, -1), 0) }));
+    waypoints[i+3*points_per_segment] = BaseWaypoint((i+3*points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(0, -1+0.1*i), 0) }));
   }
+
+  // const int num_waypoints = sizeof(waypoints) / sizeof(waypoints[0]);
+  // const float total_trajectory_seconds = 20.0;
+  // for (int i = 0; i < num_waypoints; ++i) {
+  //   const float t = i * total_trajectory_seconds / num_waypoints;
+  //   const float w = 2 * M_PI / total_trajectory_seconds;
+  //   const float x = sin(w * t);
+  //   const float y = -1 + cos(w * t);
+  //   waypoints[i] = BaseWaypoint(t, BaseTargetState({ BaseStateVars(Point(x, y), 0) }));
+  // }
 
   base_trajectory_controller.trajectory(BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/5.0));
   base_trajectory_controller.StartTrajectory();

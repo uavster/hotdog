@@ -25,9 +25,14 @@ public:
   void StartTrajectory();
   void StopTrajectory();
 
+  using ControllerState = enum { kStopped, kFollowingTrajectory, kWaitingBeforeLooping };
+  ControllerState state() const { return state_; }
+
 protected:
   // Subclasses must override this function to update controls.
   virtual void Update(TimerSecondsType seconds_since_start, int current_waypoint_index) = 0;
+  // Subclasses must override this function to stop movement.
+  virtual void Stop() = 0;
 
 private:
   virtual void Update(TimerSecondsType now_seconds) override;
@@ -36,6 +41,9 @@ private:
   bool is_started_;
   TimerSecondsType start_seconds_;
   int current_waypoint_index_;
+
+  ControllerState state_;
+  TimerSecondsType seconds_at_end_;
 };
 
 #include "controller.hh"

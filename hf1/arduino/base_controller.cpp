@@ -161,3 +161,6 @@ void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int 
   base_speed_controller_.SetTargetSpeeds(tangential_command_limitted, angular_command_limitted);
 }
 
+void BaseTrajectoryController::Stop() {
+  base_speed_controller_.SetTargetSpeeds(0, 0);
+}

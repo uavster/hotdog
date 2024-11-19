@@ -103,6 +103,7 @@ public:
 
 protected:
   virtual void Update(TimerSecondsType seconds_since_start, int current_waypoint_index) override;
+  virtual void Stop() override;
 
 private:
   BaseSpeedController &base_speed_controller_;

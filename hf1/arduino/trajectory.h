@@ -34,6 +34,7 @@ public:
   TrajectoryView &EnableLooping(TimerSecondsType after_seconds = 0);
   TrajectoryView &DisableLooping();
   bool IsLoopingEnabled() const;
+  StatusOr<TimerSecondsType> SecondsBetweenLoops() const;
 
   StatusOr<int> FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index = 0) const;
 

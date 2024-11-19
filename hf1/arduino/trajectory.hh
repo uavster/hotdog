@@ -20,6 +20,14 @@ bool TrajectoryView<TState>::IsLoopingEnabled() const {
 }
 
 template<typename TState>
+StatusOr<TimerSecondsType> TrajectoryView<TState>::SecondsBetweenLoops() const {
+  if (!IsLoopingEnabled()) {
+    return Status::kUnavailableError;
+  }
+  return loop_at_seconds_ - waypoints_[num_waypoints_ - 1].seconds();
+}
+
+template<typename TState>
 StatusOr<int> TrajectoryView<TState>::FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index) const {
   if (num_waypoints_ == 0 || seconds < this->seconds(0)) { return Status::kUnavailableError; }
   int i = prev_result_index;
@@ -29,24 +37,14 @@ StatusOr<int> TrajectoryView<TState>::FindWaypointIndexBeforeSeconds(TimerSecond
 
 template<typename TState>
 float TrajectoryView<TState>::seconds(int index) const {
-  if (IsLoopingEnabled()) {
-    const int normalized_index = IndexMod(index, num_waypoints_);
-    const TimerSecondsType prev_loops_seconds = (loop_at_seconds_ - waypoints_[0].seconds()) * (index / num_waypoints_);
-    return waypoints_[normalized_index].seconds() + prev_loops_seconds;
-  } else {
-    ASSERT(index >= 0);
-    ASSERT(index < num_waypoints_);
-    return waypoints_[index].seconds();
-  }
+  const int normalized_index = IndexMod(index, num_waypoints_);
+  const TimerSecondsType prev_loops_seconds = (loop_at_seconds_ - waypoints_[0].seconds()) * (index / num_waypoints_);
+  return waypoints_[normalized_index].seconds() + prev_loops_seconds;
 }
 
 template<typename TState>
 const TState &TrajectoryView<TState>::state(int index) const {
-  if (IsLoopingEnabled()) {
-    return waypoints_[IndexMod(index, num_waypoints_)].state();
-  } else {
-    return waypoints_[min(index, num_waypoints_ - 1)].state();
-  }
+  return waypoints_[IndexMod(index, num_waypoints_)].state();
 }
 
 template<typename TState>
