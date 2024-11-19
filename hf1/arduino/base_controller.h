@@ -99,6 +99,7 @@ class BaseTrajectoryController : public TrajectoryController<BaseTrajectoryView>
 public:
   BaseTrajectoryController(BaseSpeedController *base_speed_controller);
 
+  // Returns the underlying base speed controller.
   const BaseSpeedController &base_speed_controller() const { return base_speed_controller_; }
 
 protected:
