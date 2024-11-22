@@ -36,29 +36,12 @@ void TrajectoryController<TrajectoryViewType>::Update(const TimerSecondsType now
       current_waypoint_index_ = *maybe_index;
       Update(seconds_since_start, current_waypoint_index_);
       if (current_waypoint_index_ >= trajectory_.num_waypoints() - 1) {
-        if (!trajectory_.SecondsBetweenLoops().ok()) {
+        if (!trajectory_.IsLoopingEnabled()) {
           // The trajectory is not set to loop.
           StopTrajectory();
-        } else {
-          // The trajectory is set to loop. Stop and wait until it's time to restart.
-          if (*trajectory_.SecondsBetweenLoops() == 0) {
-            // The trajectory should repeat immediately.
-            StartTrajectory();
-          } else {
-            // The trajectory should repeat after a while.
-            Stop();
-            state_ = kWaitingBeforeLooping;
-            seconds_at_end_ = now_seconds;
-          }
         }
       }
       break;
     }
-    case kWaitingBeforeLooping:
-      ASSERT(trajectory_.SecondsBetweenLoops().ok());
-      if (now_seconds - seconds_at_end_ >= *trajectory_.SecondsBetweenLoops()) {
-        StartTrajectory();
-      }
-      break;
   }
 }

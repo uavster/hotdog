@@ -25,7 +25,7 @@ public:
   void StartTrajectory();
   void StopTrajectory();
 
-  using ControllerState = enum { kStopped, kFollowingTrajectory, kWaitingBeforeLooping };
+  using ControllerState = enum { kStopped, kFollowingTrajectory };
   ControllerState state() const { return state_; }
 
 protected:
