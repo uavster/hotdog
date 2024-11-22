@@ -66,9 +66,13 @@ StatusOr<int> TrajectoryView<TState>::FindWaypointIndexBeforeSeconds(TimerSecond
 
 template<typename TState>
 float TrajectoryView<TState>::seconds(int index) const {
-  const int normalized_index = IndexMod(index, num_waypoints_);
   const TimerSecondsType trajectory_duration = waypoints_[num_waypoints_ - 1].seconds() - waypoints_[0].seconds();
-  const TimerSecondsType prev_loops_seconds = (trajectory_duration + loop_after_seconds_) * (index / num_waypoints_);
+  // If looping is enabled the time to get back to the initial state was given.
+  // If looping is not enabled, in order to enable derivative computation, assume that time
+  // will be the average time between waypoints.
+  const TimerSecondsType loop_after_seconds = loop_after_seconds_ >= 0 ? loop_after_seconds_ : trajectory_duration / num_waypoints_;
+  const int normalized_index = IndexMod(index, num_waypoints_);
+  const TimerSecondsType prev_loops_seconds = (trajectory_duration + loop_after_seconds) * (index / num_waypoints_);
   return waypoints_[normalized_index].seconds() + prev_loops_seconds;
 }
 
