@@ -7,7 +7,8 @@ enum Status {
 
 template<typename ValueType> class StatusOr {
 public:
-  StatusOr(ValueType &&v) : status_(kSuccess), value_(v) {}
+  StatusOr(const ValueType &v) : status_(kSuccess), value_(v) {}  // Selected for lvalues.
+  StatusOr(ValueType &&v) : status_(kSuccess), value_(v) {} // Selected for rvalues.
   StatusOr(Status e) : status_(e) {}
   
   ValueType *operator->() { return &value_; }
