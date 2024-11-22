@@ -41,7 +41,11 @@ void TrajectoryController<TrajectoryViewType>::Update(const TimerSecondsType now
           StopTrajectory();
         } else {
           // The trajectory is set to loop. Stop and wait until it's time to restart.
-          if (*trajectory_.SecondsBetweenLoops() > 0) {
+          if (*trajectory_.SecondsBetweenLoops() == 0) {
+            // The trajectory should repeat immediately.
+            StartTrajectory();
+          } else {
+            // The trajectory should repeat after a while.
             Stop();
             state_ = kWaitingBeforeLooping;
             seconds_at_end_ = now_seconds;

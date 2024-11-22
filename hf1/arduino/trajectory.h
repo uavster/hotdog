@@ -23,15 +23,19 @@ private:
 // view objects referencing them.
 template<typename TState> class TrajectoryView {
 public:
-  TrajectoryView() : num_waypoints_(0), waypoints_(NULL), loop_at_seconds_(-1) {}
+  TrajectoryView() : num_waypoints_(0), waypoints_(NULL), loop_after_seconds_(-1) {}
 
   // Does not take ownsership of the pointee, which must outlive this object.
-  TrajectoryView(int num_waypoints, const Waypoint<TState> *waypoints)
-    : num_waypoints_(num_waypoints), waypoints_(waypoints), loop_at_seconds_(-1) {}
+  TrajectoryView(int num_waypoints, const Waypoint<TState> *waypoints);
+
+  // Returns true if the trajectory is valid, e.g. no two waypoints defined for the same time.
+  static bool IsTrajectoryValid(int num_waypoints, const Waypoint<TState> *waypoints);
 
   int num_waypoints() const { return num_waypoints_; }
 
-  TrajectoryView &EnableLooping(TimerSecondsType after_seconds = 0);
+  // `after_seconds` must be enough time for the controller to take the state from the last
+  // waypoint to the first one.
+  TrajectoryView &EnableLooping(TimerSecondsType after_seconds);
   TrajectoryView &DisableLooping();
   bool IsLoopingEnabled() const;
   StatusOr<TimerSecondsType> SecondsBetweenLoops() const;
@@ -45,7 +49,7 @@ public:
 private:
   int num_waypoints_;
   const Waypoint<TState> *waypoints_;
-  TimerSecondsType loop_at_seconds_; // looping disabled if negative.
+  TimerSecondsType loop_after_seconds_; // looping disabled if negative.
 };
 
 #include "trajectory.hh"
