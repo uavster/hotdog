@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Setup testing
 enable_testing()
 find_package(GTest REQUIRED)
+include_directories(${GTEST_INCLUDE_DIR})
 
 get_filename_component(PARENT_DIR ../ ABSOLUTE)
 include_directories(${PARENT_DIR})
