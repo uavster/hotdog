@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Setup testing
 enable_testing()
 find_package(GTest REQUIRED)
-include_directories(${GTEST_INCLUDE_DIR})
+if(DEFINED GTEST_INCLUDE_DIR)
+  include_directories(${GTEST_INCLUDE_DIR})
+endif()
 
 get_filename_component(PARENT_DIR ../ ABSOLUTE)
 include_directories(${PARENT_DIR})
@@ -18,7 +20,11 @@ add_executable(runUnitTests
 )
 
 # Link test executable against all dependency libraries.
-target_link_libraries(runUnitTests hf1_p2p_link_common pthread GTest::gtest_main)
+if(NOT DEFINED GTEST_INCLUDE_DIR)
+  target_link_libraries(runUnitTests hf1_p2p_link_common pthread GTest::gtest_main)
+else()
+  target_link_libraries(runUnitTests hf1_p2p_link_common libgtest.a libgtest_main.a pthread)
+endif()
 
 add_test(
     NAME runUnitTests
