@@ -40,6 +40,10 @@ public:
     return result;
   }
 
+  virtual float DistanceFrom(const State<TStateVars, Order> &state) const {
+    return location().DistanceFrom(state.location());
+  }
+
   int order() const { return Order; }
 
   const TStateVars &location() const { return states_[0]; }

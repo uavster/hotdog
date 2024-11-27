@@ -41,9 +41,7 @@ private:
   bool is_started_;
   TimerSecondsType start_seconds_;
   int current_waypoint_index_;
-
   ControllerState state_;
-  TimerSecondsType seconds_at_end_;
 };
 
 #include "controller.hh"

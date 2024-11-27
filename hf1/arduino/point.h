@@ -13,6 +13,7 @@ class Point {
     Point operator/(float d) const;
     Point operator*(float d) const;
     float norm() const;
+    float DistanceFrom(const Point &p) const;
 };
 
 Point operator*(float k, const Point &p);

@@ -20,6 +20,10 @@ public:
     return BaseStateVars(position_ * factor, yaw_ * factor);
   }
 
+  float DistanceFrom(const BaseStateVars &state) const {
+    return (position() - state.position()).norm();
+  }
+
 private:
   Point position_;
   float yaw_;

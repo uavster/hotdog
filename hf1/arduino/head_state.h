@@ -3,6 +3,7 @@
 
 #include "state.h"
 #include "point.h"
+#include <math.h>
 
 class HeadStateVars {
 public:
@@ -18,6 +19,12 @@ public:
 
   HeadStateVars operator*(float factor) const {
     return HeadStateVars(pitch_ * factor, roll_ * factor);
+  }
+
+  float DistanceFrom(const HeadStateVars &state) const {
+    const float pitch_diff = pitch() - state.pitch();
+    const float pitch_roll = roll() - state.roll();
+    return sqrtf(pitch_diff * pitch_diff + pitch_roll * pitch_roll);
   }
 
 private:
