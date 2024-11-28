@@ -28,3 +28,7 @@ float Point::norm() const {
 Point operator*(float k, const Point &p) { 
   return Point(k * p.x, k * p.y); 
 }
+
+float Point::DistanceFrom(const Point &p) const {
+  return ((*this) - p).norm();
+}
