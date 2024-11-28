@@ -1,5 +1,3 @@
-#include <math.h>
-
 namespace {
 
 static int compare_seconds(const void *a, const void *b) {
@@ -57,7 +55,7 @@ Waypoint<TState> TrajectoryView<TState>::GetPeriodicWaypoint(int index) const {
   // will be the average time between waypoints.
   if (loop_after_seconds_ < 0) {
     const TimerSecondsType waypoints_duration = waypoints_[num_waypoints_ - 1].seconds() - waypoints_[0].seconds();
-    lap_duration += waypoints_duration / num_waypoints_;
+    lap_duration += waypoints_duration / (num_waypoints_ - 1);
   }
   const int num_completed_laps = index / num_waypoints_;
   const auto normalized_index = IndexMod(index, num_waypoints_);
@@ -70,12 +68,12 @@ template<typename TState>
 Waypoint<TState> TrajectoryView<TState>::GetWaypoint(int index) const {
   switch (interpolation_config_.type) {
     case kNone:
-      return waypoints_[index];
+      return GetPeriodicWaypoint(index);
     case kLinear:
       {
         const int num_lap_waypoints = IsLoopingEnabled() ? num_waypoints_ : num_waypoints_ - 1;
-        const float remapped_index = (index * num_lap_waypoints) / static_cast<float>(interpolation_config_.num_sampling_points);
-        const int i1 = floorf(remapped_index);
+        const float remapped_index = (index * num_lap_waypoints) / (static_cast<float>(interpolation_config_.num_sampling_points) - 1);
+        const int i1 = static_cast<int>(remapped_index);
         const int i2 = i1 + 1;
         const float t = remapped_index - i1;
         return GetPeriodicWaypoint(i1) * (1 - t) + GetPeriodicWaypoint(i2) * t;
@@ -83,22 +81,34 @@ Waypoint<TState> TrajectoryView<TState>::GetWaypoint(int index) const {
     case kCubic:
       {
         const int num_lap_waypoints = IsLoopingEnabled() ? num_waypoints_ : num_waypoints_ - 1;
-        const float remapped_index = (index * num_lap_waypoints) / static_cast<float>(interpolation_config_.num_sampling_points);
-        const int i1 = static_cast<int>(floorf(remapped_index));
-        ASSERT(i1 >= 0 && i1 < num_waypoints_);
-        const Waypoint<TState> &w1 = waypoints_[i1];
-
-        if (IsLoopingEnabled()) {
-          // TODO: w0 should be in the w1<-w2 direction on the first lap
-          const Waypoint<TState> &w0 = waypoints_[IndexMod(i1 - 1, num_waypoints_)];
-          const Waypoint<TState> &w2 = waypoints_[IndexMod(i1 + 1, num_waypoints_)];
-          const Waypoint<TState> &w3 = waypoints_[IndexMod(i1 + 2, num_waypoints_)];
-          const float t = remapped_index - i1;
-          return CentripetalCatmullRom(w0, w1, w2, w3, t);
+        const float remapped_index = (index * num_lap_waypoints) / (static_cast<float>(interpolation_config_.num_sampling_points) - 1);
+        const int i1 = static_cast<int>(remapped_index);
+        Waypoint<TState> w1 = GetPeriodicWaypoint(i1);
+        Waypoint<TState> w2 = GetPeriodicWaypoint(i1 + 1);
+        Waypoint<TState> w0;
+        Waypoint<TState> w3;
+        const int i0 = i1 - 1;
+        const int i3 = i1 + 2;
+        const float t = remapped_index - i1;
+        
+        if (i0 >= 0) {
+          w0 = GetPeriodicWaypoint(i0);
         } else {
-          // TODO: complete this.
-          return waypoints_[index];
+          // First lap: the previous waypoint is on the line passing over the first two
+          // waypoints, before them.
+          w0 = Waypoint<TState>(w1.seconds() - 3 * (w2.seconds() - w1.seconds()), w1.state() + (w1.state() - w2.state()) * 3);
         }
+
+        if (IsLoopingEnabled() || i3 < num_waypoints_) {
+          // If trajectory loops, all waypoints repeat cyclically.
+          w3 = GetPeriodicWaypoint(i3);
+        } else {
+          // Last lap: last waypoint is on the line passing over the last two waypoints, 
+          // after them.
+          w3 = Waypoint<TState>(w2.seconds() + 3 * (w2.seconds() - w1.seconds()), w2.state() + (w2.state() - w1.state()) * 3);
+        }
+
+        return CentripetalCatmullRom(w0, w1, w2, w3, t);
       }
   }
 }
@@ -163,7 +173,7 @@ template<typename TState>
 StatusOr<int> TrajectoryView<TState>::FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index) const {
   if (num_waypoints_ == 0 || seconds < this->seconds(0)) { return Status::kUnavailableError; }
   int i = prev_result_index;
-  while ((IsLoopingEnabled() || i < NumWaypoints()) && this->seconds(i) < seconds) { ++i; }
+  while (this->seconds(i) < seconds) { ++i; }
   return i - 1;
 }
 

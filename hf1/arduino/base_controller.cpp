@@ -113,15 +113,11 @@ BaseTrajectoryController::BaseTrajectoryController(BaseSpeedController *base_spe
   base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)) {}
 
 void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int current_waypoint_index) {
-  Serial.println("---");
-  Serial.printf("%f: %f, %f\n", trajectory().seconds(current_waypoint_index), trajectory().state(current_waypoint_index).location().position().x, trajectory().state(current_waypoint_index).location().position().y);
   // Get reference states.
   TimerSecondsType time_fraction = (seconds_since_start - trajectory().seconds(current_waypoint_index)) / (trajectory().seconds(current_waypoint_index + 1) - trajectory().seconds(current_waypoint_index));
-  const State ref_position = trajectory().state(current_waypoint_index) + time_fraction * (trajectory().state(current_waypoint_index + 1) - trajectory().state(current_waypoint_index));
-  const State first_derivative_at_index = trajectory().derivative(/*order=*/1, current_waypoint_index);
-  const State ref_velocity = first_derivative_at_index + time_fraction * (trajectory().derivative(/*order=*/1, current_waypoint_index + 1) - first_derivative_at_index);
-  const State second_derivative_at_index = trajectory().derivative(/*order=*/2, current_waypoint_index);
-  const State ref_acceleration = second_derivative_at_index + time_fraction * (trajectory().derivative(/*order=*/2, current_waypoint_index + 1) - second_derivative_at_index);
+  const State ref_position = trajectory().state(current_waypoint_index) * (1 - time_fraction) + trajectory().state(current_waypoint_index + 1) * time_fraction;
+  const State ref_velocity = trajectory().derivative(/*order=*/1, current_waypoint_index) * (1 - time_fraction) + trajectory().derivative(/*order=*/1, current_waypoint_index + 1) * time_fraction;
+  const State ref_acceleration = trajectory().derivative(/*order=*/2, current_waypoint_index) * (1 - time_fraction) + trajectory().derivative(/*order=*/2, current_waypoint_index + 1) * time_fraction;
   const float ref_yaw = atan2f(ref_velocity.location().position().y, ref_velocity.location().position().x);
 
   // Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory().seconds(current_waypoint_index), trajectory().seconds(current_waypoint_index+1), ref_position.location().position().x, ref_position.location().position().y, ref_velocity.location().position().x, ref_velocity.location().position().y, ref_acceleration.location().position().x, ref_acceleration.location().position().y);

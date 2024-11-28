@@ -3,7 +3,7 @@
 
 #include "status_or.h"
 
-// Defines a state of the robot at a given time. 
+// Defines a state at a given time.
 template<typename TState>
 class Waypoint {
 public:
@@ -81,6 +81,7 @@ public:
 
   TrajectoryView &EnableInterpolation(const InterpolationConfig &config);
   TrajectoryView &DisableInterpolation();
+  const InterpolationConfig &interpolation_config() const { return interpolation_config_; }
 
   StatusOr<int> FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index = 0) const;
 

@@ -79,22 +79,28 @@ using BaseWaypoint = Waypoint<BaseTargetState>;
 using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
 
 // Controller commanding the base speed controller to move the robot's base over a sequence
-// of waypoints. It tries to reach each waypoint at the waypoint's time. 
+// of waypoints.
 // 
-// The base will not drive over a waypoint if it was not able to reach it on time. A far away 
-// waypoint with a time very near to the previous waypoint's time will not be reachable, 
-// either because the robot's maximum speed is insufficient, or because the time between 
-// waypoints is under the controller's sampling period (0.1 seconds).
+// The feedforward and feedback terms are taken from:
+// R. L. S. Sousa, M. D. do Nascimento Forte, F. G. Nogueira, B. C. Torrico, 
+// “Trajectory tracking control of a nonholonomic mobile robot with differential drive”, 
+// in Proc. IEEE Biennial Congress of Argentina (ARGENCON), pp. 1–6, 2016.
+//
+// The position, velocity and acceleration references are linearly interpolated from the
+// current and next target waypoints by looking ahead in the trajectory. This reduces the
+// tracking error due to the base's maximum dynamics (see base class' documentation for more
+// information).
+//
+// The base will not drive over a waypoint if it was not able to reach it on time. A far 
+// waypoint's state with a time very near to the previous waypoint's time will not be 
+// reachable, either because the robot's maximum acceleration and speed are insufficient, 
+// or because the time between waypoints is under the controller's sampling period (0.1 
+// seconds).
 //
 // Also, any obstacle and driving hurdle or error can result in not reaching a waypoint in 
 // time. When the waypoint's time constraint cannot be met and the waypoint is the last one 
 // in the trajectory, the robot will stop. But if the waypoint is not the last one, the 
 // robot will skip to the next one.
-// 
-// This controller is based on:
-// R. L. S. Sousa, M. D. do Nascimento Forte, F. G. Nogueira, B. C. Torrico, 
-// “Trajectory tracking control of a nonholonomic mobile robot with differential drive”, 
-// in Proc. IEEE Biennial Congress of Argentina (ARGENCON), pp. 1–6, 2016.
 class BaseTrajectoryController : public TrajectoryController<BaseTrajectoryView> {
 public:
   BaseTrajectoryController(BaseSpeedController *base_speed_controller);
