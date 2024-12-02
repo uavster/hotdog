@@ -4,6 +4,7 @@
 #include "encoders.h"
 #include "body_imu.h"
 #include "base_state_filter.h"
+#include "logger_interface.h"
 
 #define kEventRingBufferCapacity 16
 
@@ -46,7 +47,7 @@ static void RightEncoderIsr(TimerTicksType timer_ticks) {
 void InitRobotStateEstimator() {
   AddEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
 
-  Serial.println("Initializing body IMU...");
+  LOG_INFO("Initializing body IMU...");
   body_imu.Init();
 }
 

@@ -56,33 +56,33 @@ void setup() {
   // Serial starts working after some time. Wait, so we don't miss any log.
   while(GetTimerNanoseconds() < 3000000000ULL) {}
 
-  Serial.println("Initialized debugging serial port and timing modules.");
+  LOG_INFO("Initialized debugging serial port and timing modules.");
 
-  Serial.println("Initializing encoders...");
+  LOG_INFO("Initializing encoders...");
   InitEncoders();
   
-  Serial.println("Initializing wheel speed estimator...");
+  LOG_INFO("Initializing wheel speed estimator...");
   InitWheelSpeedControl();
 
-  Serial.println("Initializing robot state estimator...");
+  LOG_INFO("Initializing robot state estimator...");
   InitRobotStateEstimator();
 
-  Serial.println("Initializing inter-board communications...");
+  LOG_INFO("Initializing inter-board communications...");
   Serial1.begin(1000000, SERIAL_8N1);
 
-  Serial.println("Initializing motors...");
+  LOG_INFO("Initializing motors...");
   InitMotors();
 
-  Serial.println("Initializing servos...");
+  LOG_INFO("Initializing servos...");
   InitServos();
 
-  Serial.println("Register actions in action server...");
+  LOG_INFO("Register actions in action server...");
   p2p_action_server.Register(&sync_time_action_handler);
   p2p_action_server.Register(&set_head_pose_action_handler);
   p2p_action_server.Register(&set_base_velocity_action_handler);
   p2p_action_server.Register(&monitor_base_state_action_handler);
 
-  Serial.println("Ready.");
+  LOG_INFO("Ready.");
 
   // base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI / 4, 0.3, 0);  
   // base_speed_controller.SetTargetSpeeds(0.1, 10 * M_PI);
