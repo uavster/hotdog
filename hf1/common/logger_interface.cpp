@@ -35,7 +35,7 @@ void DefaultLogger::Fatal(const char *expr, const char *file_name, int line, con
   if (msg != nullptr) {
     printf(":\n%s", msg);
   }
-  Serial.printf("\n");
+  printf("\n");
   exit(1);
 #endif    
 }
