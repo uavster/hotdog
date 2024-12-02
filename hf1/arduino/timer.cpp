@@ -1,7 +1,7 @@
 #include "kinetis.h"
 #include "wiring.h"
 #include "timer.h"
-#include <DebugLog.h>
+#include "logger_interface.h"
 
 #define kMaxIsrs 4
 

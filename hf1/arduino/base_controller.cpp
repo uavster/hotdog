@@ -32,22 +32,22 @@ void BaseSpeedController::SetTargetSpeeds(const float linear, const float angula
   target_speed_linear_ = linear;
   target_speed_angular_ = angular;
   if (linear >= 0) {
-    target_speed_linear_ = min(target_speed_linear_, left_wheel_.GetMaxLinearSpeed());
+    target_speed_linear_ = std::min(target_speed_linear_, left_wheel_.GetMaxLinearSpeed());
     if (angular >= 0) {
       const float angular_max = 2 * (left_wheel_.GetMaxLinearSpeed() - target_speed_linear_) / kRobotDistanceBetweenTireCenters;
-      target_speed_angular_ = min(angular_max, target_speed_angular_);
+      target_speed_angular_ = std::min(angular_max, target_speed_angular_);
     } else {
       const float angular_min = -2 * (left_wheel_.GetMaxLinearSpeed() - target_speed_linear_) / kRobotDistanceBetweenTireCenters;
-      target_speed_angular_ = max(angular_min, target_speed_angular_);
+      target_speed_angular_ = std::max(angular_min, target_speed_angular_);
     }
   } else {
-    target_speed_linear_ = max(target_speed_linear_, left_wheel_.GetMinLinearSpeed());
+    target_speed_linear_ = std::max(target_speed_linear_, left_wheel_.GetMinLinearSpeed());
     if (angular >= 0) {
       const float angular_max = -2 * (left_wheel_.GetMinLinearSpeed() - target_speed_linear_) / kRobotDistanceBetweenTireCenters;
-      target_speed_angular_ = min(angular_max, target_speed_angular_);
+      target_speed_angular_ = std::min(angular_max, target_speed_angular_);
     } else {
       const float angular_min = 2 * (left_wheel_.GetMinLinearSpeed() - target_speed_linear_) / kRobotDistanceBetweenTireCenters;
-      target_speed_angular_ = max(angular_min, target_speed_angular_);
+      target_speed_angular_ = std::max(angular_min, target_speed_angular_);
     }
   }
   if (angular != target_speed_angular_) {

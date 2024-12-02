@@ -7,7 +7,6 @@
 #include <math.h>
 
 #ifdef ARDUINO
-#include <DebugLog.h>
 
 template<typename ParamType> class EndOfScopeExecutor {
 public:

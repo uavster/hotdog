@@ -1,6 +1,7 @@
 #include "monitor_base_state_action_handler.h"
 #include "robot_state_estimator.h"
 #include "timer.h"
+#include "logger_interface.h"
 
 // Throttling rate in maximum number of packets per second.
 // This is important to let other packets be sent when IMU polling
@@ -13,7 +14,9 @@ bool MonitorBaseStateActionHandler::Run() {
       const P2PMonitorBaseStateRequest &request = GetRequest();
       num_remaining_messages_ = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.max_updates));
       
-      Serial.printf("monitor_base_state(max_updates=%d)\n", num_remaining_messages_);
+      char str[48];
+      sprintf(str, "monitor_base_state(max_updates=%d)", num_remaining_messages_);
+      LOG_INFO(str);
       if (num_remaining_messages_ == 1) {
         if (TrySendingReply()) { 
           --num_remaining_messages_;

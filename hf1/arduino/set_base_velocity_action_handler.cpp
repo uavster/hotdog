@@ -22,7 +22,6 @@ bool SetBaseVelocityActionHandler::Run() {
   float right_duty = right_angular;
   right_duty = std::clamp(right_duty, -1.0f, 1.0f);
 
-  Serial.printf("l:%f a:%f lw:%f rw:%f\n", linear_speed, angular_speed, left_duty, right_duty);
   SetLeftMotorDutyCycle(left_duty);
   SetRightMotorDutyCycle(right_duty);
   // base_speed_controller_.left_wheel_speed_controller().SetAngularSpeed(linear_speed - angular_speed);

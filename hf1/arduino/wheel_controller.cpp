@@ -127,7 +127,7 @@ void WheelSpeedController::Update(TimerSecondsType now_seconds) {
 
   // Ramp up or down the speed target.
   const float current_target = initial_target_speed_ + seconds_since_start * target_speed_slope_;
-  pid_.target(target_speed_ >= 0 ? min(target_speed_, current_target) : max(target_speed_, current_target));
+  pid_.target(target_speed_ >= 0 ? std::min(target_speed_, current_target) : std::max(target_speed_, current_target));
   
   // Estimate wheel turn direction.
   // Assume the wheel is turning in the commanded direction because we cannot sense it.

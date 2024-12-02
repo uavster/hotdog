@@ -1,5 +1,6 @@
 #include "encoders.h"
 #include "timer.h"
+#include "logger_interface.h"
 
 #include <Arduino.h>
 

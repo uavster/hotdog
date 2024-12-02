@@ -1,3 +1,5 @@
+#include "logger_interface.h"
+
 namespace {
 
 static int compare_seconds(const void *a, const void *b) {
@@ -111,6 +113,7 @@ Waypoint<TState> TrajectoryView<TState>::GetWaypoint(int index) const {
         return CentripetalCatmullRom(w0, w1, w2, w3, t);
       }
   }
+  return Waypoint<TState>();  // Avoid compiler warning.
 }
 
 template<typename TState>

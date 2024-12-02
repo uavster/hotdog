@@ -1,5 +1,6 @@
 #include "sync_time_action_handler.h"
 #include <kinetis.h>
+#include <Arduino.h>
 
 #define kTimeSyncServerInputPin 8 
 
@@ -55,9 +56,11 @@ bool SyncTimeActionHandler::OnRequest() {
   uint64_t last_edge_detect_remote_timestamp_ns = NetworkToLocal<kP2PLocalEndianness>(time_sync_request.sync_edge_local_timestamp_ns);
   if (last_edge_detect_remote_timestamp_ns > last_edge_detect_local_timestamp_ns_) {
       system_timer_.global_offset_nanoseconds() = last_edge_detect_remote_timestamp_ns - last_edge_detect_local_timestamp_ns_;
-      char tmp[32];
+      char tmp[24];
       Uint64ToString(system_timer_.global_offset_nanoseconds(), tmp);
-      Serial.printf("Global timer +%s ns\n", tmp);
+      char str[48];
+      sprintf(str, "Global timer +%s ns", tmp);
+      LOG_INFO(str);
   }
   return true;
 }

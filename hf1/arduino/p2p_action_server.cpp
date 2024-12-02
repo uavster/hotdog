@@ -1,6 +1,7 @@
 #include "p2p_action_server.h"
 #include "utils.h"
 #include "logger_interface.h"
+#include <cstring>
 
 P2PActionServer::P2PActionServer(P2PPacketStreamArduino *p2p_stream)
   : p2p_stream_(*ASSERT_NOT_NULL(p2p_stream)) {
