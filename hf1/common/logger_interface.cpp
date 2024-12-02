@@ -24,16 +24,18 @@ LoggerInterface *GetLogger() {
 
 void DefaultLogger::Fatal(const char *expr, const char *file_name, int line, const char *msg) {
 #ifdef ARDUINO
-  Serial.printf("%s is false at line %d of file %s", expr, line, file_name);
+  Serial.printf("[FATAL] %s:%d: %s is false", file_name, line, expr);
   if (msg != nullptr) {
-    Serial.printf(":\n%s\n", msg);
+    Serial.printf(":\n%s", msg);
   }
+  Serial.printf("\n");
   for (;;) {}
 #else
-  printf("%s is false at line %d of file %s", expr, line, file_name);
+  printf("[FATAL] %s:%d: %s is false", file_name, line, expr);
   if (msg != nullptr) {
-    printf(":\n%s\n", msg);
+    printf(":\n%s", msg);
   }
+  Serial.printf("\n");
   exit(1);
 #endif    
 }
