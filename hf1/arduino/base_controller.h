@@ -6,6 +6,7 @@
 #include "timer.h"
 #include "trajectory.h"
 #include "controller.h"
+#include "modulated_trajectory.h"
 
 // Controller commanding the wheel speed controllers to achieve the desired forward and 
 // angular speeds of the robot's base.
@@ -78,6 +79,16 @@ using BaseWaypoint = Waypoint<BaseTargetState>;
 // view objects referencing them.
 using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
 
+class BaseModulatedTrajectoryView : public ModulatedTrajectoryView<BaseTargetState> {
+public:
+  BaseModulatedTrajectoryView() : ModulatedTrajectoryView<BaseTargetState>() {}
+  BaseModulatedTrajectoryView(const BaseTrajectoryView &carrier, const BaseTrajectoryView &modulator, const EnvelopeTrajectoryView &envelope)
+    : ModulatedTrajectoryView<BaseTargetState>(carrier, modulator, envelope) {}
+  // Returns the waypoint at the given index, after applying interpolation.
+  BaseWaypoint GetWaypoint(int index) const override;
+};
+
+
 // Controller commanding the base speed controller to move the robot's base over a sequence
 // of waypoints.
 // 
@@ -101,7 +112,7 @@ using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
 // time. When the waypoint's time constraint cannot be met and the waypoint is the last one 
 // in the trajectory, the robot will stop. But if the waypoint is not the last one, the 
 // robot will skip to the next one.
-class BaseTrajectoryController : public TrajectoryController<BaseTrajectoryView> {
+class BaseTrajectoryController : public TrajectoryController<BaseModulatedTrajectoryView> {
 public:
   BaseTrajectoryController(BaseSpeedController *base_speed_controller);
 

@@ -39,14 +39,34 @@ private:
 typedef enum { kNone, kLinear, kCubic } InterpolationType;
 typedef struct {
   InterpolationType type;
-  int num_sampling_points;
+  TimerSecondsType sampling_period_seconds;
 } InterpolationConfig;
+
+// Base class of trajectories passed to descendants of TrajectoryController.
+template<typename TState>
+class TrajectoryViewInterface {
+public:
+  // Returns the number of waypoints in the trajectory, after applying interpolation.
+  virtual int NumWaypoints() const = 0;
+
+  // Returns the waypoint at the given index, after applying interpolation.
+  virtual Waypoint<TState> GetWaypoint(int index) const = 0;
+
+  // Returns true if the trajectory is set to restart from the beginning some time after
+  // reaching the end.
+  virtual bool IsLoopingEnabled() const = 0;
+
+  float seconds(int index) const;
+  TState state(int index) const;
+  TState derivative(int order, int index) const;
+  int FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index = 0) const;
+};
 
 // A view to a collection of waypoints.
 // The view does not own the memory containing the waypoints, so they must outlive any 
 // view objects referencing them.
 template<typename TState>
-class TrajectoryView {
+class TrajectoryView : public TrajectoryViewInterface<TState> {
 public:
   TrajectoryView() : num_waypoints_(0), waypoints_(NULL), loop_after_seconds_(-1) {}
 
@@ -59,12 +79,12 @@ public:
   // Returns the number of waypoints in the trajectory, after applying interpolation.
   // If interpolation is enabled, this won't match the number of waypoints passed to the
   // constructor. The valid range is then [0, num_sampling_points).
-  int NumWaypoints() const;
+  int NumWaypoints() const override;
 
   // Returns the waypoint at the given index, after applying interpolation.
   // If interpolation is enabled, the valid index range is [0, num_sampling_points).
   // Otherwise, it is [0, num_waypoints];
-  Waypoint<TState> GetWaypoint(int index) const;
+  Waypoint<TState> GetWaypoint(int index) const override;
 
   // Returns the duration of one trajectory lap. 
   // If no looping is enabled, this is the time between the first and last waypoints.
@@ -76,18 +96,12 @@ public:
   // waypoint to the first one.
   TrajectoryView &EnableLooping(TimerSecondsType after_seconds);
   TrajectoryView &DisableLooping();
-  bool IsLoopingEnabled() const;
+  bool IsLoopingEnabled() const override;
   StatusOr<TimerSecondsType> SecondsBetweenLoops() const;
 
   TrajectoryView &EnableInterpolation(const InterpolationConfig &config);
   TrajectoryView &DisableInterpolation();
   const InterpolationConfig &interpolation_config() const { return interpolation_config_; }
-
-  StatusOr<int> FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index = 0) const;
-
-  TState state(int index) const;
-  TState derivative(int order, int index) const;
-  float seconds(int index) const;
 
 private:
   // Returns the waypoint without interpolation for the given index, assuming a periodic
