@@ -10,8 +10,9 @@
 #include "timer_arduino.h"
 #include "guid_factory.h"
 #include "logger.h"
-#include "robot_state_estimator.h"
+#include "wheel_state_estimator.h"
 #include "wheel_controller.h"
+#include "robot_state_estimator.h"
 #include "base_controller.h"
 #include "p2p_packet_stream_arduino.h"
 #include "p2p_action_server.h"
@@ -23,7 +24,7 @@
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
 // This should be the minium period of all control loops.
-#define kMaxRxTxLoopBlockingDurationNs 10'000'000
+#define kMaxRxTxLoopBlockingDurationNs 5'000'000
 
 Logger logger;
 
@@ -32,8 +33,9 @@ TimerArduino timer;
 GUIDFactory guid_factory;
 P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
 
-WheelSpeedController left_wheel(&GetLeftWheelTickCount, &SetLeftMotorDutyCycle);
-WheelSpeedController right_wheel(&GetRightWheelTickCount, &SetRightMotorDutyCycle);
+WheelStateEstimator wheel_state_estimator;
+WheelSpeedController left_wheel(&wheel_state_estimator.left_wheel_state_filter(), &SetLeftMotorDutyCycle);
+WheelSpeedController right_wheel(&wheel_state_estimator.right_wheel_state_filter(), &SetRightMotorDutyCycle);
 BaseSpeedController base_speed_controller(&left_wheel, &right_wheel);
 BaseTrajectoryController base_trajectory_controller(&base_speed_controller);
 
@@ -62,7 +64,7 @@ void setup() {
   InitEncoders();
   
   LOG_INFO("Initializing wheel speed estimator...");
-  InitWheelSpeedControl();
+  WheelStateEstimator::Init();
 
   LOG_INFO("Initializing robot state estimator...");
   InitRobotStateEstimator();
@@ -118,6 +120,7 @@ void setup() {
 }
 
 void loop() {
+  wheel_state_estimator.Run();
   RunRobotStateEstimator();
 
   base_trajectory_controller.Run();

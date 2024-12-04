@@ -7,17 +7,17 @@
 #include "robot_state_estimator.h"
 
 #define kBaseStateControllerLoopPeriod 0.33  // [s]
-#define kBaseTrajectoryControllerLoopPeriod 0.1 // [s]
+#define kBaseTrajectoryControllerLoopPeriod 0.02 // [s]
 
 #define kKx 3.0   // [1/s]
 #define kKy 64.0 // [1/m^2]
 #define kKyaw 32.0    // [1/m]
 
 #define kBaseTrajectoryControllerK1 0.8
-#define kBaseTrajectoryControllerK2 3.0*3
+#define kBaseTrajectoryControllerK2 3.0
 #define kBaseTrajectoryControllerK3 0.8
 
-#define kBaseTrajectoryTangentialSpeedMax 0.4
+#define kBaseTrajectoryTangentialSpeedMax 0.5
 #define kBaseTrajectoryAngularSpeedMax (2*M_PI/3)
 
 #define kMaxPositionErrorForAtState 0.15 // [m]
