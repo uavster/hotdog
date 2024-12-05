@@ -1,3 +1,4 @@
+// #include <Arduino.h>
 #include <limits>
 #include "wheel_controller.h"
 #include "robot_model.h"
@@ -5,21 +6,15 @@
 #include "logger_interface.h"
 #include <algorithm>
 
-#define kControlLoopPeriodSeconds 1e-2
+#define kControlLoopPeriodSeconds 0.005
 
 #define kSpeedModelTimeConstant 0.29
 #define kSpeedModelDutyCycleOffset -0.99
 #define kSpeedModelFactor 0.041
 #define kSpeedModelSpeedOffset 0.66
 
-// Only update the average speed estimate after this time period to ensure it is stable.
-// Outer control loops must not change the target speed faster than this period, or the
-// speed will never get re-estimated.
-#define kSpeedMeasureUpdateStartSeconds 0.05
-
-// Best params at 0.3 m/s forward.
-#define kP 3.0
-#define kI 4.0
+#define kP 1.0
+#define kI 2.0
 #define kD 0.0
 
 // This is meant to prevent large target speed steps from creating large wheel accelerations
@@ -33,45 +28,14 @@
 #define kPWMDutyCycleMin 0.0f
 #define kPWMDutyCycleMax 1.0f
 
-int32_t left_wheel_num_ticks;
-int32_t right_wheel_num_ticks;
-
-static void LeftEncoderIsr(TimerTicksType timer_ticks) {
-  ++left_wheel_num_ticks;
-}
-
-static void RightEncoderIsr(TimerTicksType timer_ticks) {
-  ++right_wheel_num_ticks;
-}
-
-void InitWheelSpeedControl() {
-  left_wheel_num_ticks = 0;
-  right_wheel_num_ticks = 0;
-  AddEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
-}
-
-int32_t GetLeftWheelTickCount() {
-  NO_ENCODER_IRQ {
-    return left_wheel_num_ticks;
-  }
-  return 0;
-}
-
-int32_t GetRightWheelTickCount() {
-  NO_ENCODER_IRQ {
-    return right_wheel_num_ticks;
-  }
-  return 0;
-}
 
 WheelSpeedController::WheelSpeedController(
-  WheelTickCountGetter* const wheel_tick_count_getter,
+  const WheelStateFilter* const wheel_state_filter,
   DutyCycleSetter* const duty_cycle_setter)
   : Controller(kControlLoopPeriodSeconds),
-    wheel_tick_count_getter_(*ASSERT_NOT_NULL(wheel_tick_count_getter)),
+    wheel_state_filter_(*ASSERT_NOT_NULL(wheel_state_filter)),
     duty_cycle_setter_(*ASSERT_NOT_NULL(duty_cycle_setter)),
     last_run_seconds_(-1),
-    average_wheel_speed_(0),
     is_turning_forward_(true),
     target_speed_(0),
     initial_target_speed_(0),
@@ -108,7 +72,6 @@ float WheelSpeedController::DutyCycleFromLinearSpeed(float meters_per_second) co
 
 void WheelSpeedController::SetLinearSpeed(float meters_per_second) {
   time_start_ = GetTimerSeconds();
-  num_wheel_ticks_start_ = wheel_tick_count_getter_();
   target_speed_ = meters_per_second;
   initial_target_speed_ = pid_.target();
   const float ramp_extra_seconds = meters_per_second >= 0 ? kSpeedTargetRampExtraSecondsPerUnitSpeedIncrement : kSpeedTargetRampExtraSecondsPerUnitSpeedIncrementReverse;
@@ -129,6 +92,8 @@ void WheelSpeedController::Update(TimerSecondsType now_seconds) {
   const float current_target = initial_target_speed_ + seconds_since_start * target_speed_slope_;
   pid_.target(target_speed_ >= 0 ? std::min(target_speed_, current_target) : std::max(target_speed_, current_target));
   
+  auto wheel_speed = wheel_state_filter_.state().speed();
+
   // Estimate wheel turn direction.
   // Assume the wheel is turning in the commanded direction because we cannot sense it.
   // If the target is zero, it does not work as proxy of the speed sign, so infer the
@@ -138,30 +103,12 @@ void WheelSpeedController::Update(TimerSecondsType now_seconds) {
   bool is_turning_forward = pid_.target() > 0 || (pid_.target() == 0 && pid_.output() >= 0);
   if (is_turning_forward != is_turning_forward_) {
     // The turn direction changed: reset the speed estimation.
-    average_wheel_speed_ = 0;
+    wheel_speed = 0;
   }
   is_turning_forward_ = is_turning_forward;
 
-  // Estimate wheel speed.
-  int num_encoder_ticks = wheel_tick_count_getter_() - num_wheel_ticks_start_;
-  if (num_encoder_ticks > 0) {
-    // Only update the speed estimate if got any encoder ticks since the last change of
-    // target speed. Otherwise, we'd get 0 after every change and the consequent control
-    // peak.
-    if (seconds_since_start > kSpeedMeasureUpdateStartSeconds) {
-      // Only update the speed estimate after some time to ensure that it is stable.
-      // Otherwise, we get artificial peaks in the control action.
-      float cur_avg_speed = kWheelRadius * kRadiansPerWheelTick * num_encoder_ticks / seconds_since_start;
-      if (!is_turning_forward_) {
-        // Assume the wheel is turning in the commanded direction because we cannot sense it.
-        cur_avg_speed = -cur_avg_speed;
-      }
-      average_wheel_speed_ = cur_avg_speed;
-    }
-  }
-
   // Update duty cycle with the speed estimate.
-  const float pid_output = pid_.update(average_wheel_speed_);
+  const float pid_output = pid_.update(is_turning_forward_ ? wheel_speed : -wheel_speed);
   float speed_command = pid_.target() + pid_output;
   if ((is_turning_forward && speed_command < 0) || (!is_turning_forward && speed_command > 0)) {
     // Avoid speed commands opposite to the driving direction as that can make the wheel

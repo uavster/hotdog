@@ -10,8 +10,9 @@
 #include "timer_arduino.h"
 #include "guid_factory.h"
 #include "logger.h"
-#include "robot_state_estimator.h"
+#include "wheel_state_estimator.h"
 #include "wheel_controller.h"
+#include "robot_state_estimator.h"
 #include "base_controller.h"
 #include "p2p_packet_stream_arduino.h"
 #include "p2p_action_server.h"
@@ -23,7 +24,7 @@
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
 // This should be the minium period of all control loops.
-#define kMaxRxTxLoopBlockingDurationNs 10'000'000
+#define kMaxRxTxLoopBlockingDurationNs 5'000'000
 
 Logger logger;
 
@@ -32,8 +33,9 @@ TimerArduino timer;
 GUIDFactory guid_factory;
 P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
 
-WheelSpeedController left_wheel(&GetLeftWheelTickCount, &SetLeftMotorDutyCycle);
-WheelSpeedController right_wheel(&GetRightWheelTickCount, &SetRightMotorDutyCycle);
+WheelStateEstimator wheel_state_estimator;
+WheelSpeedController left_wheel(&wheel_state_estimator.left_wheel_state_filter(), &SetLeftMotorDutyCycle);
+WheelSpeedController right_wheel(&wheel_state_estimator.right_wheel_state_filter(), &SetRightMotorDutyCycle);
 BaseSpeedController base_speed_controller(&left_wheel, &right_wheel);
 BaseTrajectoryController base_trajectory_controller(&base_speed_controller);
 
@@ -62,7 +64,7 @@ void setup() {
   InitEncoders();
   
   LOG_INFO("Initializing wheel speed estimator...");
-  InitWheelSpeedControl();
+  WheelStateEstimator::Init();
 
   LOG_INFO("Initializing robot state estimator...");
   InitRobotStateEstimator();
@@ -96,27 +98,29 @@ void setup() {
   //   waypoints[i+3*points_per_segment] = BaseWaypoint((i+3*points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(0, -1+0.1*i), 0) }));
   // }
 
-  // const int num_waypoints = sizeof(waypoints) / sizeof(waypoints[0]);
-  // const float total_trajectory_seconds = 20.0;
-  // for (int i = 0; i < num_waypoints; ++i) {
-  //   const float t = i * total_trajectory_seconds / num_waypoints;
-  //   const float w = 2 * M_PI / total_trajectory_seconds;
-  //   const float x = sin(w * t);
-  //   const float y = -1 + cos(w * t);
-  //   waypoints[i] = BaseWaypoint(t, BaseTargetState({ BaseStateVars(Point(x, y), 0) }));
-  // }
+  const int num_waypoints = sizeof(waypoints) / sizeof(waypoints[0]);
+  const float total_trajectory_seconds = 20.0;
+  for (int i = 0; i < num_waypoints; ++i) {
+    const float t = i * total_trajectory_seconds / num_waypoints;
+    const float w = 2 * M_PI / total_trajectory_seconds;
+    const float x = sin(w * t);
+    const float y = -1 + cos(w * t);
+    waypoints[i] = BaseWaypoint(t, BaseTargetState({ BaseStateVars(Point(x, y), 0) }));
+  }
+  base_trajectory_controller.trajectory(BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/total_trajectory_seconds / num_waypoints).EnableInterpolation({ .type = InterpolationType::kLinear, .num_sampling_points = 40 }));
 
-  const int num_waypoints = 4;
-  waypoints[0] = BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) }));
-  waypoints[1] = BaseWaypoint(3, BaseTargetState({ BaseStateVars(Point(1, 0), 0) }));
-  waypoints[2] = BaseWaypoint(6, BaseTargetState({ BaseStateVars(Point(1, -1), 0) }));
-  waypoints[3] = BaseWaypoint(9, BaseTargetState({ BaseStateVars(Point(0, -1), 0) }));
-  base_trajectory_controller.trajectory(BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/3.0).EnableInterpolation({ .type = InterpolationType::kLinear, .num_sampling_points = 40 }));
+  // const int num_waypoints = 4;
+  // waypoints[0] = BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) }));
+  // waypoints[1] = BaseWaypoint(3, BaseTargetState({ BaseStateVars(Point(1, 0), 0) }));
+  // waypoints[2] = BaseWaypoint(6, BaseTargetState({ BaseStateVars(Point(1, -1), 0) }));
+  // waypoints[3] = BaseWaypoint(9, BaseTargetState({ BaseStateVars(Point(0, -1), 0) }));
+  // base_trajectory_controller.trajectory(BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/3.0).EnableInterpolation({ .type = InterpolationType::kLinear, .num_sampling_points = 40 }));
 
   base_trajectory_controller.StartTrajectory();
 }
 
 void loop() {
+  wheel_state_estimator.Run();
   RunRobotStateEstimator();
 
   base_trajectory_controller.Run();
