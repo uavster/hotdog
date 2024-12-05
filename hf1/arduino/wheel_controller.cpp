@@ -1,4 +1,4 @@
-// #include <Arduino.h>
+#include <Arduino.h>
 #include <limits>
 #include "wheel_controller.h"
 #include "robot_model.h"
@@ -30,9 +30,9 @@
 
 
 WheelSpeedController::WheelSpeedController(
-  const WheelStateFilter* const wheel_state_filter,
+  const char *name, const WheelStateFilter* const wheel_state_filter,
   DutyCycleSetter* const duty_cycle_setter)
-  : Controller(kControlLoopPeriodSeconds),
+  : Controller(name, kControlLoopPeriodSeconds),
     wheel_state_filter_(*ASSERT_NOT_NULL(wheel_state_filter)),
     duty_cycle_setter_(*ASSERT_NOT_NULL(duty_cycle_setter)),
     last_run_seconds_(-1),
@@ -117,6 +117,7 @@ void WheelSpeedController::Update(TimerSecondsType now_seconds) {
     speed_command = 0;
   }
   const float duty_cycle = DutyCycleFromLinearSpeed(speed_command);
+  // Serial.printf("sc:%f dc:%f\n", speed_command, duty_cycle);
   duty_cycle_setter_(duty_cycle);
 
   // Serial.printf("t:%f v:%f pid:%f c:%f d:%f\n", pid_.target(), average_wheel_speed_, pid_output, speed_command, duty_cycle);

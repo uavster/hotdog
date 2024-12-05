@@ -1,6 +1,10 @@
 #ifndef PERIODIC_RUNNABLE_
 #define PERIODIC_RUNNABLE_
 
+#define kEnableStats 0
+
+#define kMaxNameLength 32
+
 #include "timer.h"
 
 // When the Run() method is called in a busy loop, it calls the RunAfterPeriod() every
@@ -8,8 +12,8 @@
 class PeriodicRunnable {
 public:
   // Creates a periodic runnable with the given period.
-  PeriodicRunnable(TimerNanosType period_nanos); 
-  PeriodicRunnable(TimerSecondsType period_seconds);
+  PeriodicRunnable(const char *name, TimerNanosType period_nanos); 
+  PeriodicRunnable(const char *name, TimerSecondsType period_seconds);
 
   TimerNanosType period_nanos() const { return period_nanos_; }
 
@@ -25,9 +29,15 @@ protected:
   virtual void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) = 0;
 
 private:
+  char name_[kMaxNameLength];
   bool is_first_run_;
   const TimerNanosType period_nanos_;
   TimerNanosType last_call_nanos_;
+#if kEnableStats  
+  void PrintStats();
+  int last_num_runs_;
+  TimerNanosType last_stats_printed_ns_;
+#endif
 };
 
 #endif  // PERIODIC_RUNNABLE_

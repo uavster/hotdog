@@ -10,7 +10,7 @@
 // Controllers must subclass it and update controls in their overridden Update() function.
 class Controller : public PeriodicRunnable {
 public:
-  explicit Controller(float run_period_seconds);
+  explicit Controller(const char *name, float run_period_seconds);
 
 protected:
   virtual void Update(TimerSecondsType now_seconds) = 0;
@@ -42,7 +42,7 @@ private:
 template<typename TrajectoryViewType>
 class TrajectoryController : public Controller {
 public:
-  TrajectoryController(float run_period_seconds);
+  TrajectoryController(const char *name, float run_period_seconds);
   
   void trajectory(const TrajectoryViewType &trajectory);
   const TrajectoryViewType &trajectory() const { return trajectory_; }

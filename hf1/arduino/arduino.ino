@@ -33,11 +33,11 @@ TimerArduino timer;
 GUIDFactory guid_factory;
 P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
 
-WheelStateEstimator wheel_state_estimator;
-WheelSpeedController left_wheel(&wheel_state_estimator.left_wheel_state_filter(), &SetLeftMotorDutyCycle);
-WheelSpeedController right_wheel(&wheel_state_estimator.right_wheel_state_filter(), &SetRightMotorDutyCycle);
+WheelStateEstimator wheel_state_estimator("WheelStateEstimator");
+WheelSpeedController left_wheel("LeftWheelSpeedController", &wheel_state_estimator.left_wheel_state_filter(), &SetLeftMotorDutyCycle);
+WheelSpeedController right_wheel("RightWheelSpeedController", &wheel_state_estimator.right_wheel_state_filter(), &SetRightMotorDutyCycle);
 BaseSpeedController base_speed_controller(&left_wheel, &right_wheel);
-BaseTrajectoryController base_trajectory_controller(&base_speed_controller);
+BaseTrajectoryController base_trajectory_controller("BaseTrajectoryController", &base_speed_controller);
 
 P2PActionServer p2p_action_server(&p2p_stream);
 SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
@@ -46,6 +46,7 @@ SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
 MonitorBaseStateActionHandler monitor_base_state_action_handler(&p2p_stream, &timer);
 
 BaseWaypoint waypoints[80];
+EnvelopeWaypoint envelope_waypoints[10];
 
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
@@ -86,19 +87,14 @@ void setup() {
 
   LOG_INFO("Ready.");
 
-  // base_state_controller.SetTargetState(Point(0.5, 0.5), M_PI / 4, 0.3, 0);  
-  // base_speed_controller.SetTargetSpeeds(0.1, 10 * M_PI);
 
-  // const int num_waypoints = 40;
-  // const int points_per_segment = num_waypoints / 4;
-  // for (int i = 0; i < points_per_segment; ++i) {
-  //   waypoints[i] = BaseWaypoint(i * 0.3, BaseTargetState({ BaseStateVars(Point(i * 0.1, 0), 0) }));
-  //   waypoints[i+points_per_segment] = BaseWaypoint((i+points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(1, -i * 0.1), 0) }));
-  //   waypoints[i+2*points_per_segment] = BaseWaypoint((i+2*points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(1 - i * 0.1, -1), 0) }));
-  //   waypoints[i+3*points_per_segment] = BaseWaypoint((i+3*points_per_segment) * 0.3, BaseTargetState({ BaseStateVars(Point(0, -1+0.1*i), 0) }));
-  // }
+  // --- Circle ---
+  // // Walking straight around a circle.
+  // const float kEnvelopeAmplitude = 0;
+  // Happily walking around a circle.
+  const float kEnvelopeAmplitude = 1;
 
-  const int num_waypoints = sizeof(waypoints) / sizeof(waypoints[0]);
+  const int num_waypoints = sizeof(waypoints) / sizeof(waypoints[0]) / 2;
   const float total_trajectory_seconds = 20.0;
   for (int i = 0; i < num_waypoints; ++i) {
     const float t = i * total_trajectory_seconds / num_waypoints;
@@ -107,15 +103,44 @@ void setup() {
     const float y = -1 + cos(w * t);
     waypoints[i] = BaseWaypoint(t, BaseTargetState({ BaseStateVars(Point(x, y), 0) }));
   }
-  base_trajectory_controller.trajectory(BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/total_trajectory_seconds / num_waypoints).EnableInterpolation({ .type = InterpolationType::kLinear, .num_sampling_points = 40 }));
+  const auto carrier = BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/total_trajectory_seconds / num_waypoints).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+
+  waypoints[num_waypoints] = BaseWaypoint(0.25, BaseTargetState({ BaseStateVars(Point(0, 0), 0) }));
+  waypoints[num_waypoints + 1] = BaseWaypoint(0.5, BaseTargetState({ BaseStateVars(Point(0, 0.03), 0) }));
+  waypoints[num_waypoints + 2] = BaseWaypoint(1, BaseTargetState({ BaseStateVars(Point(0, -0.03), 0) }));
+  const auto modulator = BaseTrajectoryView(3, &waypoints[num_waypoints]).EnableLooping(/*after_seconds=*/0.25).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  
+  envelope_waypoints[0] = EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) }));
+  envelope_waypoints[1] = EnvelopeWaypoint(0.5, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) }));
+  envelope_waypoints[2] = EnvelopeWaypoint(3.5, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) }));
+  const auto envelope = EnvelopeTrajectoryView(3, envelope_waypoints).EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  const BaseModulatedTrajectoryView trajectory(carrier, modulator, envelope);
+
+  // // --- Square ---
+  // // Walking straight around a square.
+  // const float kEnvelopeAmplitude = 0;
+  // // // Happily walking around a square.
+  // // const float kEnvelopeAmplitude = 1;
 
   // const int num_waypoints = 4;
   // waypoints[0] = BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) }));
-  // waypoints[1] = BaseWaypoint(3, BaseTargetState({ BaseStateVars(Point(1, 0), 0) }));
-  // waypoints[2] = BaseWaypoint(6, BaseTargetState({ BaseStateVars(Point(1, -1), 0) }));
-  // waypoints[3] = BaseWaypoint(9, BaseTargetState({ BaseStateVars(Point(0, -1), 0) }));
-  // base_trajectory_controller.trajectory(BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/3.0).EnableInterpolation({ .type = InterpolationType::kLinear, .num_sampling_points = 40 }));
+  // waypoints[1] = BaseWaypoint(4, BaseTargetState({ BaseStateVars(Point(1, 0), 0) }));
+  // waypoints[2] = BaseWaypoint(8, BaseTargetState({ BaseStateVars(Point(1, -1), 0) }));
+  // waypoints[3] = BaseWaypoint(12, BaseTargetState({ BaseStateVars(Point(0, -1), 0) }));
+  // const auto carrier = BaseTrajectoryView(num_waypoints, waypoints).EnableLooping(/*after_seconds=*/4).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
 
+  // waypoints[num_waypoints] = BaseWaypoint(0.25, BaseTargetState({ BaseStateVars(Point(0, 0), 0) }));
+  // waypoints[num_waypoints + 1] = BaseWaypoint(0.5, BaseTargetState({ BaseStateVars(Point(0, 0.03), 0) }));
+  // waypoints[num_waypoints + 2] = BaseWaypoint(1, BaseTargetState({ BaseStateVars(Point(0, -0.03), 0) }));
+  // const auto modulator = BaseTrajectoryView(3, &waypoints[num_waypoints]).EnableLooping(/*after_seconds=*/0.25).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  
+  // envelope_waypoints[0] = EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(0 * kEnvelopeAmplitude) }));
+  // envelope_waypoints[1] = EnvelopeWaypoint(0.5, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) }));
+  // envelope_waypoints[2] = EnvelopeWaypoint(3.5, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) }));
+  // const auto envelope = EnvelopeTrajectoryView(3, envelope_waypoints).EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  // const BaseModulatedTrajectoryView trajectory(carrier, modulator, envelope);
+
+  base_trajectory_controller.trajectory(trajectory);
   base_trajectory_controller.StartTrajectory();
 }
 

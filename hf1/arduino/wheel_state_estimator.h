@@ -37,7 +37,7 @@ private:
 
 class WheelStateEstimator : public PeriodicRunnable {
 public:
-  WheelStateEstimator();
+  WheelStateEstimator(const char *name);
 
   static void Init();
 

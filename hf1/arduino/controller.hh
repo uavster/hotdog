@@ -1,8 +1,8 @@
 #include "trajectory.h"
 
 template<typename TrajectoryViewType>
-TrajectoryController<TrajectoryViewType>::TrajectoryController(const float run_period_seconds)
-  : Controller(run_period_seconds),
+TrajectoryController<TrajectoryViewType>::TrajectoryController(const char *name, const float run_period_seconds)
+  : Controller(name, run_period_seconds),
     target_waypoint_index_(0),
     state_(kStopped) {}
 
@@ -33,9 +33,7 @@ void TrajectoryController<TrajectoryViewType>::Update(const TimerSecondsType now
       break;
     case kFollowingTrajectory: {
       const TimerSecondsType seconds_since_start = now_seconds - start_seconds_;
-      const auto maybe_index = trajectory_.FindWaypointIndexBeforeSeconds(seconds_since_start, target_waypoint_index_);
-      if (!maybe_index.ok()) { break; }
-      target_waypoint_index_ = *maybe_index;
+      target_waypoint_index_ = trajectory_.FindWaypointIndexBeforeSeconds(seconds_since_start, target_waypoint_index_);
 
       Update(seconds_since_start, target_waypoint_index_);
 
