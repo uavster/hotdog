@@ -26,8 +26,8 @@ void WheelStateEstimator::RightEncoderIsr(TimerTicksType timer_ticks) {
   wheel_state_estimator_singleton->right_wheel_state_filter_.NotifyEncoderEdge(timer_ticks);
 }
 
-WheelStateEstimator::WheelStateEstimator() 
-  : PeriodicRunnable(static_cast<TimerSecondsType>(kUpdatePeriodSeconds)) {
+WheelStateEstimator::WheelStateEstimator(const char *name) 
+  : PeriodicRunnable(name, static_cast<TimerSecondsType>(kUpdatePeriodSeconds)) {
   ASSERT(wheel_state_estimator_singleton == nullptr);
   wheel_state_estimator_singleton = this;
 }

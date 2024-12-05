@@ -1,8 +1,8 @@
 #include "trajectory.h"
 
 template<typename TrajectoryViewType>
-TrajectoryController<TrajectoryViewType>::TrajectoryController(const float run_period_seconds)
-  : Controller(run_period_seconds),
+TrajectoryController<TrajectoryViewType>::TrajectoryController(const char *name, const float run_period_seconds)
+  : Controller(name, run_period_seconds),
     target_waypoint_index_(0),
     state_(kStopped) {}
 

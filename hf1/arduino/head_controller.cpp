@@ -18,8 +18,8 @@ HeadWaypoint HeadModulatedTrajectoryView::GetWaypoint(int index) const {
   );
 }
 
-HeadTrajectoryController::HeadTrajectoryController() 
-  : TrajectoryController<HeadModulatedTrajectoryView>(kHeadTrajeactoryControllerLoopPeriodSeconds) {}
+HeadTrajectoryController::HeadTrajectoryController(const char *name) 
+  : TrajectoryController<HeadModulatedTrajectoryView>(name, kHeadTrajeactoryControllerLoopPeriodSeconds) {}
 
 void HeadTrajectoryController::Update(TimerSecondsType seconds_since_start, int current_waypoint_index) {
   TimerSecondsType time_fraction = (seconds_since_start - trajectory().seconds(current_waypoint_index)) / (trajectory().seconds(current_waypoint_index + 1) - trajectory().seconds(current_waypoint_index));

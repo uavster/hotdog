@@ -7,6 +7,7 @@
 #include "logger_interface.h"
 
 #define kEventRingBufferCapacity 16
+#define kMinIMUPollingPeriodNs 20'000'000
 
 typedef enum {
   kLeftWheelTick,
@@ -44,9 +45,12 @@ static void RightEncoderIsr(TimerTicksType timer_ticks) {
   event_buffer.Write(Event{ .type = kRightWheelTick, .timer_ticks = timer_ticks });
 }
 
+TimerNanosType last_imu_poll_time_ns;
+
 void InitRobotStateEstimator() {
   AddEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
 
+  last_imu_poll_time_ns = 0;
   LOG_INFO("Initializing body IMU...");
   body_imu.Init();
 }
@@ -104,8 +108,12 @@ static int CompareEventPointers(const void *p1, const void *p2) {
 }
 
 void RunRobotStateEstimator() {
-  // Poll the IMU and register event.
-  RegisterIMUEvent();
+  const TimerNanosType now_ns = GetTimerNanoseconds();
+  if (now_ns - last_imu_poll_time_ns >= kMinIMUPollingPeriodNs) {
+    last_imu_poll_time_ns = now_ns;
+    // Poll the IMU and register event.
+    RegisterIMUEvent();
+  }
 
   // Copy all queue events to a separate buffer as processing them might take time  
   // and we don't want to block the queue to new events for too long.

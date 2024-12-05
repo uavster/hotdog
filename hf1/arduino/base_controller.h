@@ -48,7 +48,7 @@ private:
 // for an autonomous mobile robot," Proc. IEEE Int. Conf. Rob. Autom., 1990, pp. 384–389.
 class BaseStateController : public Controller {
 public:
-  BaseStateController(BaseSpeedController *base_speed_controller);
+  BaseStateController(const char *name, BaseSpeedController *base_speed_controller);
 
   void SetTargetState(const Point &center_position_target, float yaw_target, float reference_forward_speed, float reference_angular_speed = 0.0f);
 
@@ -114,7 +114,7 @@ public:
 // robot will skip to the next one.
 class BaseTrajectoryController : public TrajectoryController<BaseModulatedTrajectoryView> {
 public:
-  BaseTrajectoryController(BaseSpeedController *base_speed_controller);
+  BaseTrajectoryController(const char *name, BaseSpeedController *base_speed_controller);
 
   // Returns the underlying base speed controller.
   const BaseSpeedController &base_speed_controller() const { return base_speed_controller_; }

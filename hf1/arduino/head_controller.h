@@ -28,7 +28,7 @@ public:
 
 class HeadTrajectoryController : public TrajectoryController<HeadModulatedTrajectoryView> {
 public:
-  HeadTrajectoryController();
+  HeadTrajectoryController(const char *name);
 
 protected:
   virtual void Update(TimerSecondsType seconds_since_start, int current_waypoint_index) override;

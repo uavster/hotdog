@@ -12,7 +12,7 @@ typedef void (DutyCycleSetter)(float duty_cycle);
 class WheelSpeedController : public Controller {
 public:
   // No ownership of the pointee is taken by this object.
-  WheelSpeedController(const WheelStateFilter * const wheel_state_filter_, DutyCycleSetter * const duty_cycle_setter);
+  WheelSpeedController(const char *name, const WheelStateFilter * const wheel_state_filter_, DutyCycleSetter * const duty_cycle_setter);
 
   // Returns the maximum attainable linear speed [m/s].
   float GetMaxLinearSpeed() const;

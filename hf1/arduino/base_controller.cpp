@@ -7,7 +7,7 @@
 #include "robot_state_estimator.h"
 
 #define kBaseStateControllerLoopPeriod 0.33  // [s]
-#define kBaseTrajectoryControllerLoopPeriod 0.02 // [s]
+#define kBaseTrajectoryControllerLoopPeriod 0.03 // [s]
 
 #define kKx 3.0   // [1/s]
 #define kKy 64.0 // [1/m^2]
@@ -15,7 +15,7 @@
 
 #define kBaseTrajectoryControllerK1 0.8
 #define kBaseTrajectoryControllerK2 3.0
-#define kBaseTrajectoryControllerK3 0.8
+#define kBaseTrajectoryControllerK3 0.8*2
 
 #define kBaseTrajectoryTangentialSpeedMax 0.5
 #define kBaseTrajectoryAngularSpeedMax (2*M_PI/3)
@@ -26,6 +26,7 @@
 #include <Arduino.h>
 
 BaseWaypoint BaseModulatedTrajectoryView::GetWaypoint(int index) const {
+  // return carrier().GetWaypoint(index);
   // Modulate the carrier with the enveloped modulator.
   // Transform the modulator with the carrier.
   const auto carrier_pos = carrier().state(index).location().position();
@@ -36,7 +37,7 @@ BaseWaypoint BaseModulatedTrajectoryView::GetWaypoint(int index) const {
   const float envelope_value = envelope().state(index).location().amplitude();
   const auto modulator_pos = modulator().state(index).location().position() * envelope_value;
   return BaseWaypoint(
-    /*seconds=*/index * carrier().interpolation_config().sampling_period_seconds, 
+    /*seconds=*/carrier().seconds(index), 
     BaseTargetState({
       BaseStateVars(
         Point(
@@ -92,8 +93,8 @@ void BaseSpeedController::SetTargetSpeeds(const float linear, const float angula
   right_wheel_.SetAngularSpeed(wheel_speed_r);
 }
 
-BaseStateController::BaseStateController(BaseSpeedController *base_speed_controller) 
-  : Controller(kBaseStateControllerLoopPeriod), 
+BaseStateController::BaseStateController(const char *name, BaseSpeedController *base_speed_controller) 
+  : Controller(name, kBaseStateControllerLoopPeriod), 
     base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)),
     yaw_target_(0),
     reference_forward_speed_(0),
@@ -134,8 +135,8 @@ bool BaseStateController::IsAtTargetState() const {
   return position_error.norm() <= kMaxPositionErrorForAtState && abs(yaw_error) <= kMaxYawErrorForAtState;
 }
 
-BaseTrajectoryController::BaseTrajectoryController(BaseSpeedController *base_speed_controller) : 
-  TrajectoryController<BaseModulatedTrajectoryView>(static_cast<TimerSecondsType>(kBaseTrajectoryControllerLoopPeriod)), 
+BaseTrajectoryController::BaseTrajectoryController(const char *name, BaseSpeedController *base_speed_controller) : 
+  TrajectoryController<BaseModulatedTrajectoryView>(name, static_cast<TimerSecondsType>(kBaseTrajectoryControllerLoopPeriod)), 
   base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)) {}
 
 void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int current_waypoint_index) {
@@ -146,7 +147,7 @@ void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int 
   const State ref_acceleration = trajectory().derivative(/*order=*/2, current_waypoint_index) * (1 - time_fraction) + trajectory().derivative(/*order=*/2, current_waypoint_index + 1) * time_fraction;
   const float ref_yaw = atan2f(ref_velocity.location().position().y, ref_velocity.location().position().x);
 
-  Serial.printf("%f: %d -> %f, %f\n", seconds_since_start, current_waypoint_index, ref_position.location().position().x, ref_position.location().position().y);
+  // Serial.printf("%f: %d -> %f, %f\n", seconds_since_start, current_waypoint_index, ref_position.location().position().x, ref_position.location().position().y);
 
   // Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory().seconds(current_waypoint_index), trajectory().seconds(current_waypoint_index+1), ref_position.location().position().x, ref_position.location().position().y, ref_velocity.location().position().x, ref_velocity.location().position().y, ref_acceleration.location().position().x, ref_acceleration.location().position().y);
   // Serial.printf("[state] x:%f y:%f\n", GetBaseState().location().position().x, GetBaseState().location().position().y);
