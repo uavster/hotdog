@@ -4,7 +4,7 @@
 #include "controller.h"
 #include "head_state.h"
 #include "trajectory.h"
-#include "modulated_trajectory.h"
+#include "modulated_trajectory_view.h"
 
 using HeadTargetState = State<HeadStateVars, 0>;
 

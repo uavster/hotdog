@@ -1,7 +1,7 @@
 #ifndef MODULATED_TRAJECTORY_INCLUDED_
 #define MODULATED_TRAJECTORY_INCLUDED_
 
-#include "trajectory.h"
+#include "trajectory_view.h"
 
 class EnvelopeStateVars {
 public:
@@ -57,6 +57,6 @@ private:
   EnvelopeTrajectoryView envelope_;
 };
 
-#include "modulated_trajectory.hh"
+#include "modulated_trajectory_view.hh"
 
 #endif  // MODULATED_TRAJECTORY_INCLUDED_

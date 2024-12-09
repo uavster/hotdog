@@ -4,9 +4,9 @@
 #include "wheel_controller.h"
 #include "base_state.h"
 #include "timer.h"
-#include "trajectory.h"
+#include "trajectory_view.h"
 #include "controller.h"
-#include "modulated_trajectory.h"
+#include "modulated_trajectory_view.h"
 
 // Controller commanding the wheel speed controllers to achieve the desired forward and 
 // angular speeds of the robot's base.
