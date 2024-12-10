@@ -6,27 +6,28 @@ typedef enum { kNone, kLinear, kCubic } InterpolationType;
 
 typedef struct {
   InterpolationType type;
-  TimerSecondsType sampling_period_seconds;
 } InterpolationConfig;
 
 // Base class of trajectories passed to descendants of TrajectoryController.
 template<typename TState>
 class TrajectoryViewInterface {
 public:
-  // Returns the number of waypoints in the trajectory, after applying interpolation.
-  virtual int NumWaypoints() const = 0;
-
-  // Returns the waypoint at the given index, after applying interpolation.
-  virtual Waypoint<TState> GetWaypoint(int index) const = 0;
+  // Returns the waypoint at the given time, with interpolation over the trajectory if enabled.
+  virtual Waypoint<TState> GetWaypoint(float seconds) const = 0;
 
   // Returns true if the trajectory is set to restart from the beginning some time after
   // reaching the end.
   virtual bool IsLoopingEnabled() const = 0;
 
-  float seconds(int index) const;
-  TState state(int index) const;
-  TState derivative(int order, int index) const;
-  int FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index = 0) const;
+  // Returns the duration of one trajectory lap. 
+  // If no looping is enabled, this is the time between the first and last waypoints.
+  // If looping is enabled, this is the time above plus the time it takes to return to the 
+  // starting waypoint.
+  virtual float LapDuration() const = 0;
+
+  TState state(float seconds) const;
+  static constexpr float kDefaultEpsilon = 0.01;
+  TState derivative(int order, float seconds, float epsilon = kDefaultEpsilon) const;
 };
 
 // A view to a trajectory.
@@ -41,23 +42,14 @@ public:
   // Does not take ownsership of the pointee, which must outlive this object.
   TrajectoryView(const TrajectoryInterface<TState> *trajectory);
 
-  // Returns the number of waypoints in the trajectory, after applying interpolation.
-  // If interpolation is enabled, this won't match the number of waypoints passed to the
-  // constructor. The valid range is then [0, num_sampling_points), where 
-  // num_sampling_points = LapDuration() / sampling_period_seconds.
-  int NumWaypoints() const override;
-
-  // Returns the waypoint at the given index, after applying interpolation.
-  // If interpolation is enabled, the valid index range is [0, num_sampling_points), where 
-  // num_sampling_points = LapDuration() / sampling_period_seconds.
-  // Otherwise, it is [0, num_waypoints];
-  Waypoint<TState> GetWaypoint(int index) const override;
+  // Returns the waypoint at the given time, after applying interpolation.
+  Waypoint<TState> GetWaypoint(float seconds) const override;
 
   // Returns the duration of one trajectory lap. 
   // If no looping is enabled, this is the time between the first and last waypoints.
   // If looping is enabled, this is the time above plus the time it takes to return to the 
   // starting waypoint.
-  float LapDuration() const;
+  float LapDuration() const override;
 
   // `after_seconds` must be enough time for the controller to take the state from the last
   // waypoint to the first one.
@@ -74,9 +66,6 @@ private:
   // Returns the waypoint without interpolation for the given index, assuming a periodic
   // trajectory.
   Waypoint<TState> GetPeriodicWaypoint(int index) const;
-
-  // Returns the index of the waypoint immediately before `seconds` without interpolation.
-  // int FindNonInterpolatedWaypointIndexBeforeSeconds(TimerSecondsType seconds) const;
 
   const TrajectoryInterface<TState> *trajectory_;
   InterpolationConfig interpolation_config_;

@@ -23,7 +23,7 @@ public:
   HeadModulatedTrajectoryView(const HeadTrajectoryView &carrier, const HeadTrajectoryView &modulator, const EnvelopeTrajectoryView &envelope)
     : ModulatedTrajectoryView<HeadTargetState>(carrier, modulator, envelope) {}
   // Returns the waypoint at the given index, after applying interpolation.
-  HeadWaypoint GetWaypoint(int index) const override;
+  HeadWaypoint GetWaypoint(float seconds) const override;
 };
 
 class HeadTrajectoryController : public TrajectoryController<HeadModulatedTrajectoryView> {
@@ -31,8 +31,8 @@ public:
   HeadTrajectoryController(const char *name);
 
 protected:
-  virtual void Update(TimerSecondsType seconds_since_start, int current_waypoint_index) override;
-  virtual void Stop() override {};
+  virtual void Update(TimerSecondsType seconds_since_start) override;
+  virtual void StopControl() override {};
 };
 
 #endif  // HEAD_CONTROLLER_

@@ -53,3 +53,11 @@ void Trajectory<TState, Capacity>::Insert(const Waypoint<TState> &waypoint) {
   ++size_;
 }
 
+template<typename TState, int Capacity>
+int Trajectory<TState, Capacity>::FindWaypointAtOrBeforeSeconds(TimerSecondsType seconds) const {
+  if (size_ == 0) {
+    return -1;
+  }
+  return FindInsertionIndex(seconds, 0, size_ - 1) - 1;
+}
+

@@ -25,18 +25,8 @@ static Waypoint<TState> CentripetalCatmullRom(const Waypoint<TState> &p0, const 
 template<typename TState>
 TrajectoryView<TState>::TrajectoryView(const TrajectoryInterface<TState> *trajectory)
   : trajectory_(ASSERT_NOT_NULL(trajectory)),
-    interpolation_config_(InterpolationConfig{ .type = kNone, .sampling_period_seconds = 0 }),
+    interpolation_config_(InterpolationConfig{ .type = kNone }),
     loop_after_seconds_(-1) {}
-
-template<typename TState>
-int TrajectoryView<TState>::NumWaypoints() const {
-  ASSERT_NOT_NULL(trajectory_);
-  if (interpolation_config_.type == kNone) {
-    return trajectory_->size();
-  } else {
-    return static_cast<int>(LapDuration() / interpolation_config_.sampling_period_seconds);
-  }
-}
 
 template<typename TState>
 Waypoint<TState> TrajectoryView<TState>::GetPeriodicWaypoint(int index) const {
@@ -55,32 +45,28 @@ Waypoint<TState> TrajectoryView<TState>::GetPeriodicWaypoint(int index) const {
 }
 
 template<typename TState>
-Waypoint<TState> TrajectoryView<TState>::GetWaypoint(int index) const {
+Waypoint<TState> TrajectoryView<TState>::GetWaypoint(float seconds) const {
   ASSERT_NOT_NULL(trajectory_);
   switch (interpolation_config_.type) {
     case kNone:
-      return GetPeriodicWaypoint(index);
+      return GetPeriodicWaypoint(trajectory_->FindWaypointAtOrBeforeSeconds(seconds));
     case kLinear:
       {
-        const int num_lap_waypoints = IsLoopingEnabled() ? trajectory_->size() : trajectory_->size() - 1;
-        const float remapped_index = (index * num_lap_waypoints) / static_cast<float>(NumWaypoints() - 1);
-        const int i1 = static_cast<int>(remapped_index);
+        const int i1 = trajectory_->FindWaypointAtOrBeforeSeconds(seconds);
         const int i2 = i1 + 1;
-        const float t = remapped_index - i1;
+        const float t = seconds - (*trajectory_)[i1].seconds();
         return GetPeriodicWaypoint(i1) * (1 - t) + GetPeriodicWaypoint(i2) * t;
       }
     case kCubic:
       {
-        const int num_lap_waypoints = IsLoopingEnabled() ? trajectory_->size() : trajectory_->size() - 1;
-        const float remapped_index = (index * num_lap_waypoints) / static_cast<float>(NumWaypoints() - 1);
-        const int i1 = static_cast<int>(remapped_index);
+        const int i1 = trajectory_->FindWaypointAtOrBeforeSeconds(seconds);
         Waypoint<TState> w1 = GetPeriodicWaypoint(i1);
         Waypoint<TState> w2 = GetPeriodicWaypoint(i1 + 1);
         Waypoint<TState> w0;
         Waypoint<TState> w3;
         const int i0 = i1 - 1;
         const int i3 = i1 + 2;
-        const float t = remapped_index - i1;
+        const float t = seconds - (*trajectory_)[i1].seconds();
         
         if (i0 >= 0) {
           w0 = GetPeriodicWaypoint(i0);
@@ -149,13 +135,6 @@ StatusOr<TimerSecondsType> TrajectoryView<TState>::SecondsBetweenLoops() const {
 }
 
 template<typename TState>
-int TrajectoryViewInterface<TState>::FindWaypointIndexBeforeSeconds(TimerSecondsType seconds, int prev_result_index) const {
-  int i = prev_result_index;
-  while (this->seconds(i) < seconds) { ++i; }
-  return i - 1;
-}
-
-template<typename TState>
 float TrajectoryView<TState>::LapDuration() const {
   ASSERT_NOT_NULL(trajectory_);
   TimerSecondsType duration = (*trajectory_)[trajectory_->size() - 1].seconds() - (*trajectory_)[0].seconds();
@@ -167,27 +146,15 @@ float TrajectoryView<TState>::LapDuration() const {
 }
 
 template<typename TState>
-float TrajectoryViewInterface<TState>::seconds(int index) const {
-  return GetWaypoint(index).seconds();
+TState TrajectoryViewInterface<TState>::state(float seconds) const {
+  return GetWaypoint(seconds).state();
 }
 
 template<typename TState>
-TState TrajectoryViewInterface<TState>::state(int index) const {
-  return GetWaypoint(index).state();
-}
-
-template<typename TState>
-TState TrajectoryViewInterface<TState>::derivative(int order, int index) const {
+TState TrajectoryViewInterface<TState>::derivative(int order, float seconds, float epsilon) const {
   if (order == 0) {
-    return state(index);
+    return state(seconds);
   } else {
-    const TimerSecondsType time_interval = seconds(index + 1) - seconds(index);
-    ASSERT(time_interval > 0);
-    return (derivative(order - 1, index + 1) - derivative(order - 1, index)) / time_interval;
+    return (derivative(order - 1, seconds + epsilon) - derivative(order - 1, seconds)) / epsilon;
   }
 }
-
-// template<typename TState>
-// int TrajectoryView<TState>::FindNonInterpolatedWaypointIndexBeforeSeconds(TimerSecondsType seconds) const {
-//   bsearch(&seconds, waypoints_, num_waypoints_, sizeof(waypoints_[0]), &compare_seconds);
-// }

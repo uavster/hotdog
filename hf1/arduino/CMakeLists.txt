@@ -16,7 +16,6 @@ set(TEST_SOURCES
   pid.cpp
   point.cpp
   set_base_velocity_action_handler.cpp
-  set_head_pose_action_handler.cpp
   wheel_controller.cpp
 )
 

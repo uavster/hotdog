@@ -38,6 +38,7 @@ public:
 protected:
   // Periodically updates the speed controller.
   void Update(TimerSecondsType now_seconds) override;
+  void StopControl() override;
 
 private:
   float DutyCycleFromLinearSpeed(float meters_per_second) const;

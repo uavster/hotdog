@@ -57,6 +57,7 @@ public:
   bool IsAtTargetState() const;
 
 protected:
+  void StopControl() override;
   void Update(TimerSecondsType now_seconds) override;
 
 private:
@@ -85,7 +86,7 @@ public:
   BaseModulatedTrajectoryView(const BaseTrajectoryView &carrier, const BaseTrajectoryView &modulator, const EnvelopeTrajectoryView &envelope)
     : ModulatedTrajectoryView<BaseTargetState>(carrier, modulator, envelope) {}
   // Returns the waypoint at the given index, after applying interpolation.
-  BaseWaypoint GetWaypoint(int index) const override;
+  BaseWaypoint GetWaypoint(float seconds) const override;
 };
 
 
@@ -120,8 +121,8 @@ public:
   const BaseSpeedController &base_speed_controller() const { return base_speed_controller_; }
 
 protected:
-  virtual void Update(TimerSecondsType seconds_since_start, int current_waypoint_index) override;
-  virtual void Stop() override;
+  virtual void Update(TimerSecondsType seconds_since_start) override;
+  virtual void StopControl() override;
 
 private:
   BaseSpeedController &base_speed_controller_;

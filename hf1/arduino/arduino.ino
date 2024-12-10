@@ -110,17 +110,17 @@ void setup() {
     const float y = -1 + cos(w * t);
     base_carrier.Insert(BaseWaypoint(t, BaseTargetState({ BaseStateVars(Point(x, y), 0) })));
   }
-  const auto base_carrier_view = BaseTrajectoryView(&base_carrier).EnableLooping(/*after_seconds=*/total_trajectory_seconds / num_waypoints).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  const auto base_carrier_view = BaseTrajectoryView(&base_carrier).EnableLooping(/*after_seconds=*/total_trajectory_seconds / num_waypoints).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
   base_modulator.Insert(BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
   base_modulator.Insert(BaseWaypoint(0.1, BaseTargetState({ BaseStateVars(Point(0, 0.015), 0) })));
   base_modulator.Insert(BaseWaypoint(0.3, BaseTargetState({ BaseStateVars(Point(0, -0.015), 0) })));
-  const auto base_modulator_view = BaseTrajectoryView(&base_modulator).EnableLooping(/*after_seconds=*/0.1).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  const auto base_modulator_view = BaseTrajectoryView(&base_modulator).EnableLooping(/*after_seconds=*/0.1).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
   
   base_envelope.Insert(EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
   base_envelope.Insert(EnvelopeWaypoint(0.5, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
   base_envelope.Insert(EnvelopeWaypoint(3.5, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
-  const auto base_envelope_view = EnvelopeTrajectoryView(&base_envelope).EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  const auto base_envelope_view = EnvelopeTrajectoryView(&base_envelope).EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
   const BaseModulatedTrajectoryView base_trajectory_view(base_carrier_view, base_modulator_view, base_envelope_view);
 
@@ -149,7 +149,7 @@ void setup() {
   // const BaseModulatedTrajectoryView trajectory(carrier, modulator, envelope);
 
   base_trajectory_controller.trajectory(base_trajectory_view);
-  base_trajectory_controller.StartTrajectory();
+  base_trajectory_controller.Start();
 
 
   head_carrier.Insert(HeadWaypoint(0, HeadTargetState({ HeadStateVars(0, 0) })));
@@ -157,22 +157,22 @@ void setup() {
   head_carrier.Insert(HeadWaypoint(0.4, HeadTargetState({ HeadStateVars(0, 0) })));
   head_carrier.Insert(HeadWaypoint(0.8, HeadTargetState({ HeadStateVars(0, 0) })));
   head_carrier.Insert(HeadWaypoint(1, HeadTargetState({ HeadStateVars(0, 0) })));
-  const auto head_carrier_view = HeadTrajectoryView(&head_carrier).EnableLooping(/*after_seconds=*/3).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  const auto head_carrier_view = HeadTrajectoryView(&head_carrier).EnableLooping(/*after_seconds=*/3).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
   head_modulator.Insert(HeadWaypoint(0, HeadTargetState({ HeadStateVars(0, 0) })));
   head_modulator.Insert(HeadWaypoint(0.5, HeadTargetState({ HeadStateVars(0, M_PI / 8) })));
   head_modulator.Insert(HeadWaypoint(1.5, HeadTargetState({ HeadStateVars(0, -M_PI / 8) })));
-  const auto head_modulator_view = HeadTrajectoryView(&head_modulator).EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  const auto head_modulator_view = HeadTrajectoryView(&head_modulator).EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
   head_envelope.Insert(EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
   head_envelope.Insert(EnvelopeWaypoint(0.2, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
   head_envelope.Insert(EnvelopeWaypoint(0.4, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
-  const auto head_envelope_view = EnvelopeTrajectoryView(&head_envelope).EnableLooping(/*after_seconds=*/0.2).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear, .sampling_period_seconds = 0.1f });
+  const auto head_envelope_view = EnvelopeTrajectoryView(&head_envelope).EnableLooping(/*after_seconds=*/0.2).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
   const HeadModulatedTrajectoryView head_trajectory_view(head_carrier_view, head_modulator_view, head_envelope_view);
   
   head_trajectory_controller.trajectory(head_trajectory_view);
-  head_trajectory_controller.StartTrajectory();
+  head_trajectory_controller.Start();
 }
 
 void loop() {

@@ -122,6 +122,10 @@ void WheelSpeedController::Update(TimerSecondsType now_seconds) {
   // Serial.printf("t:%f v:%f pid:%f c:%f d:%f\n", pid_.target(), average_wheel_speed_, pid_output, speed_command, duty_cycle);
 }
 
+void WheelSpeedController::StopControl() {
+  SetLinearSpeed(0);
+}
+
 float WheelSpeedController::GetMaxLinearSpeed() const {
   const float offset = kSpeedModelTimeConstant * log(kSpeedModelFactor) - kSpeedModelDutyCycleOffset;
   return kSpeedModelSpeedOffset - exp((offset - kPWMDutyCycleMax) / kSpeedModelTimeConstant);

@@ -41,6 +41,8 @@ class TrajectoryInterface {
 public:
   virtual int size() const = 0;  
   virtual const Waypoint<TState> &operator[](int i) const = 0;
+  // Returns the waypoint whose time is at or before `seconds`, or -1 if it does not exist.
+  virtual int FindWaypointAtOrBeforeSeconds(TimerSecondsType seconds) const = 0;
 };
 
 // A collection of waypoints sorted by time.
@@ -58,6 +60,9 @@ public:
   const Waypoint<TState> &operator[](int i) const override;
 
   void Insert(const Waypoint<TState> &waypoint);
+
+  // Returns the waypoint whose time is at or before `seconds`, or -1 if it does not exist.
+  int FindWaypointAtOrBeforeSeconds(TimerSecondsType seconds) const override;
 
 private:
   int FindInsertionIndex(float seconds, int start_index, int end_index) const;

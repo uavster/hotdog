@@ -37,15 +37,18 @@ public:
                           const TrajectoryView<TState> &modulator, 
                           const EnvelopeTrajectoryView &envelope);
 
-  // Returns the number of waypoints in the trajectory, after applying interpolation.
-  int NumWaypoints() const override;
-
   // Returns the waypoint at the given index, after applying interpolation.
-  virtual Waypoint<TState> GetWaypoint(int index) const override = 0;
+  virtual Waypoint<TState> GetWaypoint(float seconds) const override = 0;
 
   // Returns true if the trajectory is set to restart from the beginning some time after
   // reaching the end.
   bool IsLoopingEnabled() const override;
+
+  // Returns the duration of one trajectory lap. 
+  // If no looping is enabled, this is the time between the first and last waypoints.
+  // If looping is enabled, this is the time above plus the time it takes to return to the 
+  // starting waypoint.
+  float LapDuration() const override;
 
   const TrajectoryView<TState> &carrier() const { return carrier_; }
   const TrajectoryView<TState> &modulator() const { return modulator_; }
