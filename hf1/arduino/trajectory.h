@@ -2,6 +2,7 @@
 #define TRAJECTORY_INCLUDED_
 
 #include "status_or.h"
+#include "timer.h"
 
 // Defines a state at a given time.
 template<typename TState>
@@ -48,14 +49,13 @@ class Trajectory : public TrajectoryInterface<TState> {
   static_assert(Capacity > 0);
 public:
   Trajectory() : size_(0) {}
-  template<int Size> Trajectory(const TState (&waypoints)[Size]);
-  Trajectory(int num_waypoints, Waypoint<TState> *waypoints);
+  template<int Size> Trajectory(const Waypoint<TState> (&waypoints)[Size]);
+  Trajectory(int num_waypoints, const Waypoint<TState> *waypoints);
 
   int capacity() const { return Capacity; }
   int size() const override { return size_; }
     
   const Waypoint<TState> &operator[](int i) const override;
-  Waypoint<TState> &operator[](int i);
 
   void Insert(const Waypoint<TState> &waypoint);
 

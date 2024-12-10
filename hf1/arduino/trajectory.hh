@@ -1,10 +1,10 @@
 #include "logger_interface.h"
 
 template<typename TState, int Capacity>
-Trajectory<TState, Capacity>::Trajectory(int num_waypoints, Waypoint<TState> *waypoints)
+Trajectory<TState, Capacity>::Trajectory(int num_waypoints, const Waypoint<TState> *waypoints)
   : size_(0) {
   for (int i = 0; i < num_waypoints; ++i) {
-    InsertWaypoint(waypoints[i]);
+    Insert(waypoints[i]);
   }
   // Ensure no two points exist for the same time.
   for (int i = 0; i < size_ - 1; ++i) {
@@ -13,8 +13,8 @@ Trajectory<TState, Capacity>::Trajectory(int num_waypoints, Waypoint<TState> *wa
 }
 
 template<typename TState, int Capacity>
-template<int Size> Trajectory<TState, Capacity>::Trajectory(const TState (&waypoints)[Size]) 
-  : Trajectory(Size, &waypoints) {}
+template<int Size> Trajectory<TState, Capacity>::Trajectory(const Waypoint<TState> (&waypoints)[Size]) 
+  : Trajectory(Size, waypoints) {}
 
 template<typename TState, int Capacity>
 const Waypoint<TState> &Trajectory<TState, Capacity>::operator[](int i) const {
@@ -22,12 +22,6 @@ const Waypoint<TState> &Trajectory<TState, Capacity>::operator[](int i) const {
   return waypoints_[i];
 }
 
-template<typename TState, int Capacity>
-Waypoint<TState> &Trajectory<TState, Capacity>::operator[](int i) {
-  ASSERT(i >= 0 && i < size_);
-  return waypoints_[i];
-}
-  
 template<typename TState, int Capacity>
 int Trajectory<TState, Capacity>::FindInsertionIndex(float seconds, int start_index, int end_index) const {
   if (start_index >= end_index) {

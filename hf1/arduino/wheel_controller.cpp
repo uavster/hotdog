@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <limits>
 #include "wheel_controller.h"
 #include "robot_model.h"

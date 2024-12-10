@@ -41,7 +41,7 @@ public:
   int NumWaypoints() const override;
 
   // Returns the waypoint at the given index, after applying interpolation.
-  virtual Waypoint<TState> GetWaypoint(int index) const = 0;
+  virtual Waypoint<TState> GetWaypoint(int index) const override = 0;
 
   // Returns true if the trajectory is set to restart from the beginning some time after
   // reaching the end.
