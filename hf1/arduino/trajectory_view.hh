@@ -47,28 +47,26 @@ Waypoint<TState> TrajectoryView<TState>::GetPeriodicWaypoint(int index) const {
 template<typename TState>
 Waypoint<TState> TrajectoryView<TState>::GetWaypoint(float seconds) const {
   ASSERT_NOT_NULL(trajectory_);
+  const auto periodic_seconds = IndexModf(seconds - (*trajectory_)[0].seconds(), LapDuration()) + (*trajectory_)[0].seconds();
+  const int i1 = trajectory_->FindWaypointAtOrBeforeSeconds(periodic_seconds);
+  const Waypoint<TState> &w1 = (*trajectory_)[i1];
   switch (interpolation_config_.type) {
     case kNone:
-      return GetPeriodicWaypoint(trajectory_->FindWaypointAtOrBeforeSeconds(seconds));
+      return w1;
     case kLinear:
       {
-        const auto periodic_seconds = IndexModf(seconds - (*trajectory_)[0].seconds(), LapDuration()) + (*trajectory_)[0].seconds();
-        const int i1 = trajectory_->FindWaypointAtOrBeforeSeconds(periodic_seconds);
-        const Waypoint<TState> &w1 = (*trajectory_)[i1];
         const Waypoint<TState> w2 = GetPeriodicWaypoint(i1 + 1);
         const float t = (periodic_seconds - w1.seconds()) / (w2.seconds() - w1.seconds());
         return Waypoint<TState>(seconds, w1.state() * (1 - t) + w2.state() * t);
       }
     case kCubic:
       {
-        const int i1 = trajectory_->FindWaypointAtOrBeforeSeconds(seconds);
-        Waypoint<TState> w1 = GetPeriodicWaypoint(i1);
         Waypoint<TState> w2 = GetPeriodicWaypoint(i1 + 1);
         Waypoint<TState> w0;
         Waypoint<TState> w3;
         const int i0 = i1 - 1;
         const int i3 = i1 + 2;
-        const float t = seconds - (*trajectory_)[i1].seconds();
+        const float t = (periodic_seconds - w1.seconds()) / (w2.seconds() - w1.seconds());
         
         if (i0 >= 0) {
           w0 = GetPeriodicWaypoint(i0);
