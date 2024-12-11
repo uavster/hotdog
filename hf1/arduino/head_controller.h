@@ -32,7 +32,6 @@ public:
 
 protected:
   virtual void Update(TimerSecondsType seconds_since_start) override;
-  virtual void StopControl() override {};
 };
 
 #endif  // HEAD_CONTROLLER_

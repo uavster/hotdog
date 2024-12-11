@@ -153,16 +153,15 @@ void setup() {
 
 
   head_carrier.Insert(HeadWaypoint(0, HeadTargetState({ HeadStateVars(0, 0) })));
-  head_carrier.Insert(HeadWaypoint(0.2, HeadTargetState({ HeadStateVars(0, 0) })));
-  head_carrier.Insert(HeadWaypoint(0.4, HeadTargetState({ HeadStateVars(0, 0) })));
-  head_carrier.Insert(HeadWaypoint(0.8, HeadTargetState({ HeadStateVars(0, 0) })));
+  head_carrier.Insert(HeadWaypoint(0.2, HeadTargetState({ HeadStateVars(M_PI / 8, 0) })));
+  head_carrier.Insert(HeadWaypoint(0.8, HeadTargetState({ HeadStateVars(M_PI / 8, 0) })));
   head_carrier.Insert(HeadWaypoint(1, HeadTargetState({ HeadStateVars(0, 0) })));
   const auto head_carrier_view = HeadTrajectoryView(&head_carrier).EnableLooping(/*after_seconds=*/3).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
   head_modulator.Insert(HeadWaypoint(0, HeadTargetState({ HeadStateVars(0, 0) })));
-  head_modulator.Insert(HeadWaypoint(0.5, HeadTargetState({ HeadStateVars(0, M_PI / 8) })));
-  head_modulator.Insert(HeadWaypoint(1.5, HeadTargetState({ HeadStateVars(0, -M_PI / 8) })));
-  const auto head_modulator_view = HeadTrajectoryView(&head_modulator).EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  head_modulator.Insert(HeadWaypoint(0.1, HeadTargetState({ HeadStateVars(0, M_PI / 16) })));
+  head_modulator.Insert(HeadWaypoint(0.3, HeadTargetState({ HeadStateVars(0, -M_PI / 16) })));
+  const auto head_modulator_view = HeadTrajectoryView(&head_modulator).EnableLooping(/*after_seconds=*/0.1).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
   head_envelope.Insert(EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
   head_envelope.Insert(EnvelopeWaypoint(0.2, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));

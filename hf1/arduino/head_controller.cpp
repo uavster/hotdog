@@ -1,6 +1,6 @@
 #include "head_controller.h"
 #include "servos.h"
-
+#include <Arduino.h>
 #define kHeadTrajeactoryControllerLoopPeriodSeconds 0.03
 
 HeadWaypoint HeadModulatedTrajectoryView::GetWaypoint(float seconds) const {
@@ -24,6 +24,7 @@ HeadTrajectoryController::HeadTrajectoryController(const char *name)
 
 void HeadTrajectoryController::Update(TimerSecondsType seconds_since_start) {
   TrajectoryController<HeadModulatedTrajectoryView>::Update(seconds_since_start);
+  if (!is_started()) { return; }
   
   const State ref_position = trajectory().state(seconds_since_start);
   SetHeadPitchDegrees(DegreesFromRadians(ref_position.location().pitch()));

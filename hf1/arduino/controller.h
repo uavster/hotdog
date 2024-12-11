@@ -18,8 +18,8 @@ public:
 
 protected:
   virtual void Update(TimerSecondsType seconds_since_start) = 0;
-  // Subclasses must override this function to stop movement.
-  virtual void StopControl() = 0;
+  // Subclasses may override this function if any special action is required to stop the plant.
+  virtual void StopControl() {};
 
 private:
   virtual void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override;

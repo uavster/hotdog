@@ -145,6 +145,7 @@ BaseTrajectoryController::BaseTrajectoryController(const char *name, BaseSpeedCo
 
 void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start) {
   TrajectoryController<BaseModulatedTrajectoryView>::Update(seconds_since_start);
+  if (!is_started()) { return; }
 
   // Get reference states.
   const State ref_position = trajectory().state(seconds_since_start);
