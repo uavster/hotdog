@@ -153,6 +153,8 @@ void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start) {
   const State ref_acceleration = trajectory().derivative(/*order=*/2, seconds_since_start, /*epsilon=*/kBaseTrajectoryControllerLoopPeriod);
   const float ref_yaw = atan2f(ref_velocity.location().position().y, ref_velocity.location().position().x);
 
+  Serial.printf("ref %f: %f %f\n", seconds_since_start, ref_position.location().position().x, ref_position.location().position().y);
+
   // Get errors in the base's local frame.
   const BaseState &base_state = GetBaseState();
   const float cos_yaw = cos(base_state.location().yaw());
@@ -161,6 +163,8 @@ void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start) {
   const float forward_error = position_error.x * cos_yaw + position_error.y * sin_yaw;
   const float lateral_error = -position_error.x * sin_yaw + position_error.y * cos_yaw;  
   const float yaw_error = NormalizeRadians(ref_yaw - base_state.location().yaw());
+
+  Serial.printf("state: %f %f\n", base_state.location().position().x, base_state.location().position().y);
 
   float feedforward_tangential_command = 0;
   float feedforward_angular_command = 0;
@@ -184,7 +188,8 @@ void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start) {
   const float tangential_command_limitted = std::clamp(tangential_command, -kBaseTrajectoryTangentialSpeedMax, kBaseTrajectoryTangentialSpeedMax);
   const float angular_command_limitted = std::clamp(angular_command, -kBaseTrajectoryAngularSpeedMax, kBaseTrajectoryAngularSpeedMax);
 
-  // Serial.printf("%f %f\n", tangential_command_limitted, angular_command_limitted);
+  Serial.printf("cmd: %f %f\n", tangential_command_limitted, angular_command_limitted);
+  
   base_speed_controller_.SetTargetSpeeds(tangential_command_limitted, angular_command_limitted);
 }
 

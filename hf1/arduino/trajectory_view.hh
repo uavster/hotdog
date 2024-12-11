@@ -52,7 +52,7 @@ Waypoint<TState> TrajectoryView<TState>::GetWaypoint(float seconds) const {
       return GetPeriodicWaypoint(trajectory_->FindWaypointAtOrBeforeSeconds(seconds));
     case kLinear:
       {
-        const auto periodic_seconds = IndexModf(seconds, LapDuration()) + (*trajectory_)[0].seconds();
+        const auto periodic_seconds = IndexModf(seconds - (*trajectory_)[0].seconds(), LapDuration()) + (*trajectory_)[0].seconds();
         const int i1 = trajectory_->FindWaypointAtOrBeforeSeconds(periodic_seconds);
         const Waypoint<TState> &w1 = (*trajectory_)[i1];
         const Waypoint<TState> w2 = GetPeriodicWaypoint(i1 + 1);

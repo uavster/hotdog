@@ -94,7 +94,9 @@ void setup() {
 
   LOG_INFO("Ready.");
 
-
+  left_wheel.Start();
+  right_wheel.Start();
+  
   // --- Circle ---
   // // Walking straight around a circle.
   // const float kEnvelopeAmplitude = 0;
