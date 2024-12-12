@@ -100,7 +100,7 @@ void setup() {
   // // --- Circle ---
   // // // Walking straight around a circle.
   // // const float kEnvelopeAmplitude = 0;
-  // // Happily walking around a circle.
+  // // Emotionally walking around a circle.
   // const float kEnvelopeAmplitude = 1;
 
   // const int num_waypoints = base_carrier.capacity();
@@ -115,8 +115,8 @@ void setup() {
   // const auto base_carrier_view = BaseTrajectoryView(&base_carrier).EnableLooping(/*after_seconds=*/total_trajectory_seconds / num_waypoints).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kCubic });
 
   // base_modulator.Insert(BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
-  // base_modulator.Insert(BaseWaypoint(0.1, BaseTargetState({ BaseStateVars(Point(0, 0.015), 0) })));
-  // base_modulator.Insert(BaseWaypoint(0.3, BaseTargetState({ BaseStateVars(Point(0, -0.015), 0) })));
+  // base_modulator.Insert(BaseWaypoint(0.1, BaseTargetState({ BaseStateVars(Point(0, 0.01), 0) })));
+  // base_modulator.Insert(BaseWaypoint(0.3, BaseTargetState({ BaseStateVars(Point(0, -0.01), 0) })));
   // const auto base_modulator_view = BaseTrajectoryView(&base_modulator).EnableLooping(/*after_seconds=*/0.1).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kCubic });
   
   // base_envelope.Insert(EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
@@ -127,22 +127,32 @@ void setup() {
   // const BaseModulatedTrajectoryView base_trajectory_view(base_carrier_view, base_modulator_view, base_envelope_view);
 
   // --- Square ---
-  // // Walking straight around a square.
-  // const float kEnvelopeAmplitude = 0;
-  // Happily walking around a square.
-  const float kEnvelopeAmplitude = 1;
+  // Walking straight around a square.
+  const float kEnvelopeAmplitude = 0;
+  // // Emotionally walking around a square.
+  // const float kEnvelopeAmplitude = 1;
 
+  // Happy time increment.
   const float t_inc = kEnvelopeAmplitude * 1;
+  // // Sad time increment.
+  // const float t_inc = kEnvelopeAmplitude * 3;
   base_carrier.Insert(BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
   base_carrier.Insert(BaseWaypoint(4 + t_inc, BaseTargetState({ BaseStateVars(Point(1, 0), 0) })));
   base_carrier.Insert(BaseWaypoint(8 + 2 * t_inc, BaseTargetState({ BaseStateVars(Point(1, -1), 0) })));
   base_carrier.Insert(BaseWaypoint(12 + 3 * t_inc, BaseTargetState({ BaseStateVars(Point(0, -1), 0) })));
-  const auto base_carrier_view = BaseTrajectoryView(&base_carrier).EnableLooping(/*after_seconds=*/4).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  const auto base_carrier_view = BaseTrajectoryView(&base_carrier).EnableLooping(/*after_seconds=*/4 + t_inc).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
+  // Happy modulator.
   base_modulator.Insert(BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
   base_modulator.Insert(BaseWaypoint(0.1, BaseTargetState({ BaseStateVars(Point(0, 0.01), 0) })));
   base_modulator.Insert(BaseWaypoint(0.3, BaseTargetState({ BaseStateVars(Point(0, -0.01), 0) })));
   const auto base_modulator_view = BaseTrajectoryView(&base_modulator).EnableLooping(/*after_seconds=*/0.1).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+
+  // // Sad modulator.
+  // base_modulator.Insert(BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
+  // base_modulator.Insert(BaseWaypoint(0.5, BaseTargetState({ BaseStateVars(Point(-0.01, 0), 0) })));
+  // base_modulator.Insert(BaseWaypoint(0.7, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
+  // const auto base_modulator_view = BaseTrajectoryView(&base_modulator).EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
   
   base_envelope.Insert(EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(0 * kEnvelopeAmplitude) })));
   base_envelope.Insert(EnvelopeWaypoint(1, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
@@ -156,21 +166,38 @@ void setup() {
   base_trajectory_controller.Start();
 
 
-  head_carrier.Insert(HeadWaypoint(0, HeadTargetState({ HeadStateVars(0, 0) })));
-  head_carrier.Insert(HeadWaypoint(0.2, HeadTargetState({ HeadStateVars(M_PI / 8, 0) })));
-  head_carrier.Insert(HeadWaypoint(0.8, HeadTargetState({ HeadStateVars(M_PI / 8, 0) })));
-  head_carrier.Insert(HeadWaypoint(1, HeadTargetState({ HeadStateVars(0, 0) })));
-  const auto head_carrier_view = HeadTrajectoryView(&head_carrier).EnableLooping(/*after_seconds=*/3).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  // Happy carrier.
+  const float head_down_seconds = (4 + t_inc) * 0.7;
+  head_carrier.Insert(HeadWaypoint(head_down_seconds, HeadTargetState({ HeadStateVars(0, 0) })));
+  head_carrier.Insert(HeadWaypoint(head_down_seconds + 0.2, HeadTargetState({ HeadStateVars(M_PI / 6, 0) })));
+  head_carrier.Insert(HeadWaypoint(head_down_seconds + 0.8, HeadTargetState({ HeadStateVars(M_PI / 6, 0) })));
+  head_carrier.Insert(HeadWaypoint(head_down_seconds + 1, HeadTargetState({ HeadStateVars(0, 0) })));
+  const auto head_carrier_view = HeadTrajectoryView(&head_carrier).EnableLooping(/*after_seconds=*/4 + t_inc).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
+  // // Sad carrier.
+  // const float head_down_seconds = (4 + t_inc) * 0.7;
+  // head_carrier.Insert(HeadWaypoint(head_down_seconds, HeadTargetState({ HeadStateVars(M_PI / 6, 0) })));
+  // head_carrier.Insert(HeadWaypoint(head_down_seconds + 0.2, HeadTargetState({ HeadStateVars(0, 0) })));
+  // head_carrier.Insert(HeadWaypoint(head_down_seconds + 0.8, HeadTargetState({ HeadStateVars(0, 0) })));
+  // head_carrier.Insert(HeadWaypoint(head_down_seconds + 1, HeadTargetState({ HeadStateVars(M_PI / 6, 0) })));
+  // const auto head_carrier_view = HeadTrajectoryView(&head_carrier).EnableLooping(/*after_seconds=*/4 + t_inc).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+
+  // Happy modulator.
   head_modulator.Insert(HeadWaypoint(0, HeadTargetState({ HeadStateVars(0, 0) })));
   head_modulator.Insert(HeadWaypoint(0.1, HeadTargetState({ HeadStateVars(0, M_PI / 16) })));
   head_modulator.Insert(HeadWaypoint(0.3, HeadTargetState({ HeadStateVars(0, -M_PI / 16) })));
   const auto head_modulator_view = HeadTrajectoryView(&head_modulator).EnableLooping(/*after_seconds=*/0.1).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kCubic });
 
-  head_envelope.Insert(EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
-  head_envelope.Insert(EnvelopeWaypoint(0.2, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
-  head_envelope.Insert(EnvelopeWaypoint(0.4, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
-  const auto head_envelope_view = EnvelopeTrajectoryView(&head_envelope).EnableLooping(/*after_seconds=*/0.2).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  // // Sad modulator.
+  // head_modulator.Insert(HeadWaypoint(0, HeadTargetState({ HeadStateVars(0, 0) })));
+  // head_modulator.Insert(HeadWaypoint(2, HeadTargetState({ HeadStateVars(0, M_PI / 8) })));
+  // head_modulator.Insert(HeadWaypoint(4, HeadTargetState({ HeadStateVars(0, -M_PI / 16) })));
+  // const auto head_modulator_view = HeadTrajectoryView(&head_modulator).EnableLooping(/*after_seconds=*/1).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kCubic });
+
+  head_envelope.Insert(EnvelopeWaypoint(0, EnvelopeTargetState({ EnvelopeStateVars(0 * kEnvelopeAmplitude) })));
+  head_envelope.Insert(EnvelopeWaypoint(1, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
+  head_envelope.Insert(EnvelopeWaypoint(3 + t_inc, EnvelopeTargetState({ EnvelopeStateVars(1 * kEnvelopeAmplitude) })));
+  const auto head_envelope_view = EnvelopeTrajectoryView(&head_envelope).EnableLooping(/*after_seconds=*/1).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
   const HeadModulatedTrajectoryView head_trajectory_view(head_carrier_view, head_modulator_view, head_envelope_view);
   
