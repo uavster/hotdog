@@ -25,19 +25,19 @@
 
 #include <Arduino.h>
 
-BaseWaypoint BaseModulatedTrajectoryView::GetWaypoint(int index) const {
+BaseWaypoint BaseModulatedTrajectoryView::GetWaypoint(float seconds) const {
   // return carrier().GetWaypoint(index);
   // Modulate the carrier with the enveloped modulator.
   // Transform the modulator with the carrier.
-  const auto carrier_pos = carrier().state(index).location().position();
-  const auto carrier_pos_diff = carrier().state(index + 1).location().position() - carrier_pos;
+  const auto carrier_pos = carrier().state(seconds).location().position();
+  const auto carrier_pos_diff = carrier().state(seconds + kBaseTrajectoryControllerLoopPeriod).location().position() - carrier_pos;
   const float carrier_angle = -atan2f(carrier_pos_diff.y, carrier_pos_diff.x);
   const float cos_angle = cosf(carrier_angle);
   const float sin_angle = sinf(carrier_angle);
-  const float envelope_value = envelope().state(index).location().amplitude();
-  const auto modulator_pos = modulator().state(index).location().position() * envelope_value;
+  const float envelope_value = envelope().state(seconds).location().amplitude();
+  const auto modulator_pos = modulator().state(seconds).location().position() * envelope_value;
   return BaseWaypoint(
-    /*seconds=*/carrier().seconds(index), 
+    /*seconds=*/seconds, 
     BaseTargetState({
       BaseStateVars(
         Point(
@@ -100,6 +100,10 @@ BaseStateController::BaseStateController(const char *name, BaseSpeedController *
     reference_forward_speed_(0),
     reference_angular_speed_(0) {}
 
+void BaseStateController::StopControl() {
+  base_speed_controller_.SetTargetSpeeds(0, 0);
+}
+
 void BaseStateController::Update(TimerSecondsType now_seconds) {
   // Get errors in the base's local frame.
   const BaseState &base_state = GetBaseState();
@@ -139,19 +143,15 @@ BaseTrajectoryController::BaseTrajectoryController(const char *name, BaseSpeedCo
   TrajectoryController<BaseModulatedTrajectoryView>(name, static_cast<TimerSecondsType>(kBaseTrajectoryControllerLoopPeriod)), 
   base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)) {}
 
-void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int current_waypoint_index) {
+void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start) {
+  TrajectoryController<BaseModulatedTrajectoryView>::Update(seconds_since_start);
+  if (!is_started()) { return; }
+
   // Get reference states.
-  TimerSecondsType time_fraction = (seconds_since_start - trajectory().seconds(current_waypoint_index)) / (trajectory().seconds(current_waypoint_index + 1) - trajectory().seconds(current_waypoint_index));
-  const State ref_position = trajectory().state(current_waypoint_index) * (1 - time_fraction) + trajectory().state(current_waypoint_index + 1) * time_fraction;
-  const State ref_velocity = trajectory().derivative(/*order=*/1, current_waypoint_index) * (1 - time_fraction) + trajectory().derivative(/*order=*/1, current_waypoint_index + 1) * time_fraction;
-  const State ref_acceleration = trajectory().derivative(/*order=*/2, current_waypoint_index) * (1 - time_fraction) + trajectory().derivative(/*order=*/2, current_waypoint_index + 1) * time_fraction;
+  const State ref_position = trajectory().state(seconds_since_start);
+  const State ref_velocity = trajectory().derivative(/*order=*/1, seconds_since_start, /*epsilon=*/kBaseTrajectoryControllerLoopPeriod);
+  const State ref_acceleration = trajectory().derivative(/*order=*/2, seconds_since_start, /*epsilon=*/kBaseTrajectoryControllerLoopPeriod);
   const float ref_yaw = atan2f(ref_velocity.location().position().y, ref_velocity.location().position().x);
-
-  // Serial.printf("%f: %d -> %f, %f\n", seconds_since_start, current_waypoint_index, ref_position.location().position().x, ref_position.location().position().y);
-
-  // Serial.printf("[ref] t:%f t+1:%f x:%f y:%f vx:%f vy:%f ax:%f ay:%f\n", trajectory().seconds(current_waypoint_index), trajectory().seconds(current_waypoint_index+1), ref_position.location().position().x, ref_position.location().position().y, ref_velocity.location().position().x, ref_velocity.location().position().y, ref_acceleration.location().position().x, ref_acceleration.location().position().y);
-  // Serial.printf("[state] x:%f y:%f\n", GetBaseState().location().position().x, GetBaseState().location().position().y);
-  // Serial.printf("[controller] target_lin:%f target_ang:%f left_wheel_ang:%f right_wheel_ang:%f\n", base_speed_controller_.target_linear_speed(), base_speed_controller_.target_angular_speed(), base_speed_controller_.left_wheel_speed_controller().GetAngularSpeed(), base_speed_controller_.right_wheel_speed_controller().GetAngularSpeed());
 
   // Get errors in the base's local frame.
   const BaseState &base_state = GetBaseState();
@@ -162,17 +162,17 @@ void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int 
   const float lateral_error = -position_error.x * sin_yaw + position_error.y * cos_yaw;  
   const float yaw_error = NormalizeRadians(ref_yaw - base_state.location().yaw());
 
+  float feedforward_tangential_command = 0;
+  float feedforward_angular_command = 0;
+
   // Get feedforward velocities.
   const float feedfoward_tangential_velocity = ref_velocity.location().position().norm();
-  if (abs(feedfoward_tangential_velocity) < 1e-6) {
-    base_speed_controller_.SetTargetSpeeds(0, 0);
-    return;
-  }  
-  const float feedfoward_angular_velocity = (ref_velocity.location().position().x * ref_acceleration.location().position().y - ref_velocity.location().position().y * ref_acceleration.location().position().x) / feedfoward_tangential_velocity;
-  // Serial.printf("feedfoward_tangential_velocity:%f feedfoward_angular_velocity:%f\n", feedfoward_tangential_velocity, feedfoward_angular_velocity);
-  // Get feedforward commands.
-  const float feedforward_tangential_command = cos(yaw_error) * feedfoward_tangential_velocity;
-  const float feedforward_angular_command = feedfoward_angular_velocity;
+  if (abs(feedfoward_tangential_velocity) >= 1e-6) {
+    const float feedfoward_angular_velocity = (ref_velocity.location().position().x * ref_acceleration.location().position().y - ref_velocity.location().position().y * ref_acceleration.location().position().x) / feedfoward_tangential_velocity;
+    // Get feedforward commands.
+    feedforward_tangential_command = cos(yaw_error) * feedfoward_tangential_velocity;
+    feedforward_angular_command = feedfoward_angular_velocity;
+  }
 
   // Get feedback commands.
   const float feedback_tangential_command = kBaseTrajectoryControllerK1 * forward_error;
@@ -180,14 +180,13 @@ void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start, int 
 
   // Get velocity commands.
   const float tangential_command = feedforward_tangential_command + feedback_tangential_command;
-  const float angular_command = feedback_angular_command + feedforward_angular_command;
+  const float angular_command = feedforward_angular_command + feedback_angular_command;
   const float tangential_command_limitted = std::clamp(tangential_command, -kBaseTrajectoryTangentialSpeedMax, kBaseTrajectoryTangentialSpeedMax);
   const float angular_command_limitted = std::clamp(angular_command, -kBaseTrajectoryAngularSpeedMax, kBaseTrajectoryAngularSpeedMax);
 
-  // Serial.printf("%f %f\n", tangential_command_limitted, angular_command_limitted);
   base_speed_controller_.SetTargetSpeeds(tangential_command_limitted, angular_command_limitted);
 }
 
-void BaseTrajectoryController::Stop() {
+void BaseTrajectoryController::StopControl() {
   base_speed_controller_.SetTargetSpeeds(0, 0);
 }

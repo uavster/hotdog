@@ -5,15 +5,15 @@ ModulatedTrajectoryView<TState>::ModulatedTrajectoryView(
   const EnvelopeTrajectoryView &envelope)
   : carrier_(carrier),
     modulator_(modulator),
-    envelope_(envelope) {
-}
-
-template<typename TState>
-int ModulatedTrajectoryView<TState>::NumWaypoints() const {
-  return carrier_.NumWaypoints();
-}
+    envelope_(envelope) {}
 
 template<typename TState>
 bool ModulatedTrajectoryView<TState>::IsLoopingEnabled() const {
   return carrier_.IsLoopingEnabled();
 }
+
+template<typename TState>
+float ModulatedTrajectoryView<TState>::LapDuration() const {
+  return carrier_.LapDuration();
+}
+

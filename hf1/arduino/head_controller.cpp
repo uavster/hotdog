@@ -1,18 +1,19 @@
 #include "head_controller.h"
 #include "servos.h"
-
+#include <Arduino.h>
 #define kHeadTrajeactoryControllerLoopPeriodSeconds 0.03
 
-HeadWaypoint HeadModulatedTrajectoryView::GetWaypoint(int index) const {
+HeadWaypoint HeadModulatedTrajectoryView::GetWaypoint(float seconds) const {
   // Modulate the carrier with the enveloped modulator.
   // Transform the modulator with the carrier.
-  const auto angle_modulator = modulator().state(index).location() * envelope().state(index).location().amplitude();
+  const auto angle_modulator = modulator().state(seconds).location() * envelope().state(seconds).location().amplitude();
+  const auto carrier_angle = carrier().state(seconds).location();
   return HeadWaypoint(
-    /*seconds=*/index * carrier().interpolation_config().sampling_period_seconds, 
+    /*seconds=*/seconds, 
     HeadTargetState({
       HeadStateVars(
-        carrier().state(index).location().pitch() + angle_modulator.pitch(),
-        carrier().state(index).location().roll() + angle_modulator.roll()
+        carrier_angle.pitch() + angle_modulator.pitch(),
+        carrier_angle.roll() + angle_modulator.roll()
       )
     })
   );
@@ -21,9 +22,11 @@ HeadWaypoint HeadModulatedTrajectoryView::GetWaypoint(int index) const {
 HeadTrajectoryController::HeadTrajectoryController(const char *name) 
   : TrajectoryController<HeadModulatedTrajectoryView>(name, kHeadTrajeactoryControllerLoopPeriodSeconds) {}
 
-void HeadTrajectoryController::Update(TimerSecondsType seconds_since_start, int current_waypoint_index) {
-  TimerSecondsType time_fraction = (seconds_since_start - trajectory().seconds(current_waypoint_index)) / (trajectory().seconds(current_waypoint_index + 1) - trajectory().seconds(current_waypoint_index));
-  const State ref_position = trajectory().state(current_waypoint_index) + time_fraction * (trajectory().state(current_waypoint_index + 1) - trajectory().state(current_waypoint_index));
+void HeadTrajectoryController::Update(TimerSecondsType seconds_since_start) {
+  TrajectoryController<HeadModulatedTrajectoryView>::Update(seconds_since_start);
+  if (!is_started()) { return; }
+  
+  const State ref_position = trajectory().state(seconds_since_start);
   SetHeadPitchDegrees(DegreesFromRadians(ref_position.location().pitch()));
   SetHeadRollDegrees(DegreesFromRadians(ref_position.location().roll()));
 }

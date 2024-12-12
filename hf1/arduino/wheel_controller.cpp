@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <limits>
 #include "wheel_controller.h"
 #include "robot_model.h"
@@ -85,9 +84,7 @@ void WheelSpeedController::SetAngularSpeed(float radians_per_second) {
   SetLinearSpeed(radians_per_second * kWheelRadius);
 }
 
-void WheelSpeedController::Update(TimerSecondsType now_seconds) {
-  const float seconds_since_start = now_seconds - time_start_;  
-
+void WheelSpeedController::Update(TimerSecondsType seconds_since_start) {
   // Ramp up or down the speed target.
   const float current_target = initial_target_speed_ + seconds_since_start * target_speed_slope_;
   pid_.target(target_speed_ >= 0 ? std::min(target_speed_, current_target) : std::max(target_speed_, current_target));
@@ -121,6 +118,10 @@ void WheelSpeedController::Update(TimerSecondsType now_seconds) {
   duty_cycle_setter_(duty_cycle);
 
   // Serial.printf("t:%f v:%f pid:%f c:%f d:%f\n", pid_.target(), average_wheel_speed_, pid_output, speed_command, duty_cycle);
+}
+
+void WheelSpeedController::StopControl() {
+  SetLinearSpeed(0);
 }
 
 float WheelSpeedController::GetMaxLinearSpeed() const {
