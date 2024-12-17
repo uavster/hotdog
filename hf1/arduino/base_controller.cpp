@@ -26,7 +26,6 @@
 #include <Arduino.h>
 
 BaseWaypoint BaseModulatedTrajectoryView::GetWaypoint(float seconds) const {
-  // return carrier().GetWaypoint(index);
   // Modulate the carrier with the enveloped modulator.
   // Transform the modulator with the carrier.
   const auto carrier_pos = carrier().state(seconds).location().position();
