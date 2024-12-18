@@ -82,9 +82,6 @@ using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
 
 class BaseModulatedTrajectoryView : public ModulatedTrajectoryView<BaseTargetState> {
 public:
-  BaseModulatedTrajectoryView() : ModulatedTrajectoryView<BaseTargetState>() {}
-  BaseModulatedTrajectoryView(const BaseTrajectoryView &carrier, const BaseTrajectoryView &modulator, const EnvelopeTrajectoryView &envelope)
-    : ModulatedTrajectoryView<BaseTargetState>(carrier, modulator, envelope) {}
   // Returns the waypoint at the given index, after applying interpolation.
   BaseWaypoint GetWaypoint(float seconds) const override;
 };

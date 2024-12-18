@@ -53,8 +53,9 @@ class TrajectoryController : public Controller {
 public:
   TrajectoryController(const char *name, float run_period_seconds);
   
-  void trajectory(const TrajectoryViewType &trajectory);
-  const TrajectoryViewType &trajectory() const { return trajectory_; }
+  // Does not take ownership of the pointee, which must outlive this object.
+  void trajectory(const TrajectoryViewType *trajectory);
+  const TrajectoryViewType &trajectory() const { return *trajectory_; }
 
 protected:
   // Subclasses must override this function to update controls.
@@ -62,7 +63,7 @@ protected:
   virtual void Update(TimerSecondsType seconds_since_start) override;
 
 private:
-  TrajectoryViewType trajectory_;
+  const TrajectoryViewType *trajectory_;
 };
 
 #include "controller.hh"

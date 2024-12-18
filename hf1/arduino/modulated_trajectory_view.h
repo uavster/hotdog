@@ -6,7 +6,8 @@
 class EnvelopeStateVars {
 public:
   EnvelopeStateVars() : amplitude_(1.0f) {}
-  EnvelopeStateVars(float amplitude) : amplitude_(amplitude) {}
+  explicit EnvelopeStateVars(float amplitude) : amplitude_(amplitude) {}
+
   float amplitude() const { return amplitude_; }
 
   EnvelopeStateVars operator+(const EnvelopeStateVars &other) const {
@@ -32,34 +33,35 @@ using EnvelopeTrajectoryView = TrajectoryView<EnvelopeTargetState>;
 template<typename TState>
 class ModulatedTrajectoryView : public TrajectoryViewInterface<TState> {
 public:
-  ModulatedTrajectoryView() {}
-  ModulatedTrajectoryView(const TrajectoryView<TState> &carrier, 
-                          const TrajectoryView<TState> &modulator, 
-                          const EnvelopeTrajectoryView &envelope);
+  ModulatedTrajectoryView() 
+    : carrier_(nullptr), modulator_(nullptr), envelope_(nullptr) {}
 
   // Returns the waypoint at the given index, after applying interpolation.
   virtual Waypoint<TState> GetWaypoint(float seconds) const override = 0;
 
   // Returns true if the trajectory is set to restart from the beginning some time after
   // reaching the end.
-  bool IsLoopingEnabled() const override;
+  bool IsLoopingEnabled() const override { return carrier().IsLoopingEnabled(); }
 
   // Returns the duration of one trajectory lap. 
   // If no looping is enabled, this is the time between the first and last waypoints.
   // If looping is enabled, this is the time above plus the time it takes to return to the 
   // starting waypoint.
-  float LapDuration() const override;
+  float LapDuration() const override { return carrier().LapDuration(); }
 
-  const TrajectoryView<TState> &carrier() const { return carrier_; }
-  const TrajectoryView<TState> &modulator() const { return modulator_; }
-  const EnvelopeTrajectoryView &envelope() const { return envelope_; }
+  const TrajectoryView<TState> &carrier() const { return *ASSERT_NOT_NULL(carrier_); }
+  const TrajectoryView<TState> &modulator() const { return *ASSERT_NOT_NULL(modulator_); }
+  const EnvelopeTrajectoryView &envelope() const { return *ASSERT_NOT_NULL(envelope_); }
+
+  // Does not take ownsership of the pointees, which must outlive this object.
+  ModulatedTrajectoryView &carrier(const TrajectoryView<TState> *carrier) { carrier_ = carrier; return *this; }
+  ModulatedTrajectoryView &modulator(const TrajectoryView<TState> *modulator) { modulator_ = modulator; return *this; }
+  ModulatedTrajectoryView &envelope(const EnvelopeTrajectoryView *envelope) { envelope_ = envelope; return *this; }
 
 private:
-  TrajectoryView<TState> carrier_;
-  TrajectoryView<TState> modulator_;
-  EnvelopeTrajectoryView envelope_;
+  const TrajectoryView<TState> *carrier_;
+  const TrajectoryView<TState> *modulator_;
+  const EnvelopeTrajectoryView *envelope_;
 };
-
-#include "modulated_trajectory_view.hh"
 
 #endif  // MODULATED_TRAJECTORY_INCLUDED_

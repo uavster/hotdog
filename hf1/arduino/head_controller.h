@@ -19,9 +19,6 @@ using HeadTrajectoryView = TrajectoryView<HeadTargetState>;
 
 class HeadModulatedTrajectoryView : public ModulatedTrajectoryView<HeadTargetState> {
 public:
-  HeadModulatedTrajectoryView() : ModulatedTrajectoryView<HeadTargetState>() {}
-  HeadModulatedTrajectoryView(const HeadTrajectoryView &carrier, const HeadTrajectoryView &modulator, const EnvelopeTrajectoryView &envelope)
-    : ModulatedTrajectoryView<HeadTargetState>(carrier, modulator, envelope) {}
   // Returns the waypoint at the given index, after applying interpolation.
   HeadWaypoint GetWaypoint(float seconds) const override;
 };
