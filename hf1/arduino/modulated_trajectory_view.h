@@ -49,18 +49,18 @@ public:
   // starting waypoint.
   float LapDuration() const override { return carrier().LapDuration(); }
 
-  const TrajectoryView<TState> &carrier() const { return *ASSERT_NOT_NULL(carrier_); }
-  const TrajectoryView<TState> &modulator() const { return *ASSERT_NOT_NULL(modulator_); }
+  const TrajectoryViewInterface<TState> &carrier() const { return *ASSERT_NOT_NULL(carrier_); }
+  const TrajectoryViewInterface<TState> &modulator() const { return *ASSERT_NOT_NULL(modulator_); }
   const EnvelopeTrajectoryView &envelope() const { return *ASSERT_NOT_NULL(envelope_); }
 
   // Does not take ownsership of the pointees, which must outlive this object.
-  ModulatedTrajectoryView &carrier(const TrajectoryView<TState> *carrier) { carrier_ = carrier; return *this; }
-  ModulatedTrajectoryView &modulator(const TrajectoryView<TState> *modulator) { modulator_ = modulator; return *this; }
+  ModulatedTrajectoryView &carrier(const TrajectoryViewInterface<TState> *carrier) { carrier_ = carrier; return *this; }
+  ModulatedTrajectoryView &modulator(const TrajectoryViewInterface<TState> *modulator) { modulator_ = modulator; return *this; }
   ModulatedTrajectoryView &envelope(const EnvelopeTrajectoryView *envelope) { envelope_ = envelope; return *this; }
 
 private:
-  const TrajectoryView<TState> *carrier_;
-  const TrajectoryView<TState> *modulator_;
+  const TrajectoryViewInterface<TState> *carrier_;
+  const TrajectoryViewInterface<TState> *modulator_;
   const EnvelopeTrajectoryView *envelope_;
 };
 
