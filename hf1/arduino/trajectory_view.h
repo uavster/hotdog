@@ -1,6 +1,8 @@
 #ifndef TRAJECTORY_VIEW_INCLUDED_
 #define TRAJECTORY_VIEW_INCLUDED_
 
+#include "trajectory.h"
+
 // Cubic interpolation uses centripetal Catmull-Rom splines.
 typedef enum { kNone, kLinear, kCubic } InterpolationType;
 

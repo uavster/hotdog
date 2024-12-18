@@ -82,9 +82,6 @@ using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
 
 class BaseModulatedTrajectoryView : public ModulatedTrajectoryView<BaseTargetState> {
 public:
-  BaseModulatedTrajectoryView() : ModulatedTrajectoryView<BaseTargetState>() {}
-  BaseModulatedTrajectoryView(const BaseTrajectoryView &carrier, const BaseTrajectoryView &modulator, const EnvelopeTrajectoryView &envelope)
-    : ModulatedTrajectoryView<BaseTargetState>(carrier, modulator, envelope) {}
   // Returns the waypoint at the given index, after applying interpolation.
   BaseWaypoint GetWaypoint(float seconds) const override;
 };
@@ -113,7 +110,7 @@ public:
 // time. When the waypoint's time constraint cannot be met and the waypoint is the last one 
 // in the trajectory, the robot will stop. But if the waypoint is not the last one, the 
 // robot will skip to the next one.
-class BaseTrajectoryController : public TrajectoryController<BaseModulatedTrajectoryView> {
+class BaseTrajectoryController : public TrajectoryController<BaseTargetState> {
 public:
   BaseTrajectoryController(const char *name, BaseSpeedController *base_speed_controller);
 
