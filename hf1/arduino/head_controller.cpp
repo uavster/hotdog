@@ -20,10 +20,10 @@ HeadWaypoint HeadModulatedTrajectoryView::GetWaypoint(float seconds) const {
 }
 
 HeadTrajectoryController::HeadTrajectoryController(const char *name) 
-  : TrajectoryController<HeadModulatedTrajectoryView>(name, kHeadTrajeactoryControllerLoopPeriodSeconds) {}
+  : TrajectoryController<HeadTargetState>(name, kHeadTrajeactoryControllerLoopPeriodSeconds) {}
 
 void HeadTrajectoryController::Update(TimerSecondsType seconds_since_start) {
-  TrajectoryController<HeadModulatedTrajectoryView>::Update(seconds_since_start);
+  TrajectoryController<HeadTargetState>::Update(seconds_since_start);
   if (!is_started()) { return; }
   
   const State ref_position = trajectory().state(seconds_since_start);

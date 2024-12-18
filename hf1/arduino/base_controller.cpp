@@ -139,11 +139,11 @@ bool BaseStateController::IsAtTargetState() const {
 }
 
 BaseTrajectoryController::BaseTrajectoryController(const char *name, BaseSpeedController *base_speed_controller) : 
-  TrajectoryController<BaseModulatedTrajectoryView>(name, static_cast<TimerSecondsType>(kBaseTrajectoryControllerLoopPeriod)), 
+  TrajectoryController<BaseTargetState>(name, static_cast<TimerSecondsType>(kBaseTrajectoryControllerLoopPeriod)), 
   base_speed_controller_(*ASSERT_NOT_NULL(base_speed_controller)) {}
 
 void BaseTrajectoryController::Update(TimerSecondsType seconds_since_start) {
-  TrajectoryController<BaseModulatedTrajectoryView>::Update(seconds_since_start);
+  TrajectoryController<BaseTargetState>::Update(seconds_since_start);
   if (!is_started()) { return; }
 
   // Get reference states.

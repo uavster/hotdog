@@ -34,7 +34,7 @@ template<typename TState>
 class ModulatedTrajectoryView : public TrajectoryViewInterface<TState> {
 public:
   ModulatedTrajectoryView() 
-    : carrier_(nullptr), modulator_(nullptr), envelope_(nullptr) {}
+    : carrier_(NULL), modulator_(NULL), envelope_(NULL) {}
 
   // Returns the waypoint at the given index, after applying interpolation.
   virtual Waypoint<TState> GetWaypoint(float seconds) const override = 0;

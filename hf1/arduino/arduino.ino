@@ -136,10 +136,10 @@ void setup() {
   // base_trajectory_view = BaseModulatedTrajectoryView(&base_carrier_view, &base_modulator_view, &base_envelope_view);
 
   // --- Square ---
-  // Walking straight around a square.
-  const float kEnvelopeAmplitude = 0;
-  // // Emotionally walking around a square.
-  // const float kEnvelopeAmplitude = 1;
+  // // Walking straight around a square.
+  // const float kEnvelopeAmplitude = 0;
+  // Emotionally walking around a square.
+  const float kEnvelopeAmplitude = 1;
 
   // Happy time increment.
   const float t_inc = kEnvelopeAmplitude * 1;
@@ -171,7 +171,7 @@ void setup() {
   base_trajectory_view.carrier(&base_carrier_view).modulator(&base_modulator_view).envelope(&base_envelope_view);
 
   
-  base_trajectory_controller.trajectory(&base_trajectory_view);
+  base_trajectory_controller.trajectory(&base_carrier_view);
   base_trajectory_controller.Start();
 
 

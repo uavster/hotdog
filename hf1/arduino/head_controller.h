@@ -23,7 +23,7 @@ public:
   HeadWaypoint GetWaypoint(float seconds) const override;
 };
 
-class HeadTrajectoryController : public TrajectoryController<HeadModulatedTrajectoryView> {
+class HeadTrajectoryController : public TrajectoryController<HeadTargetState> {
 public:
   HeadTrajectoryController(const char *name);
 

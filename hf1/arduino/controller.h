@@ -2,6 +2,7 @@
 #define CONTROLLER_INCLUDED_
 
 #include "periodic_runnable.h"
+#include "trajectory_view.h"
 
 // Generic controller.
 //
@@ -48,14 +49,14 @@ private:
 // Trajectory controllers with these semantics should subclass TrajectoryControler, update 
 // the controls in their overridden Update() function, and stop the plant in their
 // overridden StopControl().
-template<typename TrajectoryViewType>
+template<typename TState>
 class TrajectoryController : public Controller {
 public:
   TrajectoryController(const char *name, float run_period_seconds);
   
   // Does not take ownership of the pointee, which must outlive this object.
-  void trajectory(const TrajectoryViewType *trajectory);
-  const TrajectoryViewType &trajectory() const { return *trajectory_; }
+  void trajectory(const TrajectoryViewInterface<TState> *trajectory);
+  const TrajectoryViewInterface<TState> &trajectory() const { return *ASSERT_NOT_NULL(trajectory_); }
 
 protected:
   // Subclasses must override this function to update controls.
@@ -63,7 +64,7 @@ protected:
   virtual void Update(TimerSecondsType seconds_since_start) override;
 
 private:
-  const TrajectoryViewType *trajectory_;
+  const TrajectoryViewInterface<TState> *trajectory_;
 };
 
 #include "controller.hh"
