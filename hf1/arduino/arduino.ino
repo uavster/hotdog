@@ -171,7 +171,7 @@ void setup() {
   base_trajectory_view.carrier(&base_carrier_view).modulator(&base_modulator_view).envelope(&base_envelope_view);
 
   
-  base_trajectory_controller.trajectory(&base_carrier_view);
+  base_trajectory_controller.trajectory(&base_trajectory_view);
   base_trajectory_controller.Start();
 
 
