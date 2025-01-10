@@ -103,8 +103,7 @@ public:
 // The base will not drive over a waypoint if it was not able to reach it on time. A far 
 // waypoint's state with a time very near to the previous waypoint's time will not be 
 // reachable, either because the robot's maximum acceleration and speed are insufficient, 
-// or because the time between waypoints is under the controller's sampling period (0.1 
-// seconds).
+// or because the time between waypoints is under the controller's sampling period (30 ms). 
 //
 // Also, any obstacle and driving hurdle or error can result in not reaching a waypoint in 
 // time. When the waypoint's time constraint cannot be met and the waypoint is the last one 
