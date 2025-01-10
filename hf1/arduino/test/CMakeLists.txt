@@ -18,6 +18,7 @@ include_directories(${PARENT_DIR}/../common)
 
 set(TEST_SOURCES
   trajectory_test.cpp
+  quaternion2_test.cpp
 )
 
 # Add test cpp file.
