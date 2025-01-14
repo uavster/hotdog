@@ -17,6 +17,7 @@ include_directories(${PARENT_DIR})
 include_directories(${PARENT_DIR}/../common)
 
 set(TEST_SOURCES
+  store_test.cpp
   trajectory_test.cpp
   quaternion2_test.cpp
 )
