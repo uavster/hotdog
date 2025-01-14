@@ -10,6 +10,7 @@ public:
   StatusOr(const ValueType &v) : status_(kSuccess), value_(v) {}  // Selected for lvalues.
   StatusOr(ValueType &&v) : status_(kSuccess), value_(v) {} // Selected for rvalues.
   StatusOr(Status e) : status_(e) {}
+  StatusOr() : status_(kUnavailableError) {}
   
   ValueType *operator->() { return &value_; }
   ValueType &operator*() { return value_; }
