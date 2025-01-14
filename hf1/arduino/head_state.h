@@ -32,4 +32,7 @@ private:
   float roll_;
 };
 
+// Target state of the head.
+using HeadTargetState = State<HeadStateVars, 0>;
+
 #endif  // HEAD_STATE_INCLUDED_

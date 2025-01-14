@@ -2,6 +2,7 @@
 #define MIXED_TRAJECTORY_INCLUDED_
 
 #include "trajectory_view.h"
+#include "envelope_trajectory.h"
 
 template<typename TState>
 class MixedTrajectoryView : public TrajectoryViewInterface<TState> {

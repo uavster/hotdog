@@ -2,33 +2,7 @@
 #define MODULATED_TRAJECTORY_INCLUDED_
 
 #include "trajectory_view.h"
-
-class EnvelopeStateVars {
-public:
-  EnvelopeStateVars() : amplitude_(1.0f) {}
-  explicit EnvelopeStateVars(float amplitude) : amplitude_(amplitude) {}
-
-  float amplitude() const { return amplitude_; }
-
-  EnvelopeStateVars operator+(const EnvelopeStateVars &other) const {
-    return EnvelopeStateVars(amplitude_ + other.amplitude_);
-  }
-
-  EnvelopeStateVars operator*(float factor) const {
-    return EnvelopeStateVars(amplitude_ * factor);
-  }
-
-  float DistanceFrom(const EnvelopeStateVars &state) const {
-    return amplitude_ - state.amplitude_;
-  }
-
-private:
-  float amplitude_;
-};
-
-using EnvelopeTargetState = State<EnvelopeStateVars, 0>;
-using EnvelopeWaypoint = Waypoint<EnvelopeTargetState>;
-using EnvelopeTrajectoryView = TrajectoryView<EnvelopeTargetState>;
+#include "envelope_trajectory.h"
 
 template<typename TState>
 class ModulatedTrajectoryView : public TrajectoryViewInterface<TState> {

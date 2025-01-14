@@ -29,6 +29,10 @@ private:
   float yaw_;
 };
 
+// Estimated state of the base.
 using BaseState = State<BaseStateVars, 1>;
+
+// Target state of the base.
+using BaseTargetState = State<BaseStateVars, 0>;
 
 #endif  // BASE_STATE_INCLUDED_

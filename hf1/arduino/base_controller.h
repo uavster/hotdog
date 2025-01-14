@@ -2,11 +2,9 @@
 #define ROBOT_SPEED_CONTROLLER_
 
 #include "wheel_controller.h"
-#include "base_state.h"
 #include "timer.h"
-#include "trajectory_view.h"
 #include "controller.h"
-#include "modulated_trajectory_view.h"
+#include "base_state.h"
 
 // Controller commanding the wheel speed controllers to achieve the desired forward and 
 // angular speeds of the robot's base.
@@ -67,25 +65,6 @@ private:
   float reference_forward_speed_;
   float reference_angular_speed_;
 };
-
-using BaseTargetState = State<BaseStateVars, 0>;
-
-// Defines the state of the robot's base at a given time. The controller class decides what
-// part of the state to use. For instance, some controllers may ignore the time and/or the 
-// yaw angle.
-using BaseWaypoint = Waypoint<BaseTargetState>;
-
-// A view of a collection of base waypoints.
-// The view does not own the memory containing the waypoints, so they must outlive any 
-// view objects referencing them.
-using BaseTrajectoryView = TrajectoryView<BaseTargetState>;
-
-class BaseModulatedTrajectoryView : public ModulatedTrajectoryView<BaseTargetState> {
-public:
-  // Returns the waypoint at the given index, after applying interpolation.
-  BaseWaypoint GetWaypoint(float seconds) const override;
-};
-
 
 // Controller commanding the base speed controller to move the robot's base over a sequence
 // of waypoints.
