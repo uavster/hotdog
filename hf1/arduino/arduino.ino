@@ -44,6 +44,8 @@ BaseSpeedController base_speed_controller(&left_wheel, &right_wheel);
 BaseTrajectoryController base_trajectory_controller("BaseTrajectoryController", &base_speed_controller);
 HeadTrajectoryController head_trajectory_controller("HeadTrajectoryController");
 
+TrajectoryStore trajectory_store;
+
 P2PActionServer p2p_action_server(&p2p_stream);
 SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
 SetBaseVelocityActionHandler set_base_velocity_action_handler(&p2p_stream, &base_speed_controller);
@@ -51,8 +53,6 @@ SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
 MonitorBaseStateActionHandler monitor_base_state_action_handler(&p2p_stream, &timer);
 CreateBaseTrajectoryActionHandler create_base_trajectory_action_handler(&p2p_stream, &trajectory_store);
 CreateHeadTrajectoryActionHandler create_head_trajectory_action_handler(&p2p_stream, &trajectory_store);
-
-TrajectoryStore trajectory_store;
 
 Trajectory<BaseTargetState, 40> base_carrier;
 Trajectory<BaseTargetState, 10> base_modulator;

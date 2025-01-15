@@ -26,22 +26,25 @@ bool CreateHeadTrajectoryActionHandler::Run() {
               NetworkToLocal<kP2PLocalEndianness>(target_state_msg.roll_radians)
             }
           });
-          maybe_trajectory->Insert(HeadWaypoint(waypoint_seconds, target_state);
+          maybe_trajectory->Insert(HeadWaypoint(waypoint_seconds, target_state));
         }
       }
-      if (!TrySendingReply()) {
-        state_ = kSendingReply;
+      if (TrySendingReply()) {
+        return false; // Reply sent; do not call Run() again.
       }
+      state_ = kSendingReply;
       break;
     }
     
     case kSendingReply: {
       if (TrySendingReply()) {
         state_ = kProcessingRequest;
+        return false; // Reply sent; do not call Run() again.
       }
       break;
     }
   }
+  return true;
 }
 
 bool CreateHeadTrajectoryActionHandler::TrySendingReply() {

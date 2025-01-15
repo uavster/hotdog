@@ -20,30 +20,31 @@ bool CreateBaseTrajectoryActionHandler::Run() {
         for (int i = 0; i < num_waypoints; ++i) {
           const auto waypoint_seconds = NetworkToLocal<kP2PLocalEndianness>(request.trajectory.waypoints[i].seconds);
           const auto &target_state_msg = request.trajectory.waypoints[i].target_state.location;
-          const BaseTargetState target_state(
-            {
-              BaseStateVars{
-                Point(NetworkToLocal<kP2PLocalEndianness>(target_state_msg.x_meters), NetworkToLocal<kP2PLocalEndianness>(target_state_msg.y_meters)), 
-                NetworkToLocal<kP2PLocalEndianness>(target_state_msg.yaw_radians)
-              }
+          const BaseTargetState target_state({
+            BaseStateVars{
+              Point(NetworkToLocal<kP2PLocalEndianness>(target_state_msg.x_meters), NetworkToLocal<kP2PLocalEndianness>(target_state_msg.y_meters)), 
+              NetworkToLocal<kP2PLocalEndianness>(target_state_msg.yaw_radians)
             }
-          );
-          maybe_trajectory->Insert(BaseWaypoint(waypoint_seconds, target_state);
+          });
+          maybe_trajectory->Insert(BaseWaypoint(waypoint_seconds, target_state));
         }
       }
-      if (!TrySendingReply()) {
-        state_ = kSendingReply;
+      if (TrySendingReply()) {
+        return false; // Reply sent; do not call Run() again.
       }
+      state_ = kSendingReply;
       break;
     }
     
     case kSendingReply: {
       if (TrySendingReply()) {
         state_ = kProcessingRequest;
+        return false; // Reply sent; do not call Run() again.
       }
       break;
     }
   }
+  return true;
 }
 
 bool CreateBaseTrajectoryActionHandler::TrySendingReply() {
