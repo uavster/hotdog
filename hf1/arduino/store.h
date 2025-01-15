@@ -13,11 +13,15 @@ public:
   int capacity() const { return Capacity; }
 
   const StatusOr<T> &operator[](int index) const { 
-    ASSERT(index >= 0); ASSERT(index < Capacity);
+    if (index < 0 || index >= Capacity) {
+      return Status::kDoesNotExistError;
+    }
     return elements_[index]; 
   }
   StatusOr<T> &operator[](int index) { 
-    ASSERT(index >= 0); ASSERT(index < Capacity);
+    if (index < 0 || index >= Capacity) {
+      return Status::kDoesNotExistError;
+    }
     return elements_[index];
   }
 

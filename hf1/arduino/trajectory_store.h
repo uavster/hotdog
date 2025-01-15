@@ -9,9 +9,10 @@
 #include "mixed_trajectory_view.h"
 #include "base_trajectory.h"
 #include "head_trajectory.h"
+#include "p2p_application_protocol.h"
 
 template<int MaxNumTrajectoriesPerType, int MaxNumWaypointsPerTrajectory> 
-class TrajectoryStore {
+class TrajectoryStore_ {
 public:
   Store<Trajectory<BaseTargetState, MaxNumWaypointsPerTrajectory>, MaxNumTrajectoriesPerType> &base_trajectories() { return base_trajectories_; }
   Store<Trajectory<HeadTargetState, MaxNumWaypointsPerTrajectory>, MaxNumTrajectoriesPerType> &head_trajectories() { return head_trajectories_; }
@@ -42,5 +43,7 @@ private:
   Store<MixedTrajectoryView<BaseTargetState>, MaxNumTrajectoriesPerType> base_mixed_trajectory_views_;
   Store<MixedTrajectoryView<HeadTargetState>, MaxNumTrajectoriesPerType> head_mixed_trajectory_views_;
 };
+
+using TrajectoryStore = TrajectoryStore_</*MaxNumTrajectoriesPerType=*/16, kP2PMaxNumWaypointsPerTrajectory>;
 
 #endif

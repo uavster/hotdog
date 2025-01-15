@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+// A trajectory must fit in a P2P packet. Set the maximum number of waypoints taking
+// this into account and the size of the largest waypoint type.
+#define kP2PMaxNumWaypointsPerTrajectory 10
+
 // Action identifiers go in the 6 upper bits of the command field. The 2 lower bits indicate
 // the action's stage: whether it is a request, a reply, a cancellation or a progress report.
 // Upon this, we can implement messages, services or actions (RPCs).
@@ -21,6 +25,8 @@ typedef enum {
   kSetHeadPose,
   kSetBaseVelocity,
   kMonitorBaseState,
+  kCreateBaseTrajectory,
+  kCreateHeadTrajectory,
 
   kCount  // Must be the last entry in the enum.
 } P2PAction;
@@ -51,10 +57,10 @@ typedef struct {
     P2PActionRequestID request_id;  
 } P2PApplicationPacketHeader;
 
-// Void action.
+// --- Void action ---
 typedef struct {} P2PVoid;
 
-// Time synchronization.
+// --- Time synchronization ---
 typedef struct {
     uint64_t sync_edge_local_timestamp_ns;
 } P2PSyncTimeRequest;
@@ -63,13 +69,13 @@ typedef struct {
     uint64_t sync_edge_local_timestamp_ns;
 } P2PSyncTimeReply;
 
-// Set head pose.
+// --- Set head pose ---
 typedef struct {
     float pitch_radians;
     float roll_radians;
 } P2PSetHeadPoseRequest;
 
-// Set base velocity.
+// --- Set base velocity ---
 typedef struct {
     float forward_meters_per_second;
     float counterclockwise_radians_per_second;
@@ -98,6 +104,65 @@ typedef struct {
 } P2PMonitorBaseStateProgress;
 
 typedef P2PMonitorBaseStateProgress P2PMonitorBaseStateReply;
+
+// --- Create base trajectory ---
+typedef struct {
+  float x_meters;
+  float y_meters;
+  float yaw_radians;
+} P2PBaseStateVars;
+
+typedef struct {
+  P2PBaseStateVars location;
+} P2PBaseTargetState;
+
+typedef struct {
+  float seconds;
+  P2PBaseTargetState target_state;
+} P2PBaseWaypoint;
+
+typedef struct {
+  uint32_t num_waypoints;
+  P2PBaseWaypoint waypoints[kP2PMaxNumWaypointsPerTrajectory];
+} P2PBaseTrajectory;
+
+typedef struct {
+  uint8_t id;
+  P2PBaseTrajectory trajectory;
+} P2PCreateBaseTrajectoryRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateBaseTrajectoryReply;
+
+// --- Create head trajectory ---
+typedef struct {
+  float pitch_radians;
+  float roll_radians;
+} P2PHeadStateVars;
+
+typedef struct {
+  P2PHeadStateVars location;
+} P2PHeadTargetState;
+
+typedef struct {
+  float seconds;
+  P2PHeadTargetState target_state;
+} P2PHeadWaypoint;
+
+typedef struct {
+  int num_waypoints;
+  P2PHeadWaypoint waypoints[kP2PMaxNumWaypointsPerTrajectory];
+} P2PHeadTrajectory;
+
+typedef struct {
+  int id;
+  P2PHeadTrajectory trajectory;
+} P2PCreateHeadTrajectoryRequest;
+
+typedef struct {
+  uint8_t status_code; // A Status code.
+} P2PCreateHeadTrajectoryReply;
 
 #pragma pack(pop)
 

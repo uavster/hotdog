@@ -22,6 +22,8 @@
 #include "set_base_velocity_action_handler.h"
 #include "monitor_base_state_action_handler.h"
 #include "trajectory_store.h"
+#include "create_base_trajectory_action_handler.h"
+#include "create_head_trajectory_action_handler.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -47,8 +49,10 @@ SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
 SetBaseVelocityActionHandler set_base_velocity_action_handler(&p2p_stream, &base_speed_controller);
 SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
 MonitorBaseStateActionHandler monitor_base_state_action_handler(&p2p_stream, &timer);
+CreateBaseTrajectoryActionHandler create_base_trajectory_action_handler(&p2p_stream, &trajectory_store);
+CreateHeadTrajectoryActionHandler create_head_trajectory_action_handler(&p2p_stream, &trajectory_store);
 
-TrajectoryStore</*MaxNumTrajectoriesPerType=*/16, /*MaxNumWaypointsPerTrajectory=*/16> trajectory_store;
+TrajectoryStore trajectory_store;
 
 Trajectory<BaseTargetState, 40> base_carrier;
 Trajectory<BaseTargetState, 10> base_modulator;
@@ -103,6 +107,8 @@ void setup() {
   p2p_action_server.Register(&set_head_pose_action_handler);
   p2p_action_server.Register(&set_base_velocity_action_handler);
   p2p_action_server.Register(&monitor_base_state_action_handler);
+  p2p_action_server.Register(&create_base_trajectory_action_handler);
+  p2p_action_server.Register(&create_head_trajectory_action_handler);
 
   LOG_INFO("Ready.");
 

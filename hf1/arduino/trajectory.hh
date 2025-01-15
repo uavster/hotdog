@@ -54,6 +54,11 @@ void Trajectory<TState, Capacity>::Insert(const Waypoint<TState> &waypoint) {
 }
 
 template<typename TState, int Capacity>
+void Trajectory<TState, Capacity>::Clear() {
+  size_ = 0;
+}
+
+template<typename TState, int Capacity>
 int Trajectory<TState, Capacity>::FindWaypointAtOrBeforeSeconds(TimerSecondsType seconds) const {
   if (size_ == 0) {
     return -1;
