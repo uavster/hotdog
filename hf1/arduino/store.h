@@ -13,11 +13,19 @@ public:
   int capacity() const { return Capacity; }
 
   const StatusOr<T> &operator[](int index) const { 
-    ASSERT(index >= 0); ASSERT(index < Capacity);
+    if (index < 0 || index >= Capacity) {
+      return does_not_exist_status_;
+    }
     return elements_[index]; 
   }
+  // The returned reference may be mutated by other callers, regardless of whether it
+  // points to an element or a Status. Callers should not rely on reading the same values
+  // after control leaves their scope.
   StatusOr<T> &operator[](int index) { 
-    ASSERT(index >= 0); ASSERT(index < Capacity);
+    if (index < 0 || index >= Capacity) {
+      does_not_exist_status_ = Status::kDoesNotExistError;
+      return does_not_exist_status_;
+    }
     return elements_[index];
   }
 
@@ -27,6 +35,7 @@ public:
 
 private:
   StatusOr<T> elements_[Capacity];
+  StatusOr<T> does_not_exist_status_;
 };
 
 #endif  // STORE_INCLUDED_

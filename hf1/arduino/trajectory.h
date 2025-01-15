@@ -60,6 +60,7 @@ public:
   const Waypoint<TState> &operator[](int i) const override;
 
   void Insert(const Waypoint<TState> &waypoint);
+  void Clear();
 
   // Returns the waypoint whose time is at or before `seconds`, or -1 if it does not exist.
   int FindWaypointAtOrBeforeSeconds(TimerSecondsType seconds) const override;
