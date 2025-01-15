@@ -9,13 +9,15 @@ bool CreateBaseTrajectoryActionHandler::Run() {
       const int trajectory_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.id));
       const int num_waypoints = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory.num_waypoints));
       
-      char str[48];
+      char str[80];
       sprintf(str, "create_base_trajectory(id=%d, num_waypoints=%d)", trajectory_id, num_waypoints);
       LOG_INFO(str);
 
-      auto maybe_trajectory = trajectory_store_.base_trajectories()[trajectory_id];
-      result_ = maybe_trajectory.status();        
-      if (maybe_trajectory.ok()) {
+      auto &maybe_trajectory = trajectory_store_.base_trajectories()[trajectory_id];
+      if (maybe_trajectory.status() == Status::kDoesNotExistError) {
+        result_ = maybe_trajectory.status();
+      } else {
+        result_ = Status::kSuccess;
         maybe_trajectory->Clear();
         for (int i = 0; i < num_waypoints; ++i) {
           const auto waypoint_seconds = NetworkToLocal<kP2PLocalEndianness>(request.trajectory.waypoints[i].seconds);
