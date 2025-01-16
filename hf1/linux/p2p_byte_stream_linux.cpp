@@ -16,7 +16,7 @@ int P2PByteStreamLinux::GetBurstMaxLength() {
 }
 
 int P2PByteStreamLinux::GetBurstIngestionNanosecondsPerByte() {
-	return 50000;
+	return 250000;
 }
 
 int P2PByteStreamLinux::GetAtomicSendMaxLength() {
