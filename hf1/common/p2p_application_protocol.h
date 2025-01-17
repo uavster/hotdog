@@ -27,8 +27,10 @@ typedef enum {
   kMonitorBaseState,
   kCreateBaseTrajectory,
   kCreateHeadTrajectory,
+  kCreateEnvelopeTrajectory,
   kCreateBaseTrajectoryView,
   kCreateHeadTrajectoryView,
+  kCreateEnvelopeTrajectoryView,
 
   kCount  // Must be the last entry in the enum.
 } P2PAction;
@@ -166,6 +168,34 @@ typedef struct {
   uint8_t status_code; // A Status code.
 } P2PCreateHeadTrajectoryReply;
 
+// --- Create envelope trajectory ---
+typedef struct {
+  float value;
+} P2PEnvelopeStateVars;
+
+typedef struct {
+  P2PEnvelopeStateVars location;
+} P2PEnvelopeTargetState;
+
+typedef struct {
+  float seconds;
+  P2PEnvelopeTargetState target_state;
+} P2PEnvelopeWaypoint;
+
+typedef struct {
+  int num_waypoints;
+  P2PEnvelopeWaypoint waypoints[kP2PMaxNumWaypointsPerTrajectory];
+} P2PEnvelopeTrajectory;
+
+typedef struct {
+  int id;
+  P2PEnvelopeTrajectory trajectory;
+} P2PCreateEnvelopeTrajectoryRequest;
+
+typedef struct {
+  uint8_t status_code; // A Status code.
+} P2PCreateEnvelopeTrajectoryReply;
+
 // --- Create base trajectory view ---
 typedef enum {
   kNone = 0,
@@ -217,6 +247,27 @@ typedef struct {
 typedef struct {
   uint8_t status_code;
 } P2PCreateHeadTrajectoryViewReply;
+
+// --- Create envelope trajectory view ---
+typedef struct {
+  // Identifier of the trajectory on which this view operates.
+  uint8_t trajectory_id;
+
+  // If >= 0, the trajectory loops this number of seconds.
+  // If < 0, the trajectory does not loop.
+  float loop_after_seconds;
+
+  P2PTrajectoryInterpolationConfig interpolation_config;
+} P2PEnvelopeTrajectoryView;
+
+typedef struct {
+  uint8_t id;
+  P2PEnvelopeTrajectoryView trajectory_view;
+} P2PCreateEnvelopeTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateEnvelopeTrajectoryViewReply;
 
 #pragma pack(pop)
 
