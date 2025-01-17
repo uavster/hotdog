@@ -1,6 +1,8 @@
 #ifndef STATUS_OR_INCLUDED_
 #define STATUS_OR_INCLUDED_
 
+#include "logger_interface.h"
+
 enum Status {
   kSuccess, kUnavailableError, kMalformedError, kExistsError, kDoesNotExistError
 };
@@ -12,11 +14,11 @@ public:
   StatusOr(Status e) : status_(e) {}
   StatusOr() : status_(kUnavailableError) {}
   
-  ValueType *operator->() { return &value_; }
-  ValueType &operator*() { return value_; }
+  ValueType *operator->() { ASSERT(ok()); return &value_; }
+  ValueType &operator*() { ASSERT(ok()); return value_; }
   
-  const ValueType *operator->() const { return &value_; }
-  const ValueType &operator*() const { return value_; }
+  const ValueType *operator->() const { ASSERT(ok()); return &value_; }
+  const ValueType &operator*() const { ASSERT(ok()); return value_; }
 
   bool ok() const { return status_ == kSuccess; }
   Status status() const { return status_; }
