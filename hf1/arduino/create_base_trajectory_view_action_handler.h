@@ -1,5 +1,5 @@
-#ifndef CREATE_BASE_TRAJECTORY_ACTION_HANDLER_
-#define CREATE_BASE_TRAJECTORY_ACTION_HANDLER_
+#ifndef CREATE_BASE_TRAJECTORY_VIEW_ACTION_HANDLER_
+#define CREATE_BASE_TRAJECTORY_VIEW_ACTION_HANDLER_
 
 #include "p2p_action_server.h"
 #include "trajectory_store.h"
@@ -22,4 +22,4 @@ private:
   enum { kProcessingRequest, kSendingReply } state_ = kProcessingRequest;  
 };
 
-#endif  // CREATE_BASE_TRAJECTORY_ACTION_HANDLER_
+#endif  // CREATE_BASE_TRAJECTORY_VIEW_ACTION_HANDLER_
