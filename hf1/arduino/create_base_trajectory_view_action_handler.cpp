@@ -25,7 +25,7 @@ bool CreateBaseTrajectoryViewActionHandler::Run() {
           result_ = maybe_trajectory.status();
         } else {
           result_ = Status::kSuccess;
-          *maybe_trajectory_view = BaseTrajectoryView(&*maybe_trajectory);
+          maybe_trajectory_view = BaseTrajectoryView(&*maybe_trajectory);
           if (loop_after_seconds >= 0) {
             maybe_trajectory_view->EnableLooping(loop_after_seconds);
           } else {
