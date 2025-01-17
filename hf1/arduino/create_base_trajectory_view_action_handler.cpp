@@ -10,7 +10,7 @@ bool CreateBaseTrajectoryViewActionHandler::Run() {
       const int trajectory_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view.trajectory_id));
       const float loop_after_seconds = NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view.loop_after_seconds);
       InterpolationConfig interpolation_config;
-      interpolation_config.type = NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view.interpolation_config.type);
+      interpolation_config.type = static_cast<InterpolationType>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view.interpolation_config.type));
 
       char str[150];
       sprintf(str, "create_base_trajectory_view(id=%d, trajectory_id=%d, loop_after_seconds=%f, interpolation_config={type=%d})", trajectory_view_id, trajectory_id, loop_after_seconds, interpolation_config.type);
