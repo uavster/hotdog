@@ -2,9 +2,10 @@
 #define TRAJECTORY_VIEW_INCLUDED_
 
 #include "trajectory.h"
+#include "p2p_application_protocol.h"
 
 // Cubic interpolation uses centripetal Catmull-Rom splines.
-typedef enum { kNone, kLinear, kCubic } InterpolationType;
+using InterpolationType = P2PInterpolationType;
 
 typedef struct {
   InterpolationType type;
@@ -40,7 +41,7 @@ public:
 template<typename TState>
 class TrajectoryView : public TrajectoryViewInterface<TState> {
 public:
-  TrajectoryView() : trajectory_(nullptr) {}
+  TrajectoryView() : trajectory_(nullptr), interpolation_config_(InterpolationConfig{ .type = InterpolationType::kNone }), loop_after_seconds_(-1) {}
   // Does not take ownsership of the pointee, which must outlive this object.
   TrajectoryView(const TrajectoryInterface<TState> *trajectory);
 

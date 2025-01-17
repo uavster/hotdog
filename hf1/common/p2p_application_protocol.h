@@ -27,6 +27,8 @@ typedef enum {
   kMonitorBaseState,
   kCreateBaseTrajectory,
   kCreateHeadTrajectory,
+  kCreateBaseTrajectoryView,
+  kCreateHeadTrajectoryView,
 
   kCount  // Must be the last entry in the enum.
 } P2PAction;
@@ -163,6 +165,58 @@ typedef struct {
 typedef struct {
   uint8_t status_code; // A Status code.
 } P2PCreateHeadTrajectoryReply;
+
+// --- Create base trajectory view ---
+typedef enum {
+  kNone = 0,
+  kLinear = 1,
+  kCubic = 2  // Centripetal Catmull-Rom splines.
+} P2PInterpolationType;
+
+typedef struct {
+  P2PInterpolationType type;
+} P2PTrajectoryInterpolationConfig;
+
+typedef struct {
+  // Identifier of the trajectory on which this view operates.
+  uint8_t trajectory_id;
+
+  // If >= 0, the trajectory loops this number of seconds.
+  // If < 0, the trajectory does not loop.
+  float loop_after_seconds;
+
+  P2PTrajectoryInterpolationConfig interpolation_config;
+} P2PBaseTrajectoryView;
+
+typedef struct {
+  uint8_t id;
+  P2PBaseTrajectoryView trajectory_view;
+} P2PCreateBaseTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateBaseTrajectoryViewReply;
+
+// --- Create head trajectory view ---
+typedef struct {
+  // Identifier of the trajectory on which this view operates.
+  uint8_t trajectory_id;
+
+  // If >= 0, the trajectory loops this number of seconds.
+  // If < 0, the trajectory does not loop.
+  float loop_after_seconds;
+
+  P2PTrajectoryInterpolationConfig interpolation_config;
+} P2PHeadTrajectoryView;
+
+typedef struct {
+  uint8_t id;
+  P2PHeadTrajectoryView trajectory_view;
+} P2PCreateHeadTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateHeadTrajectoryViewReply;
 
 #pragma pack(pop)
 

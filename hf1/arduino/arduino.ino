@@ -181,7 +181,7 @@ void setup() {
 
   
   base_trajectory_controller.trajectory(&base_trajectory_view);
-  base_trajectory_controller.Start();
+  // base_trajectory_controller.Start();
 
 
   // Happy carrier.
@@ -220,7 +220,7 @@ void setup() {
   head_trajectory_view.carrier(&head_carrier_view).modulator(&head_modulator_view).envelope(&head_envelope_view);
   
   head_trajectory_controller.trajectory(&head_trajectory_view);
-  head_trajectory_controller.Start();
+  // head_trajectory_controller.Start();
 }
 
 void loop() {
