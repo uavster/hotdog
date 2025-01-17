@@ -174,7 +174,7 @@ typedef enum {
 } P2PInterpolationType;
 
 typedef struct {
-  P2PInterpolationType type;
+  uint8_t type; // P2PInterpolationType
 } P2PTrajectoryInterpolationConfig;
 
 typedef struct {
