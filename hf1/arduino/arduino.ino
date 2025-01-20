@@ -28,6 +28,10 @@
 #include "create_base_trajectory_view_action_handler.h"
 #include "create_head_trajectory_view_action_handler.h"
 #include "create_envelope_trajectory_view_action_handler.h"
+#include "create_base_modulated_trajectory_view_action_handler.h"
+#include "create_head_modulated_trajectory_view_action_handler.h"
+#include "create_base_mixed_trajectory_view_action_handler.h"
+#include "create_head_mixed_trajectory_view_action_handler.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -61,6 +65,10 @@ CreateEnvelopeTrajectoryActionHandler create_envelope_trajectory_action_handler(
 CreateBaseTrajectoryViewActionHandler create_base_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateHeadTrajectoryViewActionHandler create_head_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateEnvelopeTrajectoryViewActionHandler create_envelope_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
+CreateBaseModulatedTrajectoryViewActionHandler create_base_modulated_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
+CreateHeadModulatedTrajectoryViewActionHandler create_head_modulated_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
+CreateBaseMixedTrajectoryViewActionHandler create_base_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
+CreateHeadMixedTrajectoryViewActionHandler create_head_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 
 Trajectory<BaseTargetState, 40> base_carrier;
 Trajectory<BaseTargetState, 10> base_modulator;
@@ -121,6 +129,10 @@ void setup() {
   p2p_action_server.Register(&create_base_trajectory_view_action_handler);
   p2p_action_server.Register(&create_head_trajectory_view_action_handler);
   p2p_action_server.Register(&create_envelope_trajectory_view_action_handler);
+  p2p_action_server.Register(&create_base_modulated_trajectory_view_action_handler);
+  p2p_action_server.Register(&create_head_modulated_trajectory_view_action_handler);
+  p2p_action_server.Register(&create_base_mixed_trajectory_view_action_handler);
+  p2p_action_server.Register(&create_head_mixed_trajectory_view_action_handler);
 
   LOG_INFO("Ready.");
 

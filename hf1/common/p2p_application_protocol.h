@@ -31,6 +31,10 @@ typedef enum {
   kCreateBaseTrajectoryView,
   kCreateHeadTrajectoryView,
   kCreateEnvelopeTrajectoryView,
+  kCreateBaseModulatedTrajectoryView,
+  kCreateHeadModulatedTrajectoryView,
+  kCreateBaseMixedTrajectoryView,
+  kCreateHeadMixedTrajectoryView,
 
   kCount  // Must be the last entry in the enum.
 } P2PAction;
@@ -268,6 +272,77 @@ typedef struct {
 typedef struct {
   uint8_t status_code;
 } P2PCreateEnvelopeTrajectoryViewReply;
+
+// --- Create base modulated trajectory view ---
+typedef struct {
+  // Identifier of the base trajectory view that takes the base from 
+  // point A to point B.
+  uint8_t carrier_trajectory_view_id;
+
+  // Identifier of the base trajectory view that modulates the carrier.
+  uint8_t modulator_trajectory_view_id;
+
+  // Identifier of the envelope trajectory view that multiplies the 
+  // modulated carrier.
+  uint8_t envelope_trajectory_view_id;
+} P2PModulatedTrajectoryView;
+
+typedef struct {
+  uint8_t id;
+  P2PModulatedTrajectoryView trajectory_view;
+} P2PCreateBaseModulatedTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateBaseModulatedTrajectoryViewReply;
+
+// --- Create head modulated trajectory view ---
+typedef struct {
+  uint8_t id;
+  P2PModulatedTrajectoryView trajectory_view;
+} P2PCreateHeadModulatedTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateHeadModulatedTrajectoryViewReply;
+
+// --- Create base mixed trajectory view ---
+typedef struct {
+  // ID of the first trajectory view to mix. 
+  // It can be a view to any trajectory whose state type is equal to that of 
+  // the second view, e.g. both are base trajectories, both are head trajectories.
+  uint8_t first_trajectory_view_id;
+
+  // ID of the second trajectory view to mix.
+  // It can be a view to any trajectory whose state type is equal to that of 
+  // the first view, e.g. both are base trajectories, both are head trajectories.
+  uint8_t second_trajectory_view_id;
+
+  // ID of the envelope trajectoy view controlling the mix factor between 
+  // the first and second trajectories. When the envelope is 0, this view
+  // is equivalent to the first view. When it is 1, it is equivalient to the
+  // second view.
+  uint8_t alpha_envelope_trajectory_view_id;
+} P2PMixedTrajectoryView;
+
+typedef struct {
+  uint8_t id;
+  P2PMixedTrajectoryView trajectory_view;
+} P2PCreateBaseMixedTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateBaseMixedTrajectoryViewReply;
+
+// --- Create head modulated trajectory view ---
+typedef struct {
+  uint8_t id;
+  P2PMixedTrajectoryView trajectory_view;
+} P2PCreateHeadMixedTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateHeadMixedTrajectoryViewReply;
 
 #pragma pack(pop)
 

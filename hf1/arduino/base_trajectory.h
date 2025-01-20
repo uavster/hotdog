@@ -4,6 +4,7 @@
 #include "base_state.h"
 #include "trajectory_view.h"
 #include "modulated_trajectory_view.h"
+#include "mixed_trajectory_view.h"
 
 // Defines the state of the robot's base at a given time. The controller class decides what
 // part of the state to use. For instance, some controllers may ignore the time and/or the 
@@ -20,5 +21,7 @@ public:
   // Returns the waypoint at the given index, after applying interpolation.
   BaseWaypoint GetWaypoint(float seconds) const override;
 };
+
+using BaseMixedTrajectoryView = MixedTrajectoryView<BaseTargetState>;
 
 #endif  // BASE_TRAJECTORIES_INCLUDED_
