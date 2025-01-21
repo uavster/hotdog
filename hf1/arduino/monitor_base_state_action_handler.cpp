@@ -13,6 +13,7 @@ bool MonitorBaseStateActionHandler::Run() {
     case kReceiveRequest: {
       const P2PMonitorBaseStateRequest &request = GetRequest();
       num_remaining_messages_ = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.max_updates));
+      last_state_update_ns_ = 0;
       
       char str[48];
       sprintf(str, "monitor_base_state(max_updates=%d)", num_remaining_messages_);

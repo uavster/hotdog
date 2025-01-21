@@ -10,9 +10,23 @@ void TrajectoryController<TState>::trajectory(const TrajectoryViewInterface<TSta
 }
 
 template<typename TState>
+float TrajectoryController<TState>::NumCompletedLaps() const {
+  if (IsTrajectoryFinished() && seconds_since_start_ > trajectory_->LapDuration()) {
+    return 1;
+  }
+  return seconds_since_start_ / trajectory_->LapDuration();
+}
+
+template<typename TState>
+bool TrajectoryController<TState>::IsTrajectoryFinished() const {
+  return !trajectory_->IsLoopingEnabled() && 
+          seconds_since_start_ > trajectory_->LapDuration();
+}
+
+template<typename TState>
 void TrajectoryController<TState>::Update(const TimerSecondsType seconds_since_start) {
-  if (!trajectory_->IsLoopingEnabled() && 
-      seconds_since_start > trajectory_->LapDuration()) {
+  seconds_since_start_ = seconds_since_start;
+  if (IsTrajectoryFinished()) {
     Stop();
   }
 }

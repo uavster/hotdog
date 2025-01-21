@@ -58,6 +58,9 @@ public:
   void trajectory(const TrajectoryViewInterface<TState> *trajectory);
   const TrajectoryViewInterface<TState> &trajectory() const { return *ASSERT_NOT_NULL(trajectory_); }
 
+  float NumCompletedLaps() const;
+  bool IsTrajectoryFinished() const;
+
 protected:
   // Subclasses must override this function to update controls.
   // The parent's method must always be called.
@@ -65,6 +68,7 @@ protected:
 
 private:
   const TrajectoryViewInterface<TState> *trajectory_;
+  TimerSecondsType seconds_since_start_;
 };
 
 #include "controller.hh"

@@ -35,6 +35,8 @@ typedef enum {
   kCreateHeadModulatedTrajectoryView,
   kCreateBaseMixedTrajectoryView,
   kCreateHeadMixedTrajectoryView,
+  kExecuteBaseTrajectoryView,
+  kExecuteHeadTrajectoryView,
 
   kCount  // Must be the last entry in the enum.
 } P2PAction;
@@ -343,6 +345,32 @@ typedef struct {
 typedef struct {
   uint8_t status_code;
 } P2PCreateHeadMixedTrajectoryViewReply;
+
+// --- Execute base trajectory view ---
+typedef struct {
+  uint8_t trajectory_view_id;
+} P2PExecuteBaseTrajectoryViewRequest;
+
+typedef struct {
+  float complete_fraction;  // 0: not started, 1: complete.
+} P2PExecuteBaseTrajectoryViewProgress;
+
+typedef struct {
+  uint8_t status_code;
+} P2PExecuteBaseTrajectoryViewReply;
+
+// --- Execute head trajectory view ---
+typedef struct {
+  uint8_t trajectory_view_id;
+} P2PExecuteHeadTrajectoryViewRequest;
+
+typedef struct {
+  float num_completed_laps;
+} P2PExecuteHeadTrajectoryViewProgress;
+
+typedef struct {
+  uint8_t status_code;
+} P2PExecuteHeadTrajectoryViewReply;
 
 #pragma pack(pop)
 
