@@ -10,6 +10,12 @@ void TrajectoryController<TState>::trajectory(const TrajectoryViewInterface<TSta
 }
 
 template<typename TState>
+void TrajectoryController<TState>::Start() {
+  Controller::Start();
+  seconds_since_start_ = 0;
+}
+
+template<typename TState>
 float TrajectoryController<TState>::NumCompletedLaps() const {
   if (IsTrajectoryFinished() && seconds_since_start_ > trajectory_->LapDuration()) {
     return 1;

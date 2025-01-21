@@ -12,8 +12,8 @@
 class Controller : public PeriodicRunnable {
 public:
   explicit Controller(const char *name, float run_period_seconds);
-  void Start();
-  void Stop();
+  virtual void Start();
+  virtual void Stop();
 
   bool is_started() const { return is_started_; }
 
@@ -58,6 +58,8 @@ public:
   void trajectory(const TrajectoryViewInterface<TState> *trajectory);
   const TrajectoryViewInterface<TState> &trajectory() const { return *ASSERT_NOT_NULL(trajectory_); }
 
+  virtual void Start() override;
+  
   float NumCompletedLaps() const;
   bool IsTrajectoryFinished() const;
 
@@ -66,7 +68,7 @@ protected:
   // The parent's method must always be called.
   virtual void Update(TimerSecondsType seconds_since_start) override;
 
-private:
+private:  
   const TrajectoryViewInterface<TState> *trajectory_;
   TimerSecondsType seconds_since_start_;
 };
