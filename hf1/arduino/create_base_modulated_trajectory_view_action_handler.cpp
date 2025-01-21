@@ -19,15 +19,15 @@ bool CreateBaseModulatedTrajectoryViewActionHandler::Run() {
       if (maybe_modulated_trajectory_view.status() == Status::kDoesNotExistError) {
         result_ = maybe_modulated_trajectory_view.status();
       } else {
-        const auto maybe_carrier_trajectory_view_id = trajectory_store_.base_trajectory_views()[carrier_trajectory_view_id];
+        const auto &maybe_carrier_trajectory_view_id = trajectory_store_.base_trajectory_views()[carrier_trajectory_view_id];
         if (!maybe_carrier_trajectory_view_id.ok()) {
           result_ = maybe_carrier_trajectory_view_id.status();
         } else {
-          const auto maybe_modulator_trajectory_view_id = trajectory_store_.base_trajectory_views()[modulator_trajectory_view_id];
+          const auto &maybe_modulator_trajectory_view_id = trajectory_store_.base_trajectory_views()[modulator_trajectory_view_id];
           if (!maybe_modulator_trajectory_view_id.ok()) {
             result_ = maybe_modulator_trajectory_view_id.status();
           } else {
-            const auto maybe_envelope_trajectory_view_id = trajectory_store_.envelope_trajectory_views()[envelope_trajectory_view_id];
+            const auto &maybe_envelope_trajectory_view_id = trajectory_store_.envelope_trajectory_views()[envelope_trajectory_view_id];
             if (!maybe_envelope_trajectory_view_id.ok()) {
               result_ = maybe_envelope_trajectory_view_id.status();
             } else {

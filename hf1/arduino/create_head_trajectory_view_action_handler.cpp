@@ -20,7 +20,7 @@ bool CreateHeadTrajectoryViewActionHandler::Run() {
       if (maybe_trajectory_view.status() == Status::kDoesNotExistError) {
         result_ = maybe_trajectory_view.status();
       } else {
-        const auto maybe_trajectory = trajectory_store_.head_trajectories()[trajectory_id];
+        const auto &maybe_trajectory = trajectory_store_.head_trajectories()[trajectory_id];
         if (!maybe_trajectory.ok()) {
           result_ = maybe_trajectory.status();
         } else {

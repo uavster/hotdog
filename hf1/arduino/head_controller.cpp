@@ -2,7 +2,7 @@
 #include "servos.h"
 
 #define kHeadTrajeactoryControllerLoopPeriodSeconds 0.03
-
+#include <Arduino.h>
 HeadTrajectoryController::HeadTrajectoryController(const char *name) 
   : TrajectoryController<HeadTargetState>(name, kHeadTrajeactoryControllerLoopPeriodSeconds) {}
 

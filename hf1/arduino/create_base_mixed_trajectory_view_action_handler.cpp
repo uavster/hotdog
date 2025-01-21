@@ -19,15 +19,15 @@ bool CreateBaseMixedTrajectoryViewActionHandler::Run() {
       if (maybe_mixed_trajectory_view.status() == Status::kDoesNotExistError) {
         result_ = maybe_mixed_trajectory_view.status();
       } else {
-        const auto maybe_first_trajectory_view_id = trajectory_store_.base_trajectory_views()[first_trajectory_view_id];
+        const auto &maybe_first_trajectory_view_id = trajectory_store_.base_trajectory_views()[first_trajectory_view_id];
         if (!maybe_first_trajectory_view_id.ok()) {
           result_ = maybe_first_trajectory_view_id.status();
         } else {
-          const auto maybe_second_trajectory_view_id = trajectory_store_.base_trajectory_views()[second_trajectory_view_id];
+          const auto &maybe_second_trajectory_view_id = trajectory_store_.base_trajectory_views()[second_trajectory_view_id];
           if (!maybe_second_trajectory_view_id.ok()) {
             result_ = maybe_second_trajectory_view_id.status();
           } else {
-            const auto maybe_alpha_envelope_trajectory_view_id = trajectory_store_.envelope_trajectory_views()[alpha_envelope_trajectory_view_id];
+            const auto &maybe_alpha_envelope_trajectory_view_id = trajectory_store_.envelope_trajectory_views()[alpha_envelope_trajectory_view_id];
             if (!maybe_alpha_envelope_trajectory_view_id.ok()) {
               result_ = maybe_alpha_envelope_trajectory_view_id.status();
             } else {

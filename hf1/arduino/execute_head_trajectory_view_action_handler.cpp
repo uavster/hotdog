@@ -21,13 +21,16 @@ bool ExecuteHeadTrajectoryViewActionHandler::Run() {
       auto &maybe_trajectory_view = trajectory_store_.head_trajectory_views()[trajectory_view_id];
       if (!maybe_trajectory_view.ok()) {
         result_ = maybe_trajectory_view.status();
-        if (!TrySendingReply()) { 
-          state_ = kSendingReply;
+        if (TrySendingReply()) { 
+          state_ = kProcessingRequest; // Get ready for the next command.
+          return false;
         }
+        state_ = kSendingReply;
         break;
       }
       head_trajectory_controller_.trajectory(&*maybe_trajectory_view);
       head_trajectory_controller_.Start();
+      state_ = kWaitForNextProgressUpdate;
       break;
     }
 
