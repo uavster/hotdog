@@ -15,6 +15,7 @@ public:
       head_trajectory_controller_(*ASSERT_NOT_NULL(head_trajectory_controller)) {}
 
   bool Run() override;
+  bool OnRequest() override;
   void OnCancel() override;
 
 private:

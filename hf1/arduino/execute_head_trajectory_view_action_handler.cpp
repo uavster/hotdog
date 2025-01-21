@@ -8,6 +8,11 @@
 // is blocking.
 #define kMaxProgressMessagesPerSecond 10   // Must be > 0.
 
+bool ExecuteHeadTrajectoryViewActionHandler::OnRequest() { 
+  state_ = kProcessingRequest;
+  return true; 
+}
+
 bool ExecuteHeadTrajectoryViewActionHandler::Run() {
   switch(state_) {
     case kProcessingRequest: {
