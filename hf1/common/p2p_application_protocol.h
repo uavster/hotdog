@@ -360,7 +360,14 @@ typedef struct {
 } P2PExecuteBaseTrajectoryViewReply;
 
 // --- Execute head trajectory view ---
+typedef enum {
+  kPlain = 0, 
+  kModulated = 1, 
+  kMixed = 2
+} P2PTrajectoryViewType;
+
 typedef struct {
+  uint8_t trajectory_view_type; // P2PTrajectoryViewType.
   uint8_t trajectory_view_id;
 } P2PExecuteHeadTrajectoryViewRequest;
 

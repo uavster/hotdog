@@ -18,14 +18,42 @@ bool ExecuteHeadTrajectoryViewActionHandler::Run() {
     case kProcessingRequest: {
       const P2PExecuteHeadTrajectoryViewRequest &request = GetRequest();
       const auto trajectory_view_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view_id));
+      const auto trajectory_view_type = static_cast<P2PTrajectoryViewType>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view_type));
       last_progress_update_ns_ = 0;
 
-      char str[64];
-      sprintf(str, "execute_head_trajectory_view(trajectory_view_id=%d)", trajectory_view_id);
+      char str[100];
+      sprintf(str, "execute_head_trajectory_view(trajectory_view_type=%d, trajectory_view_id=%d)", trajectory_view_type, trajectory_view_id);
       LOG_INFO(str);
-      auto &maybe_trajectory_view = trajectory_store_.head_trajectory_views()[trajectory_view_id];
-      if (!maybe_trajectory_view.ok()) {
-        result_ = maybe_trajectory_view.status();
+
+      TrajectoryViewInterface<HeadTargetState> *trajectory_view = nullptr;
+      switch(trajectory_view_type) {
+        case kPlain: {
+          auto &maybe_trajectory_view = trajectory_store_.head_trajectory_views()[trajectory_view_id];
+          result_ = maybe_trajectory_view.status();
+          if (maybe_trajectory_view.ok()) {
+            trajectory_view = &*maybe_trajectory_view;
+          }
+          break;
+        }
+        case kModulated: {
+          auto &maybe_trajectory_view = trajectory_store_.head_modulated_trajectory_views()[trajectory_view_id];
+          result_ = maybe_trajectory_view.status();
+          if (maybe_trajectory_view.ok()) {
+            trajectory_view = &*maybe_trajectory_view;
+          }
+          break;
+        }
+        case kMixed: {
+          auto &maybe_trajectory_view = trajectory_store_.head_mixed_trajectory_views()[trajectory_view_id];
+          result_ = maybe_trajectory_view.status();
+          if (maybe_trajectory_view.ok()) {
+            trajectory_view = &*maybe_trajectory_view;
+          }
+          break;
+        }
+      }
+
+      if (result_ != Status::kSuccess) {
         if (TrySendingReply()) { 
           state_ = kProcessingRequest; // Get ready for the next command.
           return false;
@@ -33,7 +61,8 @@ bool ExecuteHeadTrajectoryViewActionHandler::Run() {
         state_ = kSendingReply;
         break;
       }
-      head_trajectory_controller_.trajectory(&*maybe_trajectory_view);
+
+      head_trajectory_controller_.trajectory(trajectory_view);
       head_trajectory_controller_.Start();
       state_ = kWaitForNextProgressUpdate;
       break;
