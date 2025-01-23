@@ -32,6 +32,7 @@
 #include "create_head_modulated_trajectory_view_action_handler.h"
 #include "create_base_mixed_trajectory_view_action_handler.h"
 #include "create_head_mixed_trajectory_view_action_handler.h"
+#include "execute_base_trajectory_view_action_handler.h"
 #include "execute_head_trajectory_view_action_handler.h"
 
 // Maximum time during which communication can be processed without
@@ -70,6 +71,7 @@ CreateBaseModulatedTrajectoryViewActionHandler create_base_modulated_trajectory_
 CreateHeadModulatedTrajectoryViewActionHandler create_head_modulated_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateBaseMixedTrajectoryViewActionHandler create_base_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateHeadMixedTrajectoryViewActionHandler create_head_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
+ExecuteBaseTrajectoryViewActionHandler execute_base_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &base_trajectory_controller);
 ExecuteHeadTrajectoryViewActionHandler execute_head_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &head_trajectory_controller);
 
 Trajectory<BaseTargetState, 40> base_carrier;
@@ -135,6 +137,7 @@ void setup() {
   p2p_action_server.Register(&create_head_modulated_trajectory_view_action_handler);
   p2p_action_server.Register(&create_base_mixed_trajectory_view_action_handler);
   p2p_action_server.Register(&create_head_mixed_trajectory_view_action_handler);
+  p2p_action_server.Register(&execute_base_trajectory_view_action_handler);
   p2p_action_server.Register(&execute_head_trajectory_view_action_handler);
 
   LOG_INFO("Ready.");
