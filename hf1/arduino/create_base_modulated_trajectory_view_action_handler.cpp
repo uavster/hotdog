@@ -13,82 +13,103 @@ bool CreateBaseModulatedTrajectoryViewActionHandler::Run() {
       const auto modulator_trajectory_view_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view.modulator_trajectory_view_id.id));
       const auto envelope_trajectory_view_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view.envelope_trajectory_view_id));
 
-      char str[200];
-      sprintf(str, "create_base_modulated_trajectory_view(id=%d, carrier_trajectory_view_id=%d, modulator_trajectory_view_id=%d, envelope_trajectory_view_id=%d)", modulated_trajectory_view_id, carrier_trajectory_view_id, modulator_trajectory_view_id, envelope_trajectory_view_id);
+      char str[220];
+      sprintf(str, "create_base_modulated_trajectory_view(id=%d, carrier_trajectory_view_id=%s:%d, modulator_trajectory_view_id=%s:%d, envelope_trajectory_view_id=%d)", modulated_trajectory_view_id, GetTrajectoryViewTypeName(carrier_trajectory_view_type), carrier_trajectory_view_id, GetTrajectoryViewTypeName(modulator_trajectory_view_type), modulator_trajectory_view_id, envelope_trajectory_view_id);
       LOG_INFO(str);
 
       auto &maybe_modulated_trajectory_view = trajectory_store_.base_modulated_trajectory_views()[modulated_trajectory_view_id];
       if (maybe_modulated_trajectory_view.status() == Status::kDoesNotExistError) {
         result_ = maybe_modulated_trajectory_view.status();
+        LOG_ERROR("Index of modulated trajectory view is out of bounds.");
       } else {
         result_ = Status::kSuccess;
         const TrajectoryViewInterface<BaseTargetState> *carrier_view = nullptr;
         const TrajectoryViewInterface<BaseTargetState> *modulator_view = nullptr;
         const EnvelopeTrajectoryView *envelope_view = nullptr;
 
-
         switch(carrier_trajectory_view_type) {
           case P2PTrajectoryViewType::kPlain: {
             const auto &maybe_carrier_trajectory_view = trajectory_store_.base_trajectory_views()[carrier_trajectory_view_id];
             if (!maybe_carrier_trajectory_view.ok()) {
               result_ = maybe_carrier_trajectory_view.status();
+              LOG_ERROR("The carrier plain trajectory view does not exist.");
             } else {
               carrier_view = &*maybe_carrier_trajectory_view;
             }
+            break;
           }
           case P2PTrajectoryViewType::kModulated: {
             const auto &maybe_carrier_trajectory_view = trajectory_store_.base_modulated_trajectory_views()[carrier_trajectory_view_id];
             if (!maybe_carrier_trajectory_view.ok()) {
               result_ = maybe_carrier_trajectory_view.status();
+              LOG_ERROR("The carrier modulated trajectory view does not exist.");
             } else {
               carrier_view = &*maybe_carrier_trajectory_view;
             }
+            break;
           }
           case P2PTrajectoryViewType::kMixed: {
             const auto &maybe_carrier_trajectory_view = trajectory_store_.base_mixed_trajectory_views()[carrier_trajectory_view_id];
             if (!maybe_carrier_trajectory_view.ok()) {
               result_ = maybe_carrier_trajectory_view.status();
+              LOG_ERROR("The carrier mixed trajectory view does not exist.");
             } else {
               carrier_view = &*maybe_carrier_trajectory_view;
             }
+            break;
           }
+          default:
+            LOG_ERROR("Invalid type for carrier trajectory view.");
+            result_ = Status::kMalformedError;
+            break;
         }
 
         if (result_ == Status::kSuccess) {
           switch(modulator_trajectory_view_type) {
             case P2PTrajectoryViewType::kPlain: {
-              const auto &maybe_second_trajectory_view = trajectory_store_.base_trajectory_views()[modulated_trajectory_view_id];
+              const auto &maybe_second_trajectory_view = trajectory_store_.base_trajectory_views()[modulator_trajectory_view_id];
               if (!maybe_second_trajectory_view.ok()) {
                 result_ = maybe_second_trajectory_view.status();
+                LOG_ERROR("The modulator plain trajectory view does not exist.");
               } else {
                 modulator_view = &*maybe_second_trajectory_view;
               }
+              break;
             }
             case P2PTrajectoryViewType::kModulated: {
-              const auto &maybe_second_trajectory_view = trajectory_store_.base_modulated_trajectory_views()[modulated_trajectory_view_id];
+              const auto &maybe_second_trajectory_view = trajectory_store_.base_modulated_trajectory_views()[modulator_trajectory_view_id];
               if (!maybe_second_trajectory_view.ok()) {
                 result_ = maybe_second_trajectory_view.status();
+                LOG_ERROR("The modulator modulated trajectory view does not exist.");
               } else {
                 modulator_view = &*maybe_second_trajectory_view;
               }
+              break;
             }
             case P2PTrajectoryViewType::kMixed: {
-              const auto &maybe_second_trajectory_view = trajectory_store_.base_mixed_trajectory_views()[modulated_trajectory_view_id];
+              const auto &maybe_second_trajectory_view = trajectory_store_.base_mixed_trajectory_views()[modulator_trajectory_view_id];
               if (!maybe_second_trajectory_view.ok()) {
                 result_ = maybe_second_trajectory_view.status();
+                LOG_ERROR("The modulator mixed trajectory view does not exist.");
               } else {
                 modulator_view = &*maybe_second_trajectory_view;
               }
+              break;
             }
+            default:
+              LOG_ERROR("Invalid type for modulator trajectory view.");
+              result_ = Status::kMalformedError;
+              break;
           }
         }
 
         if (result_ == Status::kSuccess) {
-          const auto maybe_alpha_envelope_trajectory_view = trajectory_store_.envelope_trajectory_views()[envelope_trajectory_view_id];
-          if (!maybe_alpha_envelope_trajectory_view.ok()) {
-            result_ = maybe_alpha_envelope_trajectory_view.status();
+          const auto maybe_envelope_trajectory_view = trajectory_store_.envelope_trajectory_views()[envelope_trajectory_view_id];
+          if (!maybe_envelope_trajectory_view.ok()) {
+            result_ = maybe_envelope_trajectory_view.status();
+            LOG_ERROR("The envelope trajectory view does not exist.");
           } else {
-            envelope_view = &*maybe_alpha_envelope_trajectory_view;
+            envelope_view = &*maybe_envelope_trajectory_view;
           }
         }
 

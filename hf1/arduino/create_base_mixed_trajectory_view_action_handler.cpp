@@ -13,13 +13,14 @@ bool CreateBaseMixedTrajectoryViewActionHandler::Run() {
       const auto second_trajectory_view_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view.second_trajectory_view_id.id));
       const int alpha_envelope_trajectory_view_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view.alpha_envelope_trajectory_view_id));
 
-      char str[200];
-      sprintf(str, "create_base_mixed_trajectory_view(id=%d, first_trajectory_view_id=%d, second_trajectory_view_id=%d, alpha_trajectory_view_id=%d)", mixed_trajectory_view_id, first_trajectory_view_id, second_trajectory_view_id, alpha_envelope_trajectory_view_id);
+      char str[220];
+      sprintf(str, "create_base_mixed_trajectory_view(id=%d, first_trajectory_view_id=%s:%d, second_trajectory_view_id=%s:%d, alpha_trajectory_view_id=%d)", mixed_trajectory_view_id, GetTrajectoryViewTypeName(first_trajectory_view_type), first_trajectory_view_id, GetTrajectoryViewTypeName(second_trajectory_view_type), second_trajectory_view_id, alpha_envelope_trajectory_view_id);
       LOG_INFO(str);
 
       auto &maybe_mixed_trajectory_view = trajectory_store_.base_mixed_trajectory_views()[mixed_trajectory_view_id];
       if (maybe_mixed_trajectory_view.status() == Status::kDoesNotExistError) {
         result_ = maybe_mixed_trajectory_view.status();
+        LOG_ERROR("Index of mixed trajectory view is out of bounds.");
       } else {
         result_ = Status::kSuccess;
         const TrajectoryViewInterface<BaseTargetState> *trajectory1_view = nullptr;
@@ -31,26 +32,36 @@ bool CreateBaseMixedTrajectoryViewActionHandler::Run() {
             const auto &maybe_first_trajectory_view = trajectory_store_.base_trajectory_views()[first_trajectory_view_id];
             if (!maybe_first_trajectory_view.ok()) {
               result_ = maybe_first_trajectory_view.status();
+              LOG_ERROR("The first plain trajectory view does not exist.");
             } else {
               trajectory1_view = &*maybe_first_trajectory_view;
             }
+            break;
           }
           case P2PTrajectoryViewType::kModulated: {
             const auto &maybe_first_trajectory_view = trajectory_store_.base_modulated_trajectory_views()[first_trajectory_view_id];
             if (!maybe_first_trajectory_view.ok()) {
               result_ = maybe_first_trajectory_view.status();
+              LOG_ERROR("The first modulated trajectory view does not exist.");
             } else {
               trajectory1_view = &*maybe_first_trajectory_view;
             }
+            break;
           }
           case P2PTrajectoryViewType::kMixed: {
             const auto &maybe_first_trajectory_view = trajectory_store_.base_mixed_trajectory_views()[first_trajectory_view_id];
             if (!maybe_first_trajectory_view.ok()) {
               result_ = maybe_first_trajectory_view.status();
+              LOG_ERROR("The first mixed view does not exist.");
             } else {
               trajectory1_view = &*maybe_first_trajectory_view;
             }
+            break;
           }
+          default:
+            LOG_ERROR("Invalid type for first trajectory view.");
+            result_ = Status::kMalformedError;
+            break;
         }
 
         if (result_ == Status::kSuccess) {
@@ -59,26 +70,36 @@ bool CreateBaseMixedTrajectoryViewActionHandler::Run() {
               const auto &maybe_second_trajectory_view = trajectory_store_.base_trajectory_views()[second_trajectory_view_id];
               if (!maybe_second_trajectory_view.ok()) {
                 result_ = maybe_second_trajectory_view.status();
+                LOG_ERROR("The second plain trajectory view does not exist.");
               } else {
                 trajectory2_view = &*maybe_second_trajectory_view;
               }
+              break;
             }
             case P2PTrajectoryViewType::kModulated: {
               const auto &maybe_second_trajectory_view = trajectory_store_.base_modulated_trajectory_views()[second_trajectory_view_id];
               if (!maybe_second_trajectory_view.ok()) {
                 result_ = maybe_second_trajectory_view.status();
+                LOG_ERROR("The second modulated trajectory view does not exist.");
               } else {
                 trajectory2_view = &*maybe_second_trajectory_view;
               }
+              break;
             }
             case P2PTrajectoryViewType::kMixed: {
               const auto &maybe_second_trajectory_view = trajectory_store_.base_mixed_trajectory_views()[second_trajectory_view_id];
               if (!maybe_second_trajectory_view.ok()) {
                 result_ = maybe_second_trajectory_view.status();
+                LOG_ERROR("The second mixed trajectory view does not exist.");
               } else {
                 trajectory2_view = &*maybe_second_trajectory_view;
               }
+              break;
             }
+            default:
+              LOG_ERROR("Invalid type for second trajectory view.");
+              result_ = Status::kMalformedError;
+              break;
           }
         }
 
@@ -86,6 +107,7 @@ bool CreateBaseMixedTrajectoryViewActionHandler::Run() {
           const auto maybe_alpha_envelope_trajectory_view = trajectory_store_.envelope_trajectory_views()[alpha_envelope_trajectory_view_id];
           if (!maybe_alpha_envelope_trajectory_view.ok()) {
             result_ = maybe_alpha_envelope_trajectory_view.status();
+            LOG_ERROR("The alpha trajectory view does not exist.");
           } else {
             alpha_view = &*maybe_alpha_envelope_trajectory_view;
           }

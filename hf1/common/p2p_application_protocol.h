@@ -279,7 +279,9 @@ typedef struct {
 typedef enum {
   kPlain = 0,
   kModulated,
-  kMixed
+  kMixed,
+
+  kNumTrajectoryViewTypes
 } P2PTrajectoryViewType;
 
 typedef struct {
@@ -384,5 +386,7 @@ typedef struct {
 } P2PExecuteHeadTrajectoryViewReply;
 
 #pragma pack(pop)
+
+const char *GetTrajectoryViewTypeName(P2PTrajectoryViewType type);
 
 #endif  // P2P_APPLICATION_PROTOCOL_
