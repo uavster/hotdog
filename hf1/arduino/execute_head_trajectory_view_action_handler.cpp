@@ -17,8 +17,8 @@ bool ExecuteHeadTrajectoryViewActionHandler::Run() {
   switch(state_) {
     case kProcessingRequest: {
       const P2PExecuteHeadTrajectoryViewRequest &request = GetRequest();
-      const auto trajectory_view_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view_id));
-      const auto trajectory_view_type = static_cast<P2PTrajectoryViewType>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view_type));
+      const auto trajectory_view_id = static_cast<int>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view_id.id));
+      const auto trajectory_view_type = static_cast<P2PTrajectoryViewType>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view_id.type));
       last_progress_update_ns_ = 0;
 
       char str[100];

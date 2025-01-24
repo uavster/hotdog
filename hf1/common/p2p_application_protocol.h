@@ -276,13 +276,24 @@ typedef struct {
 } P2PCreateEnvelopeTrajectoryViewReply;
 
 // --- Create base modulated trajectory view ---
+typedef enum {
+  kPlain = 0,
+  kModulated,
+  kMixed
+} P2PTrajectoryViewType;
+
+typedef struct {
+  uint8_t type; // P2PTrajectoryViewType.
+  uint8_t id;
+} P2PTrajectoryViewID;
+
 typedef struct {
   // Identifier of the base trajectory view that takes the base from 
   // point A to point B.
-  uint8_t carrier_trajectory_view_id;
+  P2PTrajectoryViewID carrier_trajectory_view_id;
 
   // Identifier of the base trajectory view that modulates the carrier.
-  uint8_t modulator_trajectory_view_id;
+  P2PTrajectoryViewID modulator_trajectory_view_id;
 
   // Identifier of the envelope trajectory view that multiplies the 
   // modulated carrier.
@@ -313,12 +324,12 @@ typedef struct {
   // ID of the first trajectory view to mix. 
   // It can be a view to any trajectory whose state type is equal to that of 
   // the second view, e.g. both are base trajectories, both are head trajectories.
-  uint8_t first_trajectory_view_id;
+  P2PTrajectoryViewID first_trajectory_view_id;
 
   // ID of the second trajectory view to mix.
   // It can be a view to any trajectory whose state type is equal to that of 
   // the first view, e.g. both are base trajectories, both are head trajectories.
-  uint8_t second_trajectory_view_id;
+  P2PTrajectoryViewID second_trajectory_view_id;
 
   // ID of the envelope trajectoy view controlling the mix factor between 
   // the first and second trajectories. When the envelope is 0, this view
@@ -347,15 +358,8 @@ typedef struct {
 } P2PCreateHeadMixedTrajectoryViewReply;
 
 // --- Execute base trajectory view ---
-typedef enum {
-  kPlain = 0, 
-  kModulated = 1, 
-  kMixed = 2
-} P2PTrajectoryViewType;
-
 typedef struct {
-  uint8_t trajectory_view_type; // P2PTrajectoryViewType.
-  uint8_t trajectory_view_id;
+  P2PTrajectoryViewID trajectory_view_id;
 } P2PExecuteBaseTrajectoryViewRequest;
 
 typedef struct {
@@ -368,8 +372,7 @@ typedef struct {
 
 // --- Execute head trajectory view ---
 typedef struct {
-  uint8_t trajectory_view_type; // P2PTrajectoryViewType.
-  uint8_t trajectory_view_id;
+  P2PTrajectoryViewID trajectory_view_id;
 } P2PExecuteHeadTrajectoryViewRequest;
 
 typedef struct {
