@@ -104,7 +104,7 @@ bool CreateBaseMixedTrajectoryViewActionHandler::Run() {
         }
 
         if (result_ == Status::kSuccess) {
-          const auto maybe_alpha_envelope_trajectory_view = trajectory_store_.envelope_trajectory_views()[alpha_envelope_trajectory_view_id];
+          const auto &maybe_alpha_envelope_trajectory_view = trajectory_store_.envelope_trajectory_views()[alpha_envelope_trajectory_view_id];
           if (!maybe_alpha_envelope_trajectory_view.ok()) {
             result_ = maybe_alpha_envelope_trajectory_view.status();
             LOG_ERROR("The alpha trajectory view does not exist.");

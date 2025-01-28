@@ -104,7 +104,7 @@ bool CreateBaseModulatedTrajectoryViewActionHandler::Run() {
         }
 
         if (result_ == Status::kSuccess) {
-          const auto maybe_envelope_trajectory_view = trajectory_store_.envelope_trajectory_views()[envelope_trajectory_view_id];
+          const auto &maybe_envelope_trajectory_view = trajectory_store_.envelope_trajectory_views()[envelope_trajectory_view_id];
           if (!maybe_envelope_trajectory_view.ok()) {
             result_ = maybe_envelope_trajectory_view.status();
             LOG_ERROR("The envelope trajectory view does not exist.");

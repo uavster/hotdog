@@ -51,6 +51,10 @@ bool ExecuteBaseTrajectoryViewActionHandler::Run() {
           }
           break;
         }
+        default:
+          LOG_ERROR("Invalid trajectory type.");
+          result_ = Status::kMalformedError;
+          break;
       }
 
       if (result_ != Status::kSuccess) {
