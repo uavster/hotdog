@@ -44,6 +44,6 @@ private:
   Store<MixedTrajectoryView<HeadTargetState>, MaxNumTrajectoriesPerType> head_mixed_trajectory_views_;
 };
 
-using TrajectoryStore = TrajectoryStore_</*MaxNumTrajectoriesPerType=*/16, kP2PMaxNumWaypointsPerTrajectory>;
+using TrajectoryStore = TrajectoryStore_</*MaxNumTrajectoriesPerType=*/32, kP2PMaxNumWaypointsPerTrajectory>;
 
 #endif
