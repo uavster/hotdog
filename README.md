@@ -2,11 +2,13 @@
 
 Hotdog Fernando is a robotics platform for companion robots with emtional intelligence.
 
+## HF1
+
 HF1 is the first robot in the HF series. With your support, I will turn the prototype you see [here](https://www.ignaciomellado.es/hf1) into a product that you and your family can use too to learn robotics, play games, have fun together and other exciting stuff that's still cooking. Think of it as a fun pet minus the inconvenience (yes, that meant "poop").
 
 By joining the [waitlist](https://www.ignaciomellado.es/hf1), you will get important project updates in your inbox: new features, launch dates, calls for pre-orders and crowdfunding campaigns, key milestones... I promise to not email you too often. You can also follow me on [X](https://x.com/uavster) or [Bluesky](https://bsky.app/profile/uavster.bsky.social) for more frequent updates on the project.
 
-## What is this repo?
+## Motion Controller
 
 This repository is the software that runs on the HF1's Motion Controller: an Arduino-based board responsible for the low-level control and motion primitives. We have open-sourced the code for all makers and roboticists to play with and create a foundation for robot companions.
 
