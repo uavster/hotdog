@@ -6,7 +6,7 @@
 // A trajectory must fit in a P2P packet. Set the maximum number of waypoints taking
 // this into account and the size of the largest waypoint type.
 #define kP2PMaxNumWaypointsPerBaseTrajectory 10
-#define kP2PMaxNumWaypointsPerHeadTrajectory 14
+#define kP2PMaxNumWaypointsPerHeadTrajectory 10
 #define kP2PMaxNumWaypointsPerEnvelopeTrajectory 10
 
 // Action identifiers go in the 6 upper bits of the command field. The 2 lower bits indicate
