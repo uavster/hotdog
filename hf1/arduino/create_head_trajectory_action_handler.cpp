@@ -18,7 +18,7 @@ bool CreateHeadTrajectoryActionHandler::Run() {
         result_ = maybe_trajectory.status();
       } else {
         result_ = Status::kSuccess;
-        maybe_trajectory = Trajectory<HeadTargetState, kP2PMaxNumWaypointsPerTrajectory>();
+        maybe_trajectory = Trajectory<HeadTargetState, kP2PMaxNumWaypointsPerHeadTrajectory>();
         for (int i = 0; i < num_waypoints; ++i) {
           const auto waypoint_seconds = NetworkToLocal<kP2PLocalEndianness>(request.trajectory.waypoints[i].seconds);
           const auto &target_state_msg = request.trajectory.waypoints[i].target_state.location;

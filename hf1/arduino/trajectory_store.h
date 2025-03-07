@@ -11,12 +11,12 @@
 #include "head_trajectory.h"
 #include "p2p_application_protocol.h"
 
-template<int MaxNumTrajectoriesPerType, int MaxNumWaypointsPerTrajectory> 
+template<int MaxNumTrajectoriesPerType, int MaxNumWaypointsPerBaseTrajectory, int MaxNumWaypointsPerHeadTrajectory, int MaxNumWaypointsPerEnvelopeTrajectory> 
 class TrajectoryStore_ {
 public:
-  Store<Trajectory<BaseTargetState, MaxNumWaypointsPerTrajectory>, MaxNumTrajectoriesPerType> &base_trajectories() { return base_trajectories_; }
-  Store<Trajectory<HeadTargetState, MaxNumWaypointsPerTrajectory>, MaxNumTrajectoriesPerType> &head_trajectories() { return head_trajectories_; }
-  Store<Trajectory<EnvelopeTargetState, MaxNumWaypointsPerTrajectory>, MaxNumTrajectoriesPerType> &envelope_trajectories() { return envelope_trajectories_; }
+  Store<Trajectory<BaseTargetState, MaxNumWaypointsPerBaseTrajectory>, MaxNumTrajectoriesPerType> &base_trajectories() { return base_trajectories_; }
+  Store<Trajectory<HeadTargetState, MaxNumWaypointsPerHeadTrajectory>, MaxNumTrajectoriesPerType> &head_trajectories() { return head_trajectories_; }
+  Store<Trajectory<EnvelopeTargetState, MaxNumWaypointsPerEnvelopeTrajectory>, MaxNumTrajectoriesPerType> &envelope_trajectories() { return envelope_trajectories_; }
 
   Store<TrajectoryView<BaseTargetState>, MaxNumTrajectoriesPerType> &base_trajectory_views() { return base_trajectory_views_; };
   Store<TrajectoryView<HeadTargetState>, MaxNumTrajectoriesPerType> &head_trajectory_views() { return head_trajectory_views_; }
@@ -29,9 +29,9 @@ public:
   Store<MixedTrajectoryView<HeadTargetState>, MaxNumTrajectoriesPerType> &head_mixed_trajectory_views() { return head_mixed_trajectory_views_; }
 
 private:
-  Store<Trajectory<BaseTargetState, MaxNumWaypointsPerTrajectory>, MaxNumTrajectoriesPerType> base_trajectories_;
-  Store<Trajectory<HeadTargetState, MaxNumWaypointsPerTrajectory>, MaxNumTrajectoriesPerType> head_trajectories_;
-  Store<Trajectory<EnvelopeTargetState, MaxNumWaypointsPerTrajectory>, MaxNumTrajectoriesPerType> envelope_trajectories_;
+  Store<Trajectory<BaseTargetState, MaxNumWaypointsPerBaseTrajectory>, MaxNumTrajectoriesPerType> base_trajectories_;
+  Store<Trajectory<HeadTargetState, MaxNumWaypointsPerHeadTrajectory>, MaxNumTrajectoriesPerType> head_trajectories_;
+  Store<Trajectory<EnvelopeTargetState, MaxNumWaypointsPerEnvelopeTrajectory>, MaxNumTrajectoriesPerType> envelope_trajectories_;
 
   Store<TrajectoryView<BaseTargetState>, MaxNumTrajectoriesPerType> base_trajectory_views_;
   Store<TrajectoryView<HeadTargetState>, MaxNumTrajectoriesPerType> head_trajectory_views_;
@@ -44,6 +44,6 @@ private:
   Store<MixedTrajectoryView<HeadTargetState>, MaxNumTrajectoriesPerType> head_mixed_trajectory_views_;
 };
 
-using TrajectoryStore = TrajectoryStore_</*MaxNumTrajectoriesPerType=*/32, kP2PMaxNumWaypointsPerTrajectory>;
+using TrajectoryStore = TrajectoryStore_</*MaxNumTrajectoriesPerType=*/32, kP2PMaxNumWaypointsPerBaseTrajectory, kP2PMaxNumWaypointsPerHeadTrajectory, kP2PMaxNumWaypointsPerEnvelopeTrajectory>;
 
 #endif

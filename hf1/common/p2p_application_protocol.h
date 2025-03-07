@@ -5,7 +5,9 @@
 
 // A trajectory must fit in a P2P packet. Set the maximum number of waypoints taking
 // this into account and the size of the largest waypoint type.
-#define kP2PMaxNumWaypointsPerTrajectory 10
+#define kP2PMaxNumWaypointsPerBaseTrajectory 10
+#define kP2PMaxNumWaypointsPerHeadTrajectory 20
+#define kP2PMaxNumWaypointsPerEnvelopeTrajectory 10
 
 // Action identifiers go in the 6 upper bits of the command field. The 2 lower bits indicate
 // the action's stage: whether it is a request, a reply, a cancellation or a progress report.
@@ -133,7 +135,7 @@ typedef struct {
 
 typedef struct {
   uint32_t num_waypoints;
-  P2PBaseWaypoint waypoints[kP2PMaxNumWaypointsPerTrajectory];
+  P2PBaseWaypoint waypoints[kP2PMaxNumWaypointsPerBaseTrajectory];
 } P2PBaseTrajectory;
 
 typedef struct {
@@ -162,7 +164,7 @@ typedef struct {
 
 typedef struct {
   int num_waypoints;
-  P2PHeadWaypoint waypoints[kP2PMaxNumWaypointsPerTrajectory];
+  P2PHeadWaypoint waypoints[kP2PMaxNumWaypointsPerHeadTrajectory];
 } P2PHeadTrajectory;
 
 typedef struct {
@@ -190,7 +192,7 @@ typedef struct {
 
 typedef struct {
   int num_waypoints;
-  P2PEnvelopeWaypoint waypoints[kP2PMaxNumWaypointsPerTrajectory];
+  P2PEnvelopeWaypoint waypoints[kP2PMaxNumWaypointsPerEnvelopeTrajectory];
 } P2PEnvelopeTrajectory;
 
 typedef struct {
