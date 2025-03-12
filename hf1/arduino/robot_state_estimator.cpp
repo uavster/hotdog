@@ -57,6 +57,7 @@ void InitRobotStateEstimator() {
 static void RegisterIMUEvent() {  
   const auto attitude = body_imu.GetYawPitchRoll();
   const auto accels = body_imu.GetLinearAccelerations();
+  Serial.printf("att: (%f, %f, %f) accel: (%f, %f, %f)\n", attitude.x(), attitude.y(), attitude.z(), accels.x(), accels.y(), accels.z());
   NO_TIMER_IRQ {
     event_buffer.Write(Event{ 
       .type = kIMUReading, 

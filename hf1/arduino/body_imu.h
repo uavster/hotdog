@@ -3,6 +3,7 @@
 #include <Adafruit_BNO055.h>
 #include <utility/imumaths.h>
 #include <status_or.h>
+#include "bno055.h"
 
 class BodyIMU {
 public:
@@ -23,10 +24,10 @@ public:
   imu::Vector<3> GetLinearAccelerations();
 
   // Returns the angular velocities in rad/s.
-  imu::Vector<3> GetAngularVelocities();
+  // imu::Vector<3> GetAngularVelocities();
 
 private:
-  Adafruit_BNO055 bno_;
+  BNO055 bno055_;
 };
 
 extern BodyIMU body_imu;
