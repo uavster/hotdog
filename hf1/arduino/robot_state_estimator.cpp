@@ -1,4 +1,3 @@
-#include "utility/vector.h"
 #include "ring_buffer.h"
 #include "timer.h"
 #include "encoders.h"

@@ -1,5 +1,5 @@
 #include "bno055.h"
-#include <Wire.h>
+#include "i2c_t3.h"
 #include "timer.h"
 #include "logger_interface.h"
 
@@ -14,8 +14,7 @@
 #define OPERATION_MODE_MASK			0Xf
 #define OPERATION_MODE_REG			0x3d
 #define SYS_TRIGGER_REG         0x3f
-
-#define PAGE_ZERO               0
+#define SYS_CLK_STATUS_REG      0x38
 
 #define SET_SENSOR_OFFSETS_BASE_ADDRESS 0x55
 
@@ -64,7 +63,7 @@ static void write_page_id(uint8_t page_id) {
 }
 
 static uint8_t get_operation_mode() {
-  write_page_id(PAGE_ZERO);
+  write_page_id(0);
   return get_byte_part(i2c_read_byte(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK);
 }
 
@@ -90,27 +89,48 @@ static void set_operation_mode(BNO055OperationMode op_mode) {
 
 bool BNO055::begin(BNO055OperationMode op_mode) {
   Wire.begin();
+  SleepForNanos(1'000'000);
   
-  SleepForNanos(1000000);
-  
-  // TODO: We normally don't need it now because of the initial delay after boot, but ensure we retry if that delay changes. 
+  // Wait for the chip to start up and check that we have the right model.
+  SleepForNanos(400'000'000); // Typical start-up time is 400 ms.
+  int timeout_ms = 200;  
+  while(i2c_read_byte(CHIP_ID_REG) != EXPECTED_CHIP_ID && timeout_ms > 0) {
+    SleepForNanos(10'000'000);
+    timeout_ms -= 10;
+  }
+  ASSERTM(timeout_ms > 0, "IMU does not start or it's not a BNO055.");
 
-  // Check that we have the right chip.
-  ASSERTM(i2c_read_byte(CHIP_ID_REG) == EXPECTED_CHIP_ID, "Unknown chip ID.");
+  // Reset the chip in case begin() has been called a second time, 
+  // or the MCU was reset by the programmer without power-cycling the IMU.
+  set_operation_mode(BNO055_OPERATION_MODE_CONFIG);
+  i2c_write_byte(SYS_TRIGGER_REG, 0x20);
 
-  // TODO: Reset the chip in case begin() is called a second time.
+  // Check that we have the right chip. Retry until it is on.
+  SleepForNanos(650'000'000);  // Typical POR time is 650 ms.
+  timeout_ms = 200;
+  while(i2c_read_byte(CHIP_ID_REG) != EXPECTED_CHIP_ID && timeout_ms > 0) {
+    SleepForNanos(10'000'000);
+    timeout_ms -= 10;
+  }
+  ASSERTM(timeout_ms > 0, "IMU does not start or it's not a BNO055.");
+  SleepForNanos(50'000'000);
 
-  // TODO: configure power mode.
-
-  // TODO: Configure external crystal.
-  // set_operation_mode(BNO055_OPERATION_MODE_CONFIG);
-  // SleepForNanos(25000000);
-  // write_page_id(PAGE_ZERO);
-  // i2c_write_byte(SYS_TRIGGER_REG, 0x80);
-  // SleepForNanos(10000000);
+  // Configure external crystal.
+  set_operation_mode(BNO055_OPERATION_MODE_CONFIG);
+  SleepForNanos(25'000'000);
+  write_page_id(0);
+  i2c_write_byte(SYS_TRIGGER_REG, 0x80);
+  SleepForNanos(600'000'000);
+  timeout_ms = 1000;
+  while(i2c_read_byte(SYS_CLK_STATUS_REG) & 1) {
+    SleepForNanos(10'000'000);
+    timeout_ms -= 10;
+  }
+  ASSERTM(!(i2c_read_byte(SYS_CLK_STATUS_REG) & 1), "Timed out waiting for ST_MAIN_CLK to become low.");
+  ASSERTM(i2c_read_byte(SYS_TRIGGER_REG) & 0x80, "Unable to start external oscillator.");
 
   setMode(op_mode);
-  SleepForNanos(20000000);
+  SleepForNanos(20'000'000);
 
   LOG_INFO("BNO055 init ok.\n");
   return true;
@@ -131,8 +151,8 @@ void BNO055::setSensorOffsets(const uint8_t *calibration_data) {
   set_operation_mode(last_mode_);
 }
 
-imu::Vector<3> BNO055::getVector(TVectorType vector_type) {
-  // TODO: We assume that page 0 is selected, but we should make sure by setting it with caching, so we don't waste time setting it over and over again.
+Vector BNO055::getVector(TVectorType vector_type) {
+  // Assume that page 0 is selected.
   uint8_t buffer[6];
   i2c_read(static_cast<uint8_t>(vector_type), buffer, sizeof(buffer) / sizeof(buffer[0]));
   const int16_t x = ((int16_t)buffer[0]) | (((int16_t)buffer[1]) << 8);
@@ -141,9 +161,9 @@ imu::Vector<3> BNO055::getVector(TVectorType vector_type) {
 
   switch(vector_type) {
     case VECTOR_EULER:
-      return imu::Vector<3>(static_cast<double>(x) / 16.0, static_cast<double>(y) / 16.0, static_cast<double>(z) / 16.0);
+      return Vector(static_cast<float>(x) / 16.0, static_cast<float>(y) / 16.0, static_cast<float>(z) / 16.0);
     case VECTOR_LINEAR_ACCEL:
-      return imu::Vector<3>(static_cast<double>(x) / 100.0, static_cast<double>(y) / 100.0, static_cast<double>(z) / 100.0);
+      return Vector(static_cast<float>(x) / 100.0, static_cast<float>(y) / 100.0, static_cast<float>(z) / 100.0);
   }
-  return imu::Vector<3>();
+  return Vector();
 }
