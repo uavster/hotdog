@@ -34,6 +34,7 @@
 #include "create_head_mixed_trajectory_view_action_handler.h"
 #include "execute_base_trajectory_view_action_handler.h"
 #include "execute_head_trajectory_view_action_handler.h"
+#include "console.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -73,6 +74,7 @@ CreateBaseMixedTrajectoryViewActionHandler create_base_mixed_trajectory_view_act
 CreateHeadMixedTrajectoryViewActionHandler create_head_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 ExecuteBaseTrajectoryViewActionHandler execute_base_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &base_trajectory_controller);
 ExecuteHeadTrajectoryViewActionHandler execute_head_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &head_trajectory_controller);
+Console console(&Serial);
 
 void setup() {
   // Open serial port before anything else, as it enables showing logs and asserts in the console.
@@ -83,7 +85,7 @@ void setup() {
   InitTimer();
 
   // Serial starts working after some time. Wait, so we don't miss any log.
-  while(GetTimerNanoseconds() < 3000000000ULL) {}
+  while(GetTimerNanoseconds() < 3'000'000'000ULL) {}
 
   LOG_INFO("Initialized debugging serial port and timing modules.");
 
@@ -152,4 +154,6 @@ void loop() {
     // If processing for too long, yield time to other tasks.
     process_comms = process_comms && (timer.GetLocalNanoseconds() - process_comms_start_time_ns > kMaxRxTxLoopBlockingDurationNs);
   }
+
+  console.Run();
 }
