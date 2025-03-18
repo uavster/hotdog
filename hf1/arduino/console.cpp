@@ -1,46 +1,6 @@
 #include "console.h"
 #include "battery.h"
 
-#define MAX_NUM_PARAMS 10
-#define MAX_COMMAND_NAME_LENGTH 16
-
-struct StringView {
-  const char *start;
-  const char *end;
-
-  StringView() : start(nullptr), end(nullptr) {}
-
-  StringView(const char *s) : start(s) {
-    while(*s != '\0') { ++s; }
-    end = s;
-  }
-
-  bool Length() const { return end - start; }
-
-  bool operator==(const StringView other) const {
-    const char *p1 = start;
-    const char *p2 = other.start;
-    while(*p1 == *p2 && p1 != end && p2 != other.end) {
-      ++p1;
-      ++p2;    
-    }
-    return p1 == end && p2 == other.end;
-  }
-
-  void print(Stream &s) const {
-    const char *p = start;
-    while(p != end) {
-      s.write(*p);
-      ++p;
-    }
-  }
-
-  void println(Stream &s) const {
-    print(s);
-    s.println();
-  }  
-};
-
 namespace {
 const char *SkipSpaces(const char *str) {  
   while (*str == ' ' && *str != '\0') { ++str; }
@@ -68,101 +28,113 @@ void Console::Run() {
   }
 }
 
-struct CommandLine {
-  StringView command_name;
-  int num_params;
-  StringView params[MAX_NUM_PARAMS];
-};
-
-class CommandHandler {  
-public:
-  CommandHandler(const char *name) { strcpy(name_, name); }
-
-  virtual void Run(Stream &stream, const CommandLine &command_line) = 0;
-  virtual void Help(Stream &stream, const CommandLine &command_line) = 0;
-
-  bool Matches(const StringView &s) const {
-    return s == StringView(name_);
+CommandHandler *CommandInterpreter::FindCommandHandler(const StringView &command_name) const {
+  for (int i = 0; i < num_command_handlers_; ++i) {
+    if (!command_handlers_[i]->Matches(command_name)) {
+      continue;
+    }
+    return command_handlers_[i];
   }
+  return nullptr;
+}
 
-  const char *name() const { return name_; }
+void CommandInterpreter::PrintCommandDescriptions(Stream &stream, const CommandLine &command_line) const {
+  for (int i = 0; i < num_command_handlers(); ++i) {
+    stream.printf("%s - ", command_handlers()[i]->name());
+    command_handlers()[i]->Describe(stream, command_line);
+  }
+}
 
-private:
-  char name_[MAX_COMMAND_NAME_LENGTH];
-};
-
-CommandHandler **command_handlers_ptr;
-
-class HelpCommandHandler : public CommandHandler {
-public:
-  HelpCommandHandler() : CommandHandler("help") {}
-
-  void Run(Stream &stream, const CommandLine &command_line) override {
-    if (command_line.num_params == 0) {
-      stream.println("Available commands:");
-      int i = 0;
-      while(command_handlers_ptr[i] != nullptr) {
-        stream.printf("%s - ", command_handlers_ptr[i]->name());
-        command_handlers_ptr[i]->Help(stream, command_line);
-        ++i;
-      }
+static void ShowCommandHelpRecursive(Stream &stream, const CommandInterpreter &interpreter, const CommandLine &command_line) {
+  ASSERT(command_line.num_params > 0);
+  CommandHandler *handler = interpreter.FindCommandHandler(command_line.params[0]);
+  if (handler == nullptr) { 
+    stream.printf("Wrong argument '");
+    command_line.params[0].Print(stream);
+    stream.println("'.");
+    return;
+  }
+  if (command_line.num_params < 2) {
+    handler->Help(stream, command_line);
+  } else {
+    if (handler->interpreter() != nullptr) {
+      ShowCommandHelpRecursive(stream, *handler->interpreter(), command_line.ShiftLeft());
     } else {
-      // First parameter is the command name the user needs help about.
-      int i = 0;
-      while(command_handlers_ptr[i] != nullptr) {
-        if (command_line.params[0] == command_handlers_ptr[i]->name()) {
-          command_handlers_ptr[i]->Help(stream, command_line);
-          break;
-        }
-        ++i;
-      }
-
+      stream.printf("'");
+      command_line.params[0].Print(stream);
+      stream.println("' takes no extra commands.");
     }
   }
-  void Help(Stream &stream, const CommandLine &command_line) override {
-    stream.println("Prints usage information about available commands.");
+}
+
+void HelpCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (command_line.num_params == 0) {
+    stream.println("Available commands:");
+    interpreter_.PrintCommandDescriptions(stream, command_line);
+  } else {
+    // First parameter is the command name the user needs help about.
+    ShowCommandHelpRecursive(stream, interpreter_, command_line);
   }
-};
+}
 
-class VersionCommandHandler : public CommandHandler {
-public:
-  VersionCommandHandler() : CommandHandler("version") {}
+void HelpCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Prints usage information about available commands.");
+}
 
-  void Run(Stream &stream, const CommandLine &command_line) override {
-    stream.println("HF1 v0.1");
-    stream.println("(c) Ignacio Mellado Bataller");
+void VersionCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.println("HF1 v0.1");
+  stream.println("(c) Ignacio Mellado Bataller");
+}
+
+void VersionCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Prints the software version.");
+}
+
+void ReadCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CommandHandler *handler = nullptr;
+  if (command_line.num_params < 1) {
+    stream.print("Please specify what to read: ");
+  } else {
+    handler = interpreter_.FindCommandHandler(command_line.params[0]);
+    if (handler == nullptr) {
+      stream.printf("Wrong argument '%s'. Please use one of these: ", command_line.params[0]);
+    }
   }
-  void Help(Stream &stream, const CommandLine &command_line) override {
-    stream.println("Prints the software version.");
+  if (handler == nullptr) {
+    for (int i = 0; i < interpreter_.num_command_handlers(); ++i) {
+      if (i > 0) {
+        stream.print(", ");
+      }
+      stream.print(interpreter_.command_handlers()[i]->name());
+    }
+    stream.println(".");
+    return;
   }
-};
 
-class BatteryCommandHandler : public CommandHandler {
-public:
-  BatteryCommandHandler() : CommandHandler("battery") {}
+  // Run the subcommand taking as first parameter the one behind the subcommand's name.
+  handler->Run(stream, command_line.ShiftLeft());
+}
 
-  void Run(Stream &stream, const CommandLine &command_line) override {
-    stream.printf("%.1fV\n", GetBatteryVoltage());
-  }
-  void Help(Stream &stream, const CommandLine &command_line) override {
-    stream.println("Prints the battery voltage.");
-  }
-};
+void ReadCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Reads from different information sources on the robot.");
+}
 
-HelpCommandHandler help_command_handler;
-VersionCommandHandler version_command_handler;
-BatteryCommandHandler battery_command_handler;
+void ReadCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
+  Describe(stream, command_line);
+  stream.println("Format: 'read source', where source is one of:");
+  interpreter_.PrintCommandDescriptions(stream, command_line);
+}
 
-CommandHandler *command_handlers[] = {
-  &help_command_handler, 
-  &version_command_handler,
-  &battery_command_handler,
-  nullptr
-};
+void ReadBatteryCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.printf("%.1fV\n", GetBatteryVoltage());
+}
+
+void ReadBatteryCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Prints the battery voltage.");
+}
 
 void Console::ProcessCommandLine() {
-  command_handlers_ptr = command_handlers;
-  input_stream_.printf("%s\n", command_line_);
+  input_stream_.printf("\n> %s\n", command_line_);
 
   CommandLine cline;
   const char *cline_ptr = command_line_;
@@ -176,23 +148,19 @@ void Console::ProcessCommandLine() {
 
   // Find parameters.
   cline.num_params = 0;
-  while (cline.num_params < MAX_NUM_PARAMS && *cline_ptr != '\0') {
-    cline_ptr = SkipSpaces(cline_ptr);  
+  while (cline.num_params < CONSOLE_MAX_NUM_COMMAND_PARAMS && *cline_ptr != '\0') {
+    cline_ptr = SkipSpaces(cline_ptr);
+    if (*cline_ptr == '\0') { break; }
     cline.params[cline.num_params].start = cline_ptr;
     cline_ptr = SkipNonSpaces(cline_ptr);
     cline.params[cline.num_params].end = cline_ptr;
     ++cline.num_params;
   }
 
-  bool command_found = false;
-  for (size_t i = 0; i < sizeof(command_handlers) / sizeof(command_handlers[0]); ++i) {
-    if (command_handlers[i]->Matches(cline.command_name)) {
-      command_handlers[i]->Run(input_stream_, cline);
-      command_found = true;
-      break;
-    }
-  }
-  if (!command_found) {
+  CommandHandler *const command_handler = interpreter_.FindCommandHandler(cline.command_name);
+  if (command_handler != nullptr) {
+    command_handler->Run(input_stream_, cline);
+  } else {
     input_stream_.println("Command not found.");
   }
 }

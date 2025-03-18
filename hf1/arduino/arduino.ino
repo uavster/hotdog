@@ -89,25 +89,25 @@ void setup() {
 
   LOG_INFO("Initialized debugging serial port and timing modules.");
 
-  LOG_INFO("Initializing encoders...");
+  LOG_INFO("Initializing encoders.");
   InitEncoders();
   
-  LOG_INFO("Initializing wheel speed estimator...");
+  LOG_INFO("Initializing wheel speed estimator.");
   WheelStateEstimator::Init();
 
-  LOG_INFO("Initializing robot state estimator...");
+  LOG_INFO("Initializing robot state estimator.");
   InitRobotStateEstimator();
 
-  LOG_INFO("Initializing inter-board communications...");
+  LOG_INFO("Initializing inter-board communications.");
   Serial1.begin(1000000, SERIAL_8N1);
 
-  LOG_INFO("Initializing motors...");
+  LOG_INFO("Initializing motors.");
   InitMotors();
 
-  LOG_INFO("Initializing servos...");
+  LOG_INFO("Initializing servos.");
   InitServos();
 
-  LOG_INFO("Register actions in action server...");
+  LOG_INFO("Registering actions in action server.");
   p2p_action_server.Register(&sync_time_action_handler);
   p2p_action_server.Register(&set_head_pose_action_handler);
   p2p_action_server.Register(&set_base_velocity_action_handler);

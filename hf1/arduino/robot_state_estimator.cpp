@@ -51,7 +51,7 @@ void InitRobotStateEstimator() {
   AddEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
 
   last_imu_poll_time_ns = 0;
-  LOG_INFO("Initializing body IMU...");
+  LOG_INFO("Initializing body IMU.");
   body_imu.Init();
 }
 
