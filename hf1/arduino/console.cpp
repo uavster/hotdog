@@ -1,4 +1,5 @@
 #include "console.h"
+#include "battery.h"
 
 #define MAX_NUM_PARAMS 10
 #define MAX_COMMAND_NAME_LENGTH 16
@@ -136,12 +137,26 @@ public:
   }
 };
 
+class BatteryCommandHandler : public CommandHandler {
+public:
+  BatteryCommandHandler() : CommandHandler("battery") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override {
+    stream.printf("%.1fV\n", GetBatteryVoltage());
+  }
+  void Help(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Prints the battery voltage.");
+  }
+};
+
 HelpCommandHandler help_command_handler;
 VersionCommandHandler version_command_handler;
+BatteryCommandHandler battery_command_handler;
 
 CommandHandler *command_handlers[] = {
   &help_command_handler, 
   &version_command_handler,
+  &battery_command_handler,
   nullptr
 };
 
