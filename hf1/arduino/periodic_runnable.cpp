@@ -18,9 +18,11 @@ PeriodicRunnable::PeriodicRunnable(const char *name, TimerNanosType period_nanos
   #endif
     {
   #if kEnableStats
-      strncpy(name_, name, kMaxNameLength - 1);
+      strncpy(name_, name, kPeriodicRunnableMaxNameLength - 1);
   #endif
     }
+
+PeriodicRunnable::PeriodicRunnable(const char *name) : PeriodicRunnable(name, kPeriodicRunnableInfinitePeriod) {}
 
 PeriodicRunnable::PeriodicRunnable(const char *name, TimerSecondsType period_seconds)
   : PeriodicRunnable(name, NanosFromSeconds(period_seconds)) {}
@@ -46,6 +48,9 @@ void PeriodicRunnable::Run() {
   }
   #endif
 
+  if (period_nanos_ == kPeriodicRunnableInfinitePeriod) {
+    return;
+  }
   const TimerNanosType nanos_since_last_call = now_nanos - last_call_nanos_;
   if (nanos_since_last_call < period_nanos_) {
     // Period not elapsed yet.

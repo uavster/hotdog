@@ -1,5 +1,6 @@
 #include "console.h"
 #include "battery.h"
+#include "status_or.h"
 
 namespace {
 const char *SkipSpaces(const char *str) {  
@@ -12,13 +13,44 @@ const char *SkipNonSpaces(const char *str) {
   return str;
 }
 
+bool IsDigit(char c) {
+  return c >= '0' && c <= '9';
 }
 
+StatusOr<TimerNanosType> NanosFromDurationString(const StringView &s) {
+  const StringView trimmed_s = s.Trimmed();
+  if (trimmed_s.Length() == 0) { return Status::kMalformedError; }
+  StringView units = trimmed_s;
+  while (IsDigit(*units.start) && units.start < units.end) { ++units.start; }
+  StringView number;
+  number.start = trimmed_s.start;
+  number.end = units.start;
+  char number_str[number.Length() + 1];
+  number.ToCString(number_str);
+  StatusOr<TimerNanosType> period_ns = Status::kMalformedError;
+  double period;
+  if (sscanf(number_str, "%lf", &period) == 1) {
+    if (units.Length() == 0 || units == "s") {    
+      period_ns = period * 1'000'000'000ULL;
+    } else if (units == "ms") {
+      period_ns = period * 1'000'000;
+    }  else if (units == "us") {
+      period_ns = period * 1'000;
+    }  else if (units == "ns") {
+      period_ns = period;
+    }
+  }
+  return period_ns;
+}
+} // namespace
+
 void Console::Run() {
+  interpreter_.RunPeriodicCommand();
   while (input_stream_.available()) {
     const int c = input_stream_.read();
     if (c < 0) { return; }
     if (c == '\n' || c == '\r' || c == '\0' || command_line_length_ >= sizeof(command_line_) - 1) {
+      interpreter_.StopPeriodicCommand();
       command_line_[command_line_length_] = '\0';
       ProcessCommandLine();
       command_line_length_ = 0;
@@ -97,7 +129,9 @@ void ReadCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   } else {
     handler = interpreter_.FindCommandHandler(command_line.params[0]);
     if (handler == nullptr) {
-      stream.printf("Wrong argument '%s'. Please use one of these: ", command_line.params[0]);
+      stream.print("Wrong argument '");
+      command_line.params[0].Print(stream);
+      stream.print("'. Please use one of these: ");
     }
   }
   if (handler == nullptr) {
@@ -163,4 +197,38 @@ void Console::ProcessCommandLine() {
   } else {
     input_stream_.println("Command not found.");
   }
+}
+
+void EveryCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (command_line.num_params < 2) {
+    stream.println("At least two parameters are required after 'every': period and command. Run 'help every' for details.");
+    return;
+  }
+  StatusOr<TimerNanosType> period_ns = NanosFromDurationString(command_line.params[0]);
+  if (!period_ns.ok()) {
+    stream.print("Invalid command period '");
+    command_line.params[0].Print(stream);
+    stream.println("'.");
+    return;
+  }
+  CommandLine periodic_command_line = command_line.ShiftLeft().ShiftLeft();
+  if (!interpreter_.SchedulePeriodicCommand(&stream, periodic_command_line, *period_ns)) {
+    stream.print("Wrong command '");
+    periodic_command_line.command_name.Print(stream);
+    stream.println("'.");
+  }
+}
+
+void EveryCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("When used before another command, 'every' runs the command repeatedly with the given period.");
+}
+
+void EveryCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
+  Describe(stream, command_line);
+  stream.println("It goes on until ENTER is hit or a new command is sent.");
+  stream.println("Format: 'every period command', where period can be expressed in different units:");
+  stream.println("  s or no suffix for seconds, e.g. 0.123 or 1.23s.");
+  stream.println("  ms for milliseconds, e.g. 12.3ms.");
+  stream.println("  us for microseconds, e.g. 12.3us.");
+  stream.println("  ns for nanoseconds, e.g. 123ns.");
 }

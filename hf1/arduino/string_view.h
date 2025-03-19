@@ -10,12 +10,16 @@ struct StringView {
   StringView();
   StringView(const char *s);
 
-  bool Length() const;
+  int Length() const;
 
   bool operator==(const StringView other) const;
 
   void Print(Stream &s) const;
   void PrintLine(Stream &s) const;
+
+  StringView Trimmed() const;
+
+  void ToCString(char *s) const;
 };
 
 #endif  // STRING_VIEW_INCLUDED_

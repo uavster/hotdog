@@ -3,7 +3,8 @@
 
 #define kEnableStats 0
 
-#define kMaxNameLength 32
+#define kPeriodicRunnableMaxNameLength 32
+#define kPeriodicRunnableInfinitePeriod -1ULL
 
 #include "timer.h"
 
@@ -11,11 +12,15 @@
 // `period_seconds` seconds.
 class PeriodicRunnable {
 public:
-  // Creates a periodic runnable with the given period.
+  // Creates a periodic runnable with the given period, or infinite period if not specified.
+  PeriodicRunnable(const char *name); 
   PeriodicRunnable(const char *name, TimerNanosType period_nanos); 
   PeriodicRunnable(const char *name, TimerSecondsType period_seconds);
 
   TimerNanosType period_nanos() const { return period_nanos_; }
+  TimerNanosType period_nanos(TimerNanosType period_ns) { period_nanos_ = period_ns; return period_nanos_; }
+  TimerNanosType period_seconds() const { return SecondsFromNanos(period_nanos_); }
+  TimerNanosType period_seconds(TimerNanosType period_s) { period_nanos_ = NanosFromSeconds(period_s); return period_s; }
 
   // Will call RunAfterPeriod() every given period.
   // Must be called in a busy loop at a higher rate than the runnable period. 
@@ -29,9 +34,9 @@ protected:
   virtual void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) = 0;
 
 private:
-  char name_[kMaxNameLength];
+  char name_[kPeriodicRunnableMaxNameLength];
   bool is_first_run_;
-  const TimerNanosType period_nanos_;
+  TimerNanosType period_nanos_;
   TimerNanosType last_call_nanos_;
 #if kEnableStats  
   void PrintStats();
