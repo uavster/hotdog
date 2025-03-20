@@ -31,7 +31,6 @@ typedef struct {
   } payload;
 } Event;
 
-static BodyIMU body_imu;
 static RingBuffer<Event, kEventRingBufferCapacity> event_buffer;
 static BaseStateFilter base_state_filter;
 

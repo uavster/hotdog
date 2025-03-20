@@ -28,3 +28,5 @@ public:
 private:
   Adafruit_BNO055 bno_;
 };
+
+extern BodyIMU body_imu;

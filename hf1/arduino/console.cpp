@@ -1,6 +1,7 @@
 #include "console.h"
 #include "battery.h"
 #include "status_or.h"
+#include "body_imu.h"
 
 namespace {
 const char *SkipSpaces(const char *str) {  
@@ -122,10 +123,10 @@ void VersionCommandHandler::Describe(Stream &stream, const CommandLine &command_
   stream.println("Prints the software version.");
 }
 
-void ReadCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+void CategoryHandler::Run(Stream &stream, const CommandLine &command_line) {
   CommandHandler *handler = nullptr;
   if (command_line.num_params < 1) {
-    stream.print("Please specify what to read: ");
+    stream.print("Missing one more argument. Valid values: ");
   } else {
     handler = interpreter_.FindCommandHandler(command_line.params[0]);
     if (handler == nullptr) {
@@ -149,13 +150,9 @@ void ReadCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   handler->Run(stream, command_line.ShiftLeft());
 }
 
-void ReadCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Reads from different information sources on the robot.");
-}
-
-void ReadCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
+void CategoryHandler::Help(Stream &stream, const CommandLine &command_line) {
   Describe(stream, command_line);
-  stream.println("Format: 'read source', where source is one of:");
+  stream.println("Valid arguments after this one:");
   interpreter_.PrintCommandDescriptions(stream, command_line);
 }
 
@@ -165,6 +162,15 @@ void ReadBatteryCommandHandler::Run(Stream &stream, const CommandLine &command_l
 
 void ReadBatteryCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Prints the battery voltage.");
+}
+
+void ReadBodyIMUOrientationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  const auto ypr = body_imu.GetYawPitchRoll();
+  stream.printf("(%f, %f, %f) radians\n", ypr.x(), ypr.y(), ypr.z());
+}
+
+void ReadBodyIMUOrientationCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Orientation in euler angles (yaw, pitch, roll)");
 }
 
 void Console::ProcessCommandLine() {
@@ -226,9 +232,5 @@ void EveryCommandHandler::Describe(Stream &stream, const CommandLine &command_li
 void EveryCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
   Describe(stream, command_line);
   stream.println("It goes on until ENTER is hit or a new command is sent.");
-  stream.println("Format: 'every period command', where period can be expressed in different units:");
-  stream.println("  s or no suffix for seconds, e.g. 0.123 or 1.23s.");
-  stream.println("  ms for milliseconds, e.g. 12.3ms.");
-  stream.println("  us for microseconds, e.g. 12.3us.");
-  stream.println("  ns for nanoseconds, e.g. 123ns.");
+  stream.println("Format: 'every period command', where period is a floating point number with a units suffix (s, ms, us, ns), e.g. 1.23ms. No suffix means seconds.");
 }

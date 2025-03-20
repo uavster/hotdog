@@ -49,6 +49,7 @@ class CommandInterpreter;
 class CommandHandler {
 public:
   CommandHandler(const char *name) {
+    ASSERT(strlen(name) < sizeof(name_));
     strcpy(name_, name);
   }
 
@@ -151,6 +152,23 @@ private:
   CommandInterpreter &interpreter_;
 };
 
+class CategoryHandler : public CommandHandler {
+public:
+  template<int num_command_handlers>
+  CategoryHandler(const char *name, CommandHandler *const (&&command_handlers)[num_command_handlers])
+    : CommandHandler(name), interpreter_(std::move(command_handlers)) {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Help(Stream &stream, const CommandLine &command_line) override;
+
+  const CommandInterpreter *interpreter() const {
+    return &interpreter_;
+  }
+
+private:
+  CommandInterpreter interpreter_;
+};
+
 class VersionCommandHandler : public CommandHandler {
 public:
   VersionCommandHandler()
@@ -169,22 +187,40 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
-class ReadCommandHandler : public CommandHandler {
+class ReadBodyIMUOrientationCommandHandler : public CommandHandler {
 public:
-  ReadCommandHandler()
-    : CommandHandler("read"), interpreter_({ &read_battery_handler_ }) {}
+  ReadBodyIMUOrientationCommandHandler() 
+    : CommandHandler("orientation") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
-  void Describe(Stream &stream, const CommandLine &command_line) override;
-  void Help(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;  
+};
 
-  const CommandInterpreter *interpreter() const override {
-    return &interpreter_;
+class ReadBodyIMUCommandHandler : public CategoryHandler {
+public:
+  ReadBodyIMUCommandHandler() 
+    : CategoryHandler("bodyimu", { &read_bodyimu_orientation_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Reads from the IMU at the robot's body.");    
+  }
+
+private:
+  ReadBodyIMUOrientationCommandHandler read_bodyimu_orientation_;
+};
+
+class ReadCommandHandler : public CategoryHandler {
+public:
+  ReadCommandHandler()
+    : CategoryHandler("read", { &read_battery_handler_, &read_bodyimu_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Reads from different information sources on the robot.");    
   }
 
 private:
   ReadBatteryCommandHandler read_battery_handler_;
-  CommandInterpreter interpreter_;
+  ReadBodyIMUCommandHandler read_bodyimu_handler_;
 };
 
 class EveryCommandHandler : public CommandHandler {

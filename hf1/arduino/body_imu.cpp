@@ -8,6 +8,8 @@
 
 #define kCalibrationMode false
 
+BodyIMU body_imu;
+
 BodyIMU::BodyIMU() : bno_(kSensorID) {}
 
 void BodyIMU::Init() {
