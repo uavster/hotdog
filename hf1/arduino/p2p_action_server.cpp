@@ -5,6 +5,9 @@
 
 P2PActionServer::P2PActionServer(P2PPacketStreamArduino *p2p_stream)
   : p2p_stream_(*ASSERT_NOT_NULL(p2p_stream)) {
+  for (size_t i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
+    handlers_[i] = nullptr;
+  }
   p2p_stream_.other_end_started_callback(P2POtherEndStartedCallback(&P2PActionServer::OnOtherEndStarted, this));
 }
 
@@ -21,7 +24,7 @@ void P2PActionServer::RunActions() {
   // Execute all running actions.
   for (int i = 0; i < P2PAction::kCount; ++i) {
     P2PActionHandlerBase *handler = handlers_[i];
-    if (handler == NULL || 
+    if (handler == nullptr || 
         handler->run_state() == P2PActionHandlerBase::RunState::kIdle) {
       continue;
     }
@@ -34,7 +37,7 @@ void P2PActionServer::RunActions() {
 void P2PActionServer::InitActionsIfNeeded() {
   for (int i = 0; i < P2PAction::kCount; ++i) {
     P2PActionHandlerBase *handler = handlers_[i];
-    if (!handler->is_initialized()) {
+    if (handler != nullptr && !handler->is_initialized()) {
       handler->Init();
       handler->is_initialized(true);
     }
@@ -66,7 +69,7 @@ StatusOr<const P2PPacketView> P2PActionServer::GetRequestOrCancellation() const 
   }
 
   P2PActionHandlerBase *handler = handlers_[app_header->action];
-  if (handler == NULL) {
+  if (handler == nullptr) {
     LOG_ERROR("No handler registered for action.");
     p2p_stream_.input().Consume(maybe_oldest_packet_view->priority());
     return Status::kMalformedError;
@@ -92,6 +95,11 @@ void P2PActionServer::Run() {
   }
   const auto app_header = reinterpret_cast<const P2PApplicationPacketHeader *>(maybe_packet->content());
   P2PActionHandlerBase *handler = handlers_[app_header->action];
+  if (handler == nullptr) {
+    LOG_ERROR("No handler registered for requested action.");
+    p2p_stream_.input().Consume(maybe_packet->priority());
+    return;
+  }
   switch(app_header->stage) {
     case P2PActionStage::kRequest: {
       if (handler->run_state() == P2PActionHandlerBase::RunState::kRunning) {
@@ -137,7 +145,7 @@ void P2PActionServer::OnOtherEndStarted(void *self_p) {
   P2PActionServer &self = *reinterpret_cast<P2PActionServer *>(self_p);
   for (int i = 0; i < P2PAction::kCount; ++i) {
     P2PActionHandlerBase *handler = self.handlers_[i];
-    if (handler != NULL) {
+    if (handler != nullptr) {
       handler->OnCancel();
       handler->run_state(P2PActionHandlerBase::RunState::kIdle);
     }

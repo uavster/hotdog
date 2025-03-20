@@ -74,6 +74,7 @@ CreateBaseMixedTrajectoryViewActionHandler create_base_mixed_trajectory_view_act
 CreateHeadMixedTrajectoryViewActionHandler create_head_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 ExecuteBaseTrajectoryViewActionHandler execute_base_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &base_trajectory_controller);
 ExecuteHeadTrajectoryViewActionHandler execute_head_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &head_trajectory_controller);
+
 Console console(&Serial);
 
 void setup() {

@@ -31,7 +31,7 @@ void PeriodicRunnable::Run() {
   const auto now_nanos = GetTimerNanoseconds();
   if (is_first_run_) {
     is_first_run_ = false;
-    last_call_nanos_ = now_nanos;    
+    last_call_nanos_ = now_nanos;
     RunFirstTime(now_nanos);
     return;
   }
