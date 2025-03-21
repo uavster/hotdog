@@ -5,9 +5,13 @@
 #include "motors.h"
 
 #include "timer_arduino.h"
+#include "wheel_controller.h"
+
 extern TimerArduino timer;
 extern bool is_trajectory_control_enabled;
 extern bool is_wheel_control_enabled;
+extern WheelSpeedController left_wheel;
+extern WheelSpeedController right_wheel;
 
 namespace {
 const char *SkipSpaces(const char *str) {  
@@ -273,24 +277,21 @@ void ReadGlobalTimerUnitsCommandHandler::Describe(Stream &stream, const CommandL
 
 void WriteMotorsPWMCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   if (command_line.num_params != 2) {
-    stream.println("The command takes two arguments: write motors pwm left_pwm_duty_cycle right_pwm_duty_cycle.");
+    stream.println("This command takes two floating point arguments in [0, 1]: write motors pwm left_pwm_duty_cycle right_pwm_duty_cycle.");
     return;
   }
-  float left_pwm;
-  char tmp[21];
-  command_line.params[0].ToCString(tmp);
-  if (sscanf(tmp, "%f", &left_pwm) != 1) {
+  const StatusOr<float> left_pwm = command_line.params[0].ToFloat();
+  if (!left_pwm.ok()) {
     stream.println("Unable to parse left motor's PWM duty cycle.");
     return;
   }
-  float right_pwm;
-  command_line.params[1].ToCString(tmp);
-  if (sscanf(tmp, "%f", &right_pwm) != 1) {
+  const StatusOr<float> right_pwm = command_line.params[1].ToFloat();
+  if (!right_pwm.ok()) {
     stream.println("Unable to parse right motor's PWM duty cycle.");
     return;
   }
-  SetLeftMotorDutyCycle(left_pwm);
-  SetRightMotorDutyCycle(right_pwm);
+  SetLeftMotorDutyCycle(*left_pwm);
+  SetRightMotorDutyCycle(*right_pwm);
   if (is_trajectory_control_enabled) {
     stream.println("Trajectory control has been disabled.");
     is_trajectory_control_enabled = false;
@@ -303,6 +304,72 @@ void WriteMotorsPWMCommandHandler::Run(Stream &stream, const CommandLine &comman
 
 void WriteMotorsPWMCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Sets the PWM duty cycle of the left and right motors of the robot between 0 (stopped) and 1 (full speed).");
+}
+
+void WriteMotorsAngularSpeedCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (command_line.num_params != 2) {
+    stream.println("This command takes two floating point arguments: write motors angular_speed left_radians_per_second right_radians_per_second.");
+    return;
+  }
+  const StatusOr<float> left_speed = command_line.params[0].ToFloat();
+  if (!left_speed.ok()) {
+    stream.println("Unable to parse left motor's angular speed.");
+    return;
+  }
+  const StatusOr<float> right_speed = command_line.params[1].ToFloat();
+  if (!right_speed.ok()) {
+    stream.println("Unable to parse right motor's angular speed.");
+    return;
+  }
+
+  left_wheel.SetAngularSpeed(*left_speed);
+  right_wheel.SetAngularSpeed(*right_speed);
+
+  if (is_trajectory_control_enabled) {
+    stream.println("Trajectory control has been disabled.");
+    is_trajectory_control_enabled = false;
+  }
+  if (!is_wheel_control_enabled) {
+    stream.println("Wheel speed control had been enabled.");
+    is_wheel_control_enabled = true;
+  }
+}
+
+void WriteMotorsAngularSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Sets the angular speed of the left and right motors of the robot in rad/s.");
+}
+
+void WriteMotorsLinearSpeedCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (command_line.num_params != 2) {
+    stream.println("This command takes two floating point arguments: write motors linear_speed left_meters_per_second right_meters_per_second.");
+    return;
+  }
+  const StatusOr<float> left_speed = command_line.params[0].ToFloat();
+  if (!left_speed.ok()) {
+    stream.println("Unable to parse left motor's linear speed.");
+    return;
+  }
+  const StatusOr<float> right_speed = command_line.params[1].ToFloat();
+  if (!right_speed.ok()) {
+    stream.println("Unable to parse right motor's linear speed.");
+    return;
+  }
+  
+  left_wheel.SetLinearSpeed(*left_speed);
+  right_wheel.SetLinearSpeed(*right_speed);
+
+  if (is_trajectory_control_enabled) {
+    stream.println("Trajectory control has been disabled.");
+    is_trajectory_control_enabled = false;
+  }
+  if (!is_wheel_control_enabled) {
+    stream.println("Wheel speed control had been enabled.");
+    is_wheel_control_enabled = true;
+  }
+}
+
+void WriteMotorsLinearSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Sets the linear speed of the left and right motors of the robot in m/s.");
 }
 
 void Console::ProcessCommandLine() {

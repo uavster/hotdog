@@ -58,3 +58,13 @@ void StringView::ToCString(char *s) const {
   }
   *s = '\0';
 }
+
+StatusOr<float> StringView::ToFloat() const {
+  char tmp[Length() + 1];
+  ToCString(tmp);
+  float value;
+  if (sscanf(tmp, "%f", &value) != 1) {
+    return Status::kMalformedError;
+  }
+  return value;
+}

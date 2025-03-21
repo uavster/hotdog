@@ -2,6 +2,7 @@
 #define STRING_VIEW_INCLUDED_
 
 #include <Arduino.h>
+#include "status_or.h"
 
 struct StringView {
   const char *start;
@@ -21,6 +22,8 @@ struct StringView {
   StringView Trimmed() const;
 
   void ToCString(char *s) const;
+
+  StatusOr<float> ToFloat() const;
 };
 
 #endif  // STRING_VIEW_INCLUDED_

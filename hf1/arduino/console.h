@@ -181,7 +181,7 @@ public:
 class ReadBodyIMUCommandHandler : public CategoryHandler {
 public:
   ReadBodyIMUCommandHandler() 
-    : CategoryHandler("bodyimu", { &read_bodyimu_orientation_, &read_bodyimu_acceleration_ }) {}
+    : CategoryHandler("body_imu", { &read_bodyimu_orientation_, &read_bodyimu_acceleration_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from the IMU at the robot's body.");    
@@ -345,10 +345,26 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
+class WriteMotorsAngularSpeedCommandHandler : public CommandHandler {
+public:
+  WriteMotorsAngularSpeedCommandHandler() : CommandHandler("angular_speed") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class WriteMotorsLinearSpeedCommandHandler : public CommandHandler {
+public:
+  WriteMotorsLinearSpeedCommandHandler() : CommandHandler("linear_speed") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class WriteMotorsCommandHandler : public CategoryHandler {
 public:
   WriteMotorsCommandHandler()
-    : CategoryHandler("motors", { &write_motors_pwm_handler_ }) {}
+    : CategoryHandler("motors", { &write_motors_pwm_handler_, &write_motors_angular_speed_handler_, &write_motores_linear_speed_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Writes commands to the robot motors.");
@@ -356,6 +372,8 @@ public:
   
 private:
   WriteMotorsPWMCommandHandler write_motors_pwm_handler_;
+  WriteMotorsAngularSpeedCommandHandler write_motors_angular_speed_handler_;
+  WriteMotorsLinearSpeedCommandHandler write_motores_linear_speed_handler_;
 };
 
 class WriteCommandHandler : public CategoryHandler {
