@@ -78,9 +78,9 @@ ExecuteHeadTrajectoryViewActionHandler execute_head_trajectory_view_action_handl
 Console console(&Serial);
 
 void setup() {
-  // Open serial port before anything else, as it enables showing logs and asserts in the console.
-  Serial.begin(115200);
+  // No need to call Serial.begin() with USB port.
 
+  // Configure logger.
   *logger.base_logger() = SetLogger(&logger);
 
   InitTimer();
