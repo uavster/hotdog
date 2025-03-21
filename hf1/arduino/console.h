@@ -321,10 +321,40 @@ private:
   ReadGlobalTimerSecondsCommandHandler read_timer_seconds_handler_;  
 };
 
+class ReadEncodersTicksCommandHandler : public CommandHandler {
+public:
+  ReadEncodersTicksCommandHandler() : CommandHandler("ticks") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class ReadEncodersLinearSpeedCommandHandler : public CommandHandler {
+public:
+  ReadEncodersLinearSpeedCommandHandler() : CommandHandler("linear_speed") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class ReadEncodersCommandHandler : public CategoryHandler {
+public:
+  ReadEncodersCommandHandler() 
+    : CategoryHandler("encoders", { &read_encoders_ticks_handler_, &read_encoders_linear_speed_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Reads measurements from the encoders.");
+  }
+
+private:
+  ReadEncodersTicksCommandHandler read_encoders_ticks_handler_;
+  ReadEncodersLinearSpeedCommandHandler read_encoders_linear_speed_handler_;
+};
+
 class ReadCommandHandler : public CategoryHandler {
 public:
   ReadCommandHandler()
-    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_bodyimu_handler_ }) {}
+    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_bodyimu_handler_, &read_encoders_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from an information source on the robot.");    
@@ -335,6 +365,7 @@ private:
   ReadGlobalTimerCommandHandler read_global_timer_handler_;
   ReadBatteryCommandHandler read_battery_handler_;
   ReadBodyIMUCommandHandler read_bodyimu_handler_;
+  ReadEncodersCommandHandler read_encoders_handler_;
 };
 
 class WriteMotorsPWMCommandHandler : public CommandHandler {

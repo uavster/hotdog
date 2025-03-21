@@ -26,6 +26,8 @@ public:
 
   WheelState state() const;
 
+  StatusOr<TimerTicksType> last_encoder_edge_timer_ticks() const { return last_encoder_edge_timer_ticks_; }
+
 protected:
   void UpdateState();
   void NotifyEncoderEdge(TimerTicksType timer_ticks);

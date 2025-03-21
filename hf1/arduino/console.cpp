@@ -6,12 +6,14 @@
 
 #include "timer_arduino.h"
 #include "wheel_controller.h"
+#include "wheel_state_estimator.h"
 
 extern TimerArduino timer;
 extern bool is_trajectory_control_enabled;
 extern bool is_wheel_control_enabled;
 extern WheelSpeedController left_wheel;
 extern WheelSpeedController right_wheel;
+extern WheelStateEstimator wheel_state_estimator;
 
 namespace {
 const char *SkipSpaces(const char *str) {  
@@ -273,6 +275,38 @@ void ReadGlobalTimerUnitsCommandHandler::Run(Stream &stream, const CommandLine &
 
 void ReadGlobalTimerUnitsCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.printf("Reads the global timer %s elapsed since boot.\n", units_name_);
+}
+
+void ReadEncodersTicksCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  char left_ticks_str[21];
+  const StatusOr<TimerTicksType> maybe_left_ticks = wheel_state_estimator.left_wheel_state_filter().last_encoder_edge_timer_ticks();
+  if (maybe_left_ticks.ok()) {
+    Uint64ToString(*maybe_left_ticks, left_ticks_str);
+  } else {
+    left_ticks_str[0] = '-';
+    left_ticks_str[1] = '\0';
+  }
+  char right_ticks_str[21];
+  const StatusOr<TimerTicksType> maybe_right_ticks = wheel_state_estimator.right_wheel_state_filter().last_encoder_edge_timer_ticks();
+  if (maybe_right_ticks.ok()) {
+    Uint64ToString(*maybe_right_ticks, right_ticks_str);
+  } else {
+    right_ticks_str[0] = '-';
+    right_ticks_str[1] = '\0';
+  }
+  stream.printf("%s, %s\n", left_ticks_str, right_ticks_str);
+}
+
+void ReadEncodersTicksCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Reads the timestamps of the last encoder ticks.");
+}
+
+void ReadEncodersLinearSpeedCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.printf("%f, %f m/s\n", wheel_state_estimator.left_wheel_state_filter().state().speed(), wheel_state_estimator.right_wheel_state_filter().state().speed());
+}
+
+void ReadEncodersLinearSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Reads the linear speed of the wheels estimated with the encoders.");
 }
 
 void WriteMotorsPWMCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
