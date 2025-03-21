@@ -2,9 +2,12 @@
 #include "battery.h"
 #include "status_or.h"
 #include "body_imu.h"
+#include "motors.h"
 
 #include "timer_arduino.h"
 extern TimerArduino timer;
+extern bool is_trajectory_control_enabled;
+extern bool is_wheel_control_enabled;
 
 namespace {
 const char *SkipSpaces(const char *str) {  
@@ -266,6 +269,40 @@ void ReadGlobalTimerUnitsCommandHandler::Run(Stream &stream, const CommandLine &
 
 void ReadGlobalTimerUnitsCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.printf("Reads the global timer %s elapsed since boot.\n", units_name_);
+}
+
+void WriteMotorsPWMCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (command_line.num_params != 2) {
+    stream.println("The command takes two arguments: write motors pwm left_pwm_duty_cycle right_pwm_duty_cycle.");
+    return;
+  }
+  float left_pwm;
+  char tmp[21];
+  command_line.params[0].ToCString(tmp);
+  if (sscanf(tmp, "%f", &left_pwm) != 1) {
+    stream.println("Unable to parse left motor's PWM duty cycle.");
+    return;
+  }
+  float right_pwm;
+  command_line.params[1].ToCString(tmp);
+  if (sscanf(tmp, "%f", &right_pwm) != 1) {
+    stream.println("Unable to parse right motor's PWM duty cycle.");
+    return;
+  }
+  SetLeftMotorDutyCycle(left_pwm);
+  SetRightMotorDutyCycle(right_pwm);
+  if (is_trajectory_control_enabled) {
+    stream.println("Trajectory control has been disabled.");
+    is_trajectory_control_enabled = false;
+  }
+  if (is_wheel_control_enabled) {
+    stream.println("Wheel speed control has been disabled.");
+    is_wheel_control_enabled = false;
+  }
+}
+
+void WriteMotorsPWMCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Sets the PWM duty cycle of the left and right motors of the robot between 0 (stopped) and 1 (full speed).");
 }
 
 void Console::ProcessCommandLine() {

@@ -327,7 +327,7 @@ public:
     : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_bodyimu_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
-    stream.println("Reads from different information sources on the robot.");    
+    stream.println("Reads from an information source on the robot.");    
   }
 
 private:
@@ -335,6 +335,40 @@ private:
   ReadGlobalTimerCommandHandler read_global_timer_handler_;
   ReadBatteryCommandHandler read_battery_handler_;
   ReadBodyIMUCommandHandler read_bodyimu_handler_;
+};
+
+class WriteMotorsPWMCommandHandler : public CommandHandler {
+public:
+  WriteMotorsPWMCommandHandler() : CommandHandler("pwm") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class WriteMotorsCommandHandler : public CategoryHandler {
+public:
+  WriteMotorsCommandHandler()
+    : CategoryHandler("motors", { &write_motors_pwm_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Writes commands to the robot motors.");
+  }
+  
+private:
+  WriteMotorsPWMCommandHandler write_motors_pwm_handler_;
+};
+
+class WriteCommandHandler : public CategoryHandler {
+public:
+  WriteCommandHandler()
+    : CategoryHandler("write", { &write_motors_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Writes to an information sink on the robot.");
+  }
+
+private:
+  WriteMotorsCommandHandler write_motors_handler_;
 };
 
 class Console;
@@ -362,6 +396,7 @@ public:
       interpreter_({ &help_command_handler_,
                      &version_command_handler_,
                      &read_command_handler_,
+                     &write_command_handler_,
                      &every_command_handler_ }) {
   }
   void Run();
@@ -379,6 +414,7 @@ private:
   HelpCommandHandler help_command_handler_;
   VersionCommandHandler version_command_handler_;
   ReadCommandHandler read_command_handler_;
+  WriteCommandHandler write_command_handler_;
   EveryCommandHandler every_command_handler_;
 
   CommandInterpreter interpreter_;
