@@ -261,10 +261,70 @@ private:
   ReadTimerSecondsCommandHandler read_timer_seconds_handler_;  
 };
 
+class ReadGlobalTimerUnitsCommandHandler : public CommandHandler {
+public:
+  ReadGlobalTimerUnitsCommandHandler(const char *command_name, const char *units_name, uint64_t nanos_to_units_divisor) 
+    : CommandHandler(command_name), nanos_to_units_divisor_(nanos_to_units_divisor) {
+      ASSERT(strlen(units_name) < sizeof(units_name_));
+      strcpy(units_name_, units_name);
+    }
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+
+private:
+  char units_name_[16];
+  uint64_t nanos_to_units_divisor_;
+};
+
+class ReadGlobalTimerNanosCommandHandler : public ReadGlobalTimerUnitsCommandHandler {
+public:
+  ReadGlobalTimerNanosCommandHandler() : ReadGlobalTimerUnitsCommandHandler("ns", "nanoseconds", 1) {}
+};
+
+class ReadGlobalTimerMicrosCommandHandler : public ReadGlobalTimerUnitsCommandHandler {
+public:
+  ReadGlobalTimerMicrosCommandHandler() : ReadGlobalTimerUnitsCommandHandler("us", "microseconds", 1000) {}
+};
+
+class ReadGlobalTimerMillisCommandHandler : public ReadGlobalTimerUnitsCommandHandler {
+public:
+  ReadGlobalTimerMillisCommandHandler() : ReadGlobalTimerUnitsCommandHandler("ms", "milliseconds", 1'000'000) {}
+};
+
+class ReadGlobalTimerNoUnitsCommandHandler : public ReadGlobalTimerUnitsCommandHandler {
+public:
+  ReadGlobalTimerNoUnitsCommandHandler() : ReadGlobalTimerUnitsCommandHandler("", "seconds", 1'000'000'000) {}
+};
+
+class ReadGlobalTimerSecondsCommandHandler : public ReadGlobalTimerUnitsCommandHandler {
+public:
+  ReadGlobalTimerSecondsCommandHandler() : ReadGlobalTimerUnitsCommandHandler("s", "seconds", 1'000'000'000) {}
+};
+
+class ReadGlobalTimerCommandHandler : public CategoryHandler {
+public:
+  ReadGlobalTimerCommandHandler() 
+    : CategoryHandler("global_timer", { 
+        &read_timer_nounits_handler_, &read_timer_nanos_handler_, &read_timer_micros_handler_, 
+        &read_timer_millis_handler_, &read_timer_seconds_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Reads the global monotonic timer started at boot time.");
+  }
+
+private:
+  ReadGlobalTimerNoUnitsCommandHandler read_timer_nounits_handler_;
+  ReadGlobalTimerNanosCommandHandler read_timer_nanos_handler_;
+  ReadGlobalTimerMicrosCommandHandler read_timer_micros_handler_;
+  ReadGlobalTimerMillisCommandHandler read_timer_millis_handler_;
+  ReadGlobalTimerSecondsCommandHandler read_timer_seconds_handler_;  
+};
+
 class ReadCommandHandler : public CategoryHandler {
 public:
   ReadCommandHandler()
-    : CategoryHandler("read", { &read_timer_handler_, &read_battery_handler_, &read_bodyimu_handler_ }) {}
+    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_bodyimu_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from different information sources on the robot.");    
@@ -272,6 +332,7 @@ public:
 
 private:
   ReadTimerCommandHandler read_timer_handler_;
+  ReadGlobalTimerCommandHandler read_global_timer_handler_;
   ReadBatteryCommandHandler read_battery_handler_;
   ReadBodyIMUCommandHandler read_bodyimu_handler_;
 };

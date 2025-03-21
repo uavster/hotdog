@@ -239,19 +239,33 @@ void ReadTimerTicksCommandHandler::Run(Stream &stream, const CommandLine &comman
 }
 
 void ReadTimerTicksCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Prints the local timer ticks elapsed since boot.");
+  stream.println("Reads the local timer ticks elapsed since boot.");
 }
 
 void ReadTimerUnitsCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   char tmp[21];
-  Uint64ToString(timer.GetLocalNanoseconds() / nanos_to_units_divisor_, tmp);
+  const auto now = timer.GetLocalNanoseconds();
+  Uint64ToString(now / nanos_to_units_divisor_, tmp);
   stream.printf("%s.", tmp);
-  Uint64ToString(timer.GetLocalNanoseconds() % nanos_to_units_divisor_, tmp);
+  Uint64ToString(now % nanos_to_units_divisor_, tmp);
   stream.printf("%s\n", tmp);
 }
 
 void ReadTimerUnitsCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.printf("Prints the local timer %s elapsed since boot.\n", units_name_);
+  stream.printf("Reads the local timer %s elapsed since boot.\n", units_name_);
+}
+
+void ReadGlobalTimerUnitsCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  char tmp[21];
+  const auto now = timer.GetGlobalNanoseconds();
+  Uint64ToString(now / nanos_to_units_divisor_, tmp);
+  stream.printf("%s.", tmp);
+  Uint64ToString(now % nanos_to_units_divisor_, tmp);
+  stream.printf("%s\n", tmp);
+}
+
+void ReadGlobalTimerUnitsCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.printf("Reads the global timer %s elapsed since boot.\n", units_name_);
 }
 
 void Console::ProcessCommandLine() {
