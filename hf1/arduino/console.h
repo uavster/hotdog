@@ -92,7 +92,7 @@ private:
 class CommandInterpreter {
 public:
   template<int num_command_handlers>
-  CommandInterpreter(CommandHandler *const (&command_handlers)[num_command_handlers])
+  CommandInterpreter(CommandHandler *const (&&command_handlers)[num_command_handlers])
     : num_command_handlers_(num_command_handlers) {
     static_assert(num_command_handlers <= sizeof(command_handlers_) / sizeof(command_handlers_[0]));
     for (int i = 0; i < num_command_handlers; ++i) { command_handlers_[i] = command_handlers[i]; }
@@ -128,11 +128,11 @@ private:
 class CategoryHandler : public CommandHandler {
 public:
   template<int num_command_handlers>
-  CategoryHandler(const char *name, CommandHandler *const (&command_handlers)[num_command_handlers])
-    : CommandHandler(name), interpreter_((command_handlers)) {}
+  CategoryHandler(const char *name, CommandHandler *const (&&command_handlers)[num_command_handlers])
+    : CommandHandler(name), interpreter_(std::move(command_handlers)) {}
 
-  void Run(Stream &stream, const CommandLine &command_line) override;
-  void Help(Stream &stream, const CommandLine &command_line) override;
+  virtual void Run(Stream &stream, const CommandLine &command_line) override;
+  virtual void Help(Stream &stream, const CommandLine &command_line) override;
 
   const CommandInterpreter *interpreter() const {
     return &interpreter_;
@@ -162,17 +162,26 @@ public:
 
 class ReadBodyIMUOrientationCommandHandler : public CommandHandler {
 public:
-  ReadBodyIMUOrientationCommandHandler() 
-    : CommandHandler("orientation") {}
+  ReadBodyIMUOrientationCommandHandler() : CommandHandler("orientation") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;  
+  void Help(Stream &stream, const CommandLine &command_line) override;  
+};
+
+class ReadBodyIMUAccelerationCommandHandler : public CommandHandler {
+public:
+  ReadBodyIMUAccelerationCommandHandler() : CommandHandler("acceleration") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;  
+  void Help(Stream &stream, const CommandLine &command_line) override;  
 };
 
 class ReadBodyIMUCommandHandler : public CategoryHandler {
 public:
   ReadBodyIMUCommandHandler() 
-    : CategoryHandler("bodyimu", { &read_bodyimu_orientation_ }) {}
+    : CategoryHandler("bodyimu", { &read_bodyimu_orientation_, &read_bodyimu_acceleration_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from the IMU at the robot's body.");    
@@ -180,18 +189,89 @@ public:
 
 private:
   ReadBodyIMUOrientationCommandHandler read_bodyimu_orientation_;
+  ReadBodyIMUAccelerationCommandHandler read_bodyimu_acceleration_;
+};
+
+class ReadTimerUnitsCommandHandler : public CommandHandler {
+public:
+  ReadTimerUnitsCommandHandler(const char *command_name, const char *units_name, uint64_t nanos_to_units_divisor) 
+    : CommandHandler(command_name), nanos_to_units_divisor_(nanos_to_units_divisor) {
+      ASSERT(strlen(units_name) < sizeof(units_name_));
+      strcpy(units_name_, units_name);
+    }
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+
+private:
+  char units_name_[16];
+  uint64_t nanos_to_units_divisor_;
+};
+
+class ReadTimerTicksCommandHandler : public CommandHandler {
+public:
+  ReadTimerTicksCommandHandler() : CommandHandler("ticks") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;  
+};
+
+class ReadTimerNanosCommandHandler : public ReadTimerUnitsCommandHandler {
+public:
+  ReadTimerNanosCommandHandler() : ReadTimerUnitsCommandHandler("ns", "nanoseconds", 1) {}
+};
+
+class ReadTimerMicrosCommandHandler : public ReadTimerUnitsCommandHandler {
+public:
+  ReadTimerMicrosCommandHandler() : ReadTimerUnitsCommandHandler("us", "microseconds", 1000) {}
+};
+
+class ReadTimerMillisCommandHandler : public ReadTimerUnitsCommandHandler {
+public:
+  ReadTimerMillisCommandHandler() : ReadTimerUnitsCommandHandler("ms", "milliseconds", 1'000'000) {}
+};
+
+class ReadTimerNoUnitsCommandHandler : public ReadTimerUnitsCommandHandler {
+public:
+  ReadTimerNoUnitsCommandHandler() : ReadTimerUnitsCommandHandler("", "seconds", 1'000'000'000) {}
+};
+
+class ReadTimerSecondsCommandHandler : public ReadTimerUnitsCommandHandler {
+public:
+  ReadTimerSecondsCommandHandler() : ReadTimerUnitsCommandHandler("s", "seconds", 1'000'000'000) {}
+};
+
+class ReadTimerCommandHandler : public CategoryHandler {
+public:
+  ReadTimerCommandHandler() 
+    : CategoryHandler("timer", { 
+        &read_timer_nounits_handler_, &read_timer_ticks_handler_, &read_timer_nanos_handler_, &read_timer_micros_handler_, 
+        &read_timer_millis_handler_, &read_timer_seconds_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Reads the local monotonic timer started at boot time.");
+  }
+
+private:
+  ReadTimerNoUnitsCommandHandler read_timer_nounits_handler_;
+  ReadTimerTicksCommandHandler read_timer_ticks_handler_;
+  ReadTimerNanosCommandHandler read_timer_nanos_handler_;
+  ReadTimerMicrosCommandHandler read_timer_micros_handler_;
+  ReadTimerMillisCommandHandler read_timer_millis_handler_;
+  ReadTimerSecondsCommandHandler read_timer_seconds_handler_;  
 };
 
 class ReadCommandHandler : public CategoryHandler {
 public:
   ReadCommandHandler()
-    : CategoryHandler("read", { &read_battery_handler_, &read_bodyimu_handler_ }) {}
+    : CategoryHandler("read", { &read_timer_handler_, &read_battery_handler_, &read_bodyimu_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from different information sources on the robot.");    
   }
 
 private:
+  ReadTimerCommandHandler read_timer_handler_;
   ReadBatteryCommandHandler read_battery_handler_;
   ReadBodyIMUCommandHandler read_bodyimu_handler_;
 };

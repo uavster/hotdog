@@ -3,6 +3,9 @@
 #include "status_or.h"
 #include "body_imu.h"
 
+#include "timer_arduino.h"
+extern TimerArduino timer;
+
 namespace {
 const char *SkipSpaces(const char *str) {  
   while (*str == ' ' && *str != '\0') { ++str; }
@@ -154,15 +157,16 @@ void VersionCommandHandler::Describe(Stream &stream, const CommandLine &command_
 
 void CategoryHandler::Run(Stream &stream, const CommandLine &command_line) {
   CommandHandler *handler = nullptr;
-  if (command_line.num_params < 1) {
-    stream.print("Missing one more argument. Valid values: ");
-  } else {
-    handler = interpreter_.FindCommandHandler(command_line.params[0]);
-    if (handler == nullptr) {
-      stream.print("Wrong argument '");
-      command_line.params[0].Print(stream);
-      stream.print("'. Please use one of these: ");
-    }
+  static const char empty_string[] = "";
+  StringView arg0(empty_string);
+  if (command_line.num_params >= 1) {
+    arg0 = command_line.params[0];
+  }
+  handler = interpreter_.FindCommandHandler(arg0);
+  if (handler == nullptr) {
+    stream.print("Wrong argument '");
+    command_line.params[0].Print(stream);
+    stream.print("'. Please use one of these: ");
   }
   if (handler == nullptr) {
     for (int i = 0; i < interpreter_.num_command_handlers(); ++i) {
@@ -199,7 +203,55 @@ void ReadBodyIMUOrientationCommandHandler::Run(Stream &stream, const CommandLine
 }
 
 void ReadBodyIMUOrientationCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Orientation in euler angles (yaw, pitch, roll)");
+  stream.println("Orientation in euler angles: (yaw, pitch, roll) radians.");
+}
+
+void ReadBodyIMUOrientationCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
+  Describe(stream, command_line);
+  stream.println("Every eurler angle is rotation around an axis of the reference frame, following the right hand rule.");
+  stream.println("The reference frame is located at the center of the robot.");
+  stream.println("The x axis points to robot's front.");
+  stream.println("The y axis points to robot's left.");
+  stream.println("The z axis points to sky.");
+}
+
+void ReadBodyIMUAccelerationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  const auto acceleration = body_imu.GetLinearAccelerations();
+  stream.printf("(%f, %f, %f) m/s^2\n", acceleration.x(), acceleration.y(), acceleration.z());
+}
+
+void ReadBodyIMUAccelerationCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Acceleration vector: (x, y, z) m/s^2.");
+}
+
+void ReadBodyIMUAccelerationCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
+  Describe(stream, command_line);
+  stream.println("The reference frame is located at the center of the robot.");
+  stream.println("The x axis points to robot's front.");
+  stream.println("The y axis points to robot's left.");
+  stream.println("The z axis points to sky.");
+}
+
+void ReadTimerTicksCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  char tmp[21];
+  Uint64ToString(GetTimerTicks(), tmp);
+  stream.printf("%s\n", tmp);
+}
+
+void ReadTimerTicksCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Prints the local timer ticks elapsed since boot.");
+}
+
+void ReadTimerUnitsCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  char tmp[21];
+  Uint64ToString(timer.GetLocalNanoseconds() / nanos_to_units_divisor_, tmp);
+  stream.printf("%s.", tmp);
+  Uint64ToString(timer.GetLocalNanoseconds() % nanos_to_units_divisor_, tmp);
+  stream.printf("%s\n", tmp);
+}
+
+void ReadTimerUnitsCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.printf("Prints the local timer %s elapsed since boot.\n", units_name_);
 }
 
 void Console::ProcessCommandLine() {

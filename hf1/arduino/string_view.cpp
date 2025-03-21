@@ -14,6 +14,8 @@ int StringView::Length() const {
 }
 
 bool StringView::operator==(const StringView other) const {
+  if (Length() == 0 && other.Length() == 0) { return true; }
+  if (Length() == 0 || other.Length() == 0) { return false; }
   const char *p1 = start;
   const char *p2 = other.start;
   while (p1 < end && p2 < other.end) {
@@ -42,16 +44,16 @@ void StringView::PrintLine(Stream &s) const {
 StringView StringView::Trimmed() const {
   if (start == end) { return StringView(*this); }
   StringView result = *this;
-  while(*result.start == ' ' && result.start < result.end) { ++result.start; }
-  while(*(result.end - 1) == ' ' && result.end > result.start) { --result.end; }
+  while (*result.start == ' ' && result.start < result.end) { ++result.start; }
+  while (*(result.end - 1) == ' ' && result.end > result.start) { --result.end; }
   return result;
 }
 
 void StringView::ToCString(char *s) const {
   const char *p = start;
-  while(p < end) { 
+  while (p < end) {
     *s = *p;
-    ++p; 
+    ++p;
     ++s;
   }
   *s = '\0';
