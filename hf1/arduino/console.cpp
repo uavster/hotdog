@@ -45,14 +45,43 @@ StatusOr<TimerNanosType> NanosFromDurationString(const StringView &s) {
 }
 } // namespace
 
+CommandLine CommandLine::ShiftLeft() const {
+  CommandLine new_line;
+  new_line.command_name = params[0];
+  new_line.num_params = num_params - 1;
+  for (int i = 0; i < new_line.num_params; ++i) {
+    new_line.params[i] = params[i + 1];
+  }
+  return new_line;
+}
+
+CommandLine CommandLine::DeepCopy(char *dest_buffer) const {
+  char *p = dest_buffer;
+  CommandLine output;
+  command_name.ToCString(p);
+  output.command_name.start = p;
+  p += command_name.Length();
+  output.command_name.end = p;
+  ++p;
+  output.num_params = num_params;
+  for (int i = 0; i < num_params; ++i) {
+    params[i].ToCString(p);
+    output.params[i].start = p;
+    p += params[i].Length();
+    output.params[i].end = p;
+    ++p;
+  }
+  return output;
+}
+
 void Console::Run() {
-  interpreter_.RunPeriodicCommand();
+  periodic_command_.Run();
   while (input_stream_.available()) {
     const int c = input_stream_.read();
     if (c < 0) { return; }
     if (c == '\n' || c == '\r' || c == '\0' || command_line_length_ >= sizeof(command_line_) - 1) {
-      interpreter_.StopPeriodicCommand();
-      command_line_[command_line_length_] = '\0';
+      periodic_command_.period_nanos(kPeriodicRunnableInfinitePeriod);
+      command_line_[min(command_line_length_, sizeof(command_line_) - 1)] = '\0';
       ProcessCommandLine();
       command_line_length_ = 0;
     } else {
@@ -205,6 +234,13 @@ void Console::ProcessCommandLine() {
   }
 }
 
+bool Console::SchedulePeriodicCommand(Stream *stream, const CommandLine &command_line, TimerNanosType period_ns) {
+  CommandHandler *command_handler = interpreter_.FindCommandHandler(command_line.command_name);
+  if (command_handler == nullptr) { return false; }
+  periodic_command_.set(stream, command_handler, command_line, period_ns);  
+  return true;
+}
+
 void EveryCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   if (command_line.num_params < 2) {
     stream.println("At least two parameters are required after 'every': period and command. Run 'help every' for details.");
@@ -217,8 +253,8 @@ void EveryCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
     stream.println("'.");
     return;
   }
-  CommandLine periodic_command_line = command_line.ShiftLeft().ShiftLeft();
-  if (!interpreter_.SchedulePeriodicCommand(&stream, periodic_command_line, *period_ns)) {
+  const CommandLine periodic_command_line = command_line.ShiftLeft().ShiftLeft();
+  if (!console_.SchedulePeriodicCommand(&stream, periodic_command_line, *period_ns)) {
     stream.print("Wrong command '");
     periodic_command_line.command_name.Print(stream);
     stream.println("'.");

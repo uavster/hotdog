@@ -9,6 +9,7 @@ struct StringView {
 
   StringView();
   StringView(const char *s);
+  StringView(const StringView &other) : start(other.start), end(other.end) {}
 
   int Length() const;
 
