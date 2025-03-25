@@ -3,6 +3,7 @@
 #include "status_or.h"
 #include "body_imu.h"
 #include "motors.h"
+#include "checks.h"
 
 #include "timer_arduino.h"
 #include "wheel_controller.h"
@@ -404,6 +405,66 @@ void WriteMotorsLinearSpeedCommandHandler::Run(Stream &stream, const CommandLine
 
 void WriteMotorsLinearSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Sets the linear speed of the left and right motors of the robot in m/s.");
+}
+
+void CheckMCUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckMCU(stream);
+}
+
+void CheckMCUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Checks the MCU type.");
+}
+
+void CheckSRAMCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (!CheckMCU(null_stream)) {
+    stream.println("Cannot check SRAM on an unsupported MCU.");
+    return;
+  }
+  CheckSRAM(stream);
+}
+
+void CheckSRAMCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Checks the integrity of the SRAM memory in the MCU.");
+}
+
+void CheckBatteryCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckBattery(stream);
+}
+
+void CheckBatteryCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Checks the battery has an appropriate voltage.");
+}
+
+void CheckTimerCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckTimer(stream);
+}
+
+void CheckTimerCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Checks the MCU's internal timer.");
+}
+
+void CheckMotorsCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckMotors(stream, /*check_preconditions=*/true);
+}
+
+void CheckMotorsCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Rotates the wheels backward and forkward for you to check if the motors work.");
+}
+
+void CheckEncodersCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckEncoders(stream, /*check_preconditions=*/true);
+}
+
+void CheckEncodersCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Waits for you to rotate the wheels to check encoder signals.");
+}
+
+void CheckIMUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckIMU(stream, /*check_preconditions*/true);
+}
+
+void CheckIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Waits for you to move the robot as instructed to check the IMU output.");
 }
 
 void Console::ProcessCommandLine() {

@@ -15,6 +15,7 @@ void InitEncoders();
 typedef void (*EncoderISR)(TimerTicksType timer_ticks);
 
 void AddEncoderIsrs(EncoderISR left_encoder_isr, EncoderISR right_encoder_isr);
+void RemoveEncoderIsrs(EncoderISR left_encoder_isr, EncoderISR right_encoder_isr);
 
 #define NO_ENCODER_IRQ NO_TIMER_IRQ
 

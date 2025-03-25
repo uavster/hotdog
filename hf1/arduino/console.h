@@ -435,6 +435,81 @@ private:
   Console &console_;
 };
 
+class CheckMCUCommandHandler : public CommandHandler {
+public:
+  CheckMCUCommandHandler() : CommandHandler("mcu") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CheckSRAMCommandHandler : public CommandHandler {
+public:
+  CheckSRAMCommandHandler() : CommandHandler("sram") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CheckBatteryCommandHandler : public CommandHandler {
+public:
+  CheckBatteryCommandHandler() : CommandHandler("battery") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CheckTimerCommandHandler : public CommandHandler {
+public:
+  CheckTimerCommandHandler() : CommandHandler("timer") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CheckMotorsCommandHandler : public CommandHandler {
+public:
+  CheckMotorsCommandHandler() : CommandHandler("motors") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CheckEncodersCommandHandler : public CommandHandler {
+public:
+  CheckEncodersCommandHandler() : CommandHandler("encoders") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CheckIMUCommandHandler : public CommandHandler {
+public:
+  CheckIMUCommandHandler() : CommandHandler("imu") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CheckCommandHandler : public CategoryHandler {
+public:
+  CheckCommandHandler()
+    : CategoryHandler("check", { &check_mcu_handler_, &check_sram_handler_, &check_timer_handler_, &check_battery_handler_, &check_motors_handler_, &check_encoders_handler_, &check_imu_command_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Checks different subsystems on the robot.");    
+  }
+
+private:
+  CheckMCUCommandHandler check_mcu_handler_;
+  CheckSRAMCommandHandler check_sram_handler_;
+  CheckTimerCommandHandler check_timer_handler_;
+  CheckBatteryCommandHandler check_battery_handler_;
+  CheckMotorsCommandHandler check_motors_handler_;
+  CheckEncodersCommandHandler check_encoders_handler_;
+  CheckIMUCommandHandler check_imu_command_handler_;
+};
+
 class Console {
 public:
   Console(Stream *input_stream)
@@ -446,6 +521,7 @@ public:
                      &version_command_handler_,
                      &read_command_handler_,
                      &write_command_handler_,
+                     &check_command_handler_,
                      &every_command_handler_ }) {
   }
   void Run();
@@ -464,6 +540,7 @@ private:
   VersionCommandHandler version_command_handler_;
   ReadCommandHandler read_command_handler_;
   WriteCommandHandler write_command_handler_;
+  CheckCommandHandler check_command_handler_;
   EveryCommandHandler every_command_handler_;
 
   CommandInterpreter interpreter_;

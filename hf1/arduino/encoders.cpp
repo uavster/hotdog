@@ -4,7 +4,7 @@
 
 #include <Arduino.h>
 
-#define kMaxEncoderISRs 2
+#define kMaxEncoderISRs 3
 
 EncoderISR left_encoder_isr[kMaxEncoderISRs];
 EncoderISR right_encoder_isr[kMaxEncoderISRs];
@@ -61,5 +61,18 @@ void AddEncoderIsrs(EncoderISR left, EncoderISR right) {
     ASSERT(free_slot_index >= 0);
     left_encoder_isr[free_slot_index] = left;
     right_encoder_isr[free_slot_index] = right;
+  }
+}
+
+void RemoveEncoderIsrs(EncoderISR left, EncoderISR right) {
+  NO_TIMER_IRQ {
+    for (int i = 0; i < kMaxEncoderISRs; ++i) {
+      if (left_encoder_isr[i] == left && right_encoder_isr[i] == right) {
+        left_encoder_isr[i] = NULL;
+        right_encoder_isr[i] = NULL;
+        return;
+      }
+    }
+    ASSERT(false);
   }
 }

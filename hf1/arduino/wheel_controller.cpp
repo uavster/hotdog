@@ -106,16 +106,15 @@ void WheelSpeedController::Update(TimerSecondsType seconds_since_start) {
 
   // Update duty cycle with the speed estimate.
   const float pid_output = pid_.update(is_turning_forward_ ? wheel_speed : -wheel_speed);
-  float speed_command = pid_.target() + pid_output;
-  if ((is_turning_forward && speed_command < 0) || (!is_turning_forward && speed_command > 0)) {
+  float duty_cycle = DutyCycleFromLinearSpeed(pid_.target()) + pid_output;
+  if ((is_turning_forward && duty_cycle < 0) || (!is_turning_forward && duty_cycle > 0)) {
     // Avoid speed commands opposite to the driving direction as that can make the wheel
     // slip and hurt localization, making the error irrecoverable by the trajectory
     // controller.
-    speed_command = 0;
+    duty_cycle = 0;
   }
-  const float duty_cycle = DutyCycleFromLinearSpeed(speed_command);
   // Serial.printf("sc:%f dc:%f\n", speed_command, duty_cycle);
-  duty_cycle_setter_(duty_cycle);
+  duty_cycle_setter_(std::clamp(duty_cycle, -1.0f, 1.0f));
 
   // Serial.printf("t:%f v:%f pid:%f c:%f d:%f\n", pid_.target(), average_wheel_speed_, pid_output, speed_command, duty_cycle);
 }
