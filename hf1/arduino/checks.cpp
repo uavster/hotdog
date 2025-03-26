@@ -31,6 +31,10 @@ static bool WaitForEnterOrTimeout(Stream &stream, float timeout_seconds = kDefau
   return false;
 }
 
+static void PrintIndentation(Stream &stream, int num_spaces) {
+  while(num_spaces) { stream.print(" "); --num_spaces; }
+}
+
 bool CheckMCU(Stream &stream) {
   MCUID mcu_id;
   mcu_id.Print(stream);
@@ -190,29 +194,33 @@ bool CheckEncoders(Stream &stream, bool check_preconditions) {
   AddEncoderIsrs(&GotLeftEncoderTick, &GotRightEncoderTick);
 
   // Wait for the user to spin each wheel and count the encoder ticks in the meantime.
-  constexpr float kTimeoutSeconds = 8.0f;
   constexpr float kTicksPerWheelTurn = 2 * M_PI / kRadiansPerWheelTick;
   constexpr float kMaxErrorNumTurns = 0.2;
   constexpr int kMaxErrorTicks = static_cast<int>(kMaxErrorNumTurns * kTicksPerWheelTurn);
   constexpr int kMinTicks = kTicksPerWheelTurn - kMaxErrorTicks;
   constexpr int kMaxTicks = kTicksPerWheelTurn + kMaxErrorTicks;
+  constexpr int kResultIndentationNumSpaces = 3;
 
   // Left wheel.
   bool left_ok = false;
-  stream.printf("Please spin the LEFT wheel ONE FULL TURN ONLY in either direction. I'll wait for %.1f seconds.\n", kTimeoutSeconds);
-  SleepForSeconds(kTimeoutSeconds);
+  stream.printf("1. Spin the LEFT wheel ONE FULL TURN ONLY in either direction. ");
+  WaitForEnterOrTimeout(stream); stream.println();
   if (num_left_ticks >= kMinTicks && num_left_ticks <= kMaxTicks) {
+    PrintIndentation(stream, kResultIndentationNumSpaces);
     stream.printf("OK: Left wheel spinned %.2f times.\n", num_left_ticks / kTicksPerWheelTurn);
     left_ok = true;
   } else {
     if (num_left_ticks == 0) {
       if (num_right_ticks == 0) {
-        stream.println("ERROR: No left encoder ticks detected.\nDid you turn the left wheel? If so, please check the hardware.");
+        PrintIndentation(stream, kResultIndentationNumSpaces);
+        stream.println("ERROR: No left encoder ticks detected. Did you turn the left wheel? If so, please check the hardware.");
       } else {
-        stream.println("ERROR: Only right encoder ticks detected.\nDid you turn the wrong wheel? If not, please check the hardware.");
+        PrintIndentation(stream, kResultIndentationNumSpaces);
+        stream.println("ERROR: Only right encoder ticks detected. Did you turn the wrong wheel? If not, please check the hardware.");
       }
     } else {
-      stream.printf("ERROR: %d left encoder ticks detected, while something in [%d, %d] was expected.\nDid you do one full turn only? If so, please check the hardware.\n", num_left_ticks, kMinTicks, kMaxTicks);
+      PrintIndentation(stream, kResultIndentationNumSpaces);
+      stream.printf("ERROR: %d left encoder ticks detected, while something in [%d, %d] was expected. Did you do one full turn only? If so, please check the hardware.\n", num_left_ticks, kMinTicks, kMaxTicks);
     }
   }
 
@@ -220,20 +228,24 @@ bool CheckEncoders(Stream &stream, bool check_preconditions) {
   bool right_ok = false;
   num_left_ticks = 0;
   num_right_ticks = 0;
-  stream.printf("Please spin the RIGHT wheel ONE FULL TURN in either direction. I'll wait for %.1f seconds.\n", kTimeoutSeconds);
-  SleepForSeconds(kTimeoutSeconds);
+  stream.printf("2. Spin the RIGHT wheel ONE FULL TURN ONLY in either direction. ");
+  WaitForEnterOrTimeout(stream); stream.println();
   if (num_right_ticks >= kMinTicks && num_right_ticks <= kMaxTicks) {
+    PrintIndentation(stream, kResultIndentationNumSpaces);
     stream.printf("OK: Right wheel spinned %.2f times.\n", num_right_ticks / kTicksPerWheelTurn);
     right_ok = true;
   } else {
     if (num_right_ticks == 0) {
       if (num_left_ticks == 0) {
-        stream.println("ERROR: No right encoder ticks detected.\nDid you turn the right wheel? If so, please check the hardware.");
+        PrintIndentation(stream, kResultIndentationNumSpaces);
+        stream.println("ERROR: No right encoder ticks detected. Did you turn the right wheel? If so, please check the hardware.");
       } else {
-        stream.println("ERROR: Only left encoder ticks detected.\nDid you turn the wrong wheel? If not, please check the hardware.");
+        PrintIndentation(stream, kResultIndentationNumSpaces);
+        stream.println("ERROR: Only left encoder ticks detected. Did you turn the wrong wheel? If not, please check the hardware.");
       }
     } else {
-      stream.printf("ERROR: %d right encoder ticks detected, while something in [%d, %d] was expected.\nDid you do one full turn only? If so, please check the hardware.\n", num_right_ticks, kMinTicks, kMaxTicks);
+      PrintIndentation(stream, kResultIndentationNumSpaces);
+      stream.printf("ERROR: %d right encoder ticks detected, while something in [%d, %d] was expected. Did you do one full turn only? If so, please check the hardware.\n", num_right_ticks, kMinTicks, kMaxTicks);
     }
   }
 
@@ -278,10 +290,6 @@ static StatusOr<int> SenseMajorAccelerationAxis(Stream &stream) {
   }
 
   return dominant_dimension;
-}
-
-static void PrintIndentation(Stream &stream, int num_spaces) {
-  while(num_spaces) { stream.print(" "); --num_spaces; }
 }
 
 static bool PrintDirectedShakeTestResult(Stream &stream, StatusOr<int> test_result, int expected_axis_index, int indentation) {
