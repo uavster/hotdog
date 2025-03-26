@@ -56,6 +56,7 @@ StatusOr<TimerNanosType> NanosFromDurationString(const StringView &s) {
   }
   return period_ns;
 }
+
 } // namespace
 
 CommandLine CommandLine::ShiftLeft() const {
@@ -459,11 +460,11 @@ void CheckEncodersCommandHandler::Describe(Stream &stream, const CommandLine &co
   stream.println("Waits for you to rotate the wheels to check encoder signals.");
 }
 
-void CheckIMUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  CheckIMU(stream, /*check_preconditions*/true);
+void CheckBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckBodyIMU(stream, /*check_preconditions*/true);
 }
 
-void CheckIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+void CheckBodyIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Waits for you to move the robot as instructed to check the IMU output.");
 }
 

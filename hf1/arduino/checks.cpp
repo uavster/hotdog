@@ -1,3 +1,4 @@
+#include "utility/vector.h"
 #include "wiring.h"
 #include "kinetis.h"
 #include "checks.h"
@@ -11,7 +12,24 @@
 #include "robot_model.h"
 #include "body_imu.h"
 
-#define kMinBatteryVoltage 7.0
+constexpr float kMinBatteryVoltage = 7.0f;
+constexpr float kDefaultWaitInputTimeoutSeconds = 8.0f;
+
+// Returns true if enter was pressed, or false if the timeout expired.
+static bool WaitForEnterOrTimeout(Stream &stream, float timeout_seconds = kDefaultWaitInputTimeoutSeconds, bool print_default_string = true) {
+  if (print_default_string) {
+    stream.printf("[Press ENTER when done or wait for %.1f seconds]", timeout_seconds);
+  }
+  const auto start_seconds = GetTimerSeconds();
+  while(!stream.available() && GetTimerSeconds() - start_seconds < timeout_seconds) {}
+  if (stream.available()){
+    while(stream.available()) {
+      stream.read();
+    }
+    return true;
+  }
+  return false;
+}
 
 bool CheckMCU(Stream &stream) {
   MCUID mcu_id;
@@ -230,7 +248,66 @@ bool CheckEncoders(Stream &stream, bool check_preconditions) {
   return true;
 }
 
-bool CheckIMU(Stream &stream, bool check_preconditions) {
+static StatusOr<int> SenseMajorAccelerationAxis(Stream &stream) {
+  stream.printf("[Press ENTER when done or wait for %.1f seconds]", kDefaultWaitInputTimeoutSeconds);
+  // Sample acceleration squared for some time.
+  imu::Vector<3> squared_accel_accum(0, 0, 0);
+  auto start_seconds = GetTimerSeconds();
+  while(!stream.available() && GetTimerSeconds() - start_seconds < kDefaultWaitInputTimeoutSeconds) {
+    const auto accel = body_imu.GetLinearAccelerations();
+    squared_accel_accum = squared_accel_accum + imu::Vector<3>(accel[0] * accel[0], accel[1] * accel[1], accel[2] * accel[2]);
+  }
+  // If enter was pressed to end, consume all keys.
+  while (stream.available()) {
+    stream.read();
+  }
+
+  // The shaking should be strong enough.
+  constexpr float kMinCumulativeSquaredAccelerationMagnitude = 1.0f; // [(m/s^2)^2]
+  constexpr float kMinAccelerationComponentToMagnitudeRatio = 0.7f;
+  if (squared_accel_accum.magnitude() < kMinCumulativeSquaredAccelerationMagnitude) {
+    return Status::kUnavailableError;
+  }
+
+  // Find dominant direction of the cumulative squared acceleration vector.
+  int dominant_dimension = 0;
+  if (squared_accel_accum.y() > squared_accel_accum[dominant_dimension]) { dominant_dimension = 1; }
+  if (squared_accel_accum.z() > squared_accel_accum[dominant_dimension]) { dominant_dimension = 2; }
+  if (squared_accel_accum[dominant_dimension] / squared_accel_accum.magnitude() < kMinAccelerationComponentToMagnitudeRatio * kMinAccelerationComponentToMagnitudeRatio) {
+    return Status::kMalformedError;
+  }
+
+  return dominant_dimension;
+}
+
+static void PrintIndentation(Stream &stream, int num_spaces) {
+  while(num_spaces) { stream.print(" "); --num_spaces; }
+}
+
+static bool PrintDirectedShakeTestResult(Stream &stream, StatusOr<int> test_result, int expected_axis_index, int indentation) {
+  bool result = false;
+  if (test_result.ok()) {
+    if (*test_result == expected_axis_index) {
+      result = true;
+      PrintIndentation(stream, indentation);
+      stream.printf("OK: The IMU registered shaking in the %c axis.", 'x' + static_cast<char>(expected_axis_index));
+    } else {
+      PrintIndentation(stream, indentation);
+      stream.printf("ERROR: Shaking detected in the %c axis instead.", 'x' + static_cast<char>(*test_result));
+    }
+  } else {
+    if (test_result.status() == Status::kUnavailableError) {
+      PrintIndentation(stream, indentation);
+      stream.print("ERROR: Not enough shaking was measured.");
+    } else if (test_result.status() == Status::kMalformedError) {
+      PrintIndentation(stream, indentation);
+      stream.printf("ERROR: Not enough shaking was measured in the %c axis.", 'x' + static_cast<char>(expected_axis_index));
+    }
+  }
+  return result;
+}
+
+bool CheckBodyIMU(Stream &stream, bool check_preconditions) {
   if (check_preconditions) {
     stream.println("Running precondition tests...");
     if (!CheckTimer()) {
@@ -239,96 +316,81 @@ bool CheckIMU(Stream &stream, bool check_preconditions) {
     }
   }
 
-  constexpr float kTimeoutSeconds = 8.0f;
+  constexpr int kResultIndentationNumSpaces = 3;
+
+  stream.print("1. Put the robot on a flat surface. ");
+  WaitForEnterOrTimeout(stream); stream.println();
+  const auto ypr0 = body_imu.GetYawPitchRoll();
+
+  constexpr float kExpectedOrientationComponentDiff = M_PI / 2;  
+  constexpr float kMaxOrientationComponentDiffError = 0.2 * kExpectedOrientationComponentDiff;
+  constexpr float kMinOrientationComponentDiff = kExpectedOrientationComponentDiff - kMaxOrientationComponentDiffError;
+  constexpr float kMaxOrientationComponentDiff = kExpectedOrientationComponentDiff + kMaxOrientationComponentDiffError;
 
   // Yaw test.
-  constexpr float kExpectedYawDiff = M_PI / 2;  
-  auto ypr0 = body_imu.GetYawPitchRoll();
-  stream.printf("Make sure the robot lies on a flat surface and turn it %.0f degrees counterclockwise around a vertical axis. I'll wait for %.1f seconds.\n", DegreesFromRadians(kExpectedYawDiff), kTimeoutSeconds);
-  SleepForSeconds(kTimeoutSeconds);
-  auto ypr = body_imu.GetYawPitchRoll();
-  const float yaw_diff = ypr.z() - ypr0.z();
-  constexpr float kMaxYawDiffError = 0.2 * kExpectedYawDiff;
-  constexpr float kMinYawDiff = kExpectedYawDiff - kMaxYawDiffError;
-  constexpr float kMaxYawDiff = kExpectedYawDiff + kMaxYawDiffError;
+  stream.printf("2. Turn the robot %.0f degrees counterclockwise around a vertical axis. ", DegreesFromRadians(kExpectedOrientationComponentDiff));
+  WaitForEnterOrTimeout(stream); stream.println();
+  const float yaw_diff = body_imu.GetYawPitchRoll().z() - ypr0.z();
   bool yaw_ok = false;
-  if (yaw_diff >= kMinYawDiff && yaw_diff <= kMaxYawDiff) {
+  if (yaw_diff >= kMinOrientationComponentDiff && yaw_diff <= kMaxOrientationComponentDiff) {
     yaw_ok = true;
-    stream.printf("OK: The robot's yaw changed %.0f degrees.\n", DegreesFromRadians(yaw_diff));
+    PrintIndentation(stream, kResultIndentationNumSpaces);
+    stream.printf("OK: The robot's yaw changed %.0f degrees.", DegreesFromRadians(yaw_diff));
   } else {
-    stream.printf("ERROR: The robot's yaw changed %.0f degrees, while something in [%.0f, %.0f] was expected.\n", DegreesFromRadians(yaw_diff), DegreesFromRadians(kMinYawDiff), DegreesFromRadians(kMaxYawDiff));
+    PrintIndentation(stream, kResultIndentationNumSpaces);
+    stream.printf("ERROR: The robot's yaw changed %.0f degrees, while something in [%.0f, %.0f] was expected.", DegreesFromRadians(yaw_diff), DegreesFromRadians(kMinOrientationComponentDiff), DegreesFromRadians(kMaxOrientationComponentDiff));
   }
+  stream.println();
 
   // Pitch test.
-  constexpr float kExpectedPitchDiff = M_PI / 2;  
-  ypr0 = body_imu.GetYawPitchRoll();
-  stream.printf("Now, point the robot's front to the floor. I'll wait for %.1f seconds.\n", DegreesFromRadians(kExpectedPitchDiff), kTimeoutSeconds);
-  SleepForSeconds(kTimeoutSeconds);
-  ypr = body_imu.GetYawPitchRoll();
-  const float pitch_diff = ypr.y() - ypr0.y();
-  constexpr float kMaxPitchDiffError = 0.2 * kExpectedPitchDiff;
-  constexpr float kMinPitchDiff = kExpectedPitchDiff - kMaxPitchDiffError;
-  constexpr float kMaxPitchDiff = kExpectedPitchDiff + kMaxPitchDiffError;
+  stream.printf("3. Point the robot's front to the floor. ");
+  WaitForEnterOrTimeout(stream); stream.println();
+  const float pitch_diff = body_imu.GetYawPitchRoll().y() - ypr0.y();
   bool pitch_ok = false;
-  if (pitch_diff >= kMinPitchDiff && pitch_diff <= kMaxPitchDiff) {
+  if (pitch_diff >= kMinOrientationComponentDiff && pitch_diff <= kMaxOrientationComponentDiff) {
     pitch_ok = true;
-    stream.printf("OK: The robot's pitch changed %.0f degrees.\n", DegreesFromRadians(pitch_diff));
+    PrintIndentation(stream, kResultIndentationNumSpaces);
+    stream.printf("OK: The robot's pitch changed %.0f degrees.", DegreesFromRadians(pitch_diff));
   } else {
-    stream.printf("ERROR: The robot's pitch changed %.0f degrees, while something in [%.0f, %.0f] was expected.\n", DegreesFromRadians(pitch_diff), DegreesFromRadians(kMinPitchDiff), DegreesFromRadians(kMaxPitchDiff));
+    PrintIndentation(stream, kResultIndentationNumSpaces);
+    stream.printf("ERROR: The robot's pitch changed %.0f degrees, while something in [%.0f, %.0f] was expected.", DegreesFromRadians(pitch_diff), DegreesFromRadians(kMinOrientationComponentDiff), DegreesFromRadians(kMaxOrientationComponentDiff));
   }
+  stream.println();
 
   // Roll test.
-  constexpr float kExpectedRollDiff = M_PI / 2;  
-  ypr0 = body_imu.GetYawPitchRoll();
-  stream.printf("Now, lay the robot over the right wheel's side. I'll wait for %.1f seconds.\n", kTimeoutSeconds);
-  SleepForSeconds(kTimeoutSeconds);
-  ypr = body_imu.GetYawPitchRoll();
-  const float roll_diff = ypr.x() - ypr0.x();
-  constexpr float kMaxRollDiffError = 0.2 * kExpectedRollDiff;
-  constexpr float kMinRollDiff = kExpectedRollDiff - kMaxRollDiffError;
-  constexpr float kMaxRollDiff = kExpectedRollDiff + kMaxRollDiffError;
+  stream.printf("4. Lay the robot over the right wheel's side. ");
+  WaitForEnterOrTimeout(stream); stream.println();
+  const float roll_diff = body_imu.GetYawPitchRoll().x() - ypr0.x();
   bool roll_ok = false;
-  if (roll_diff >= kMinRollDiff && roll_diff <= kMaxRollDiff) {
+  if (roll_diff >= kMinOrientationComponentDiff && roll_diff <= kMaxOrientationComponentDiff) {
     roll_ok = true;
-    stream.printf("OK: The robot's roll changed %.0f degrees.\n", DegreesFromRadians(roll_diff));
+    PrintIndentation(stream, kResultIndentationNumSpaces);
+    stream.printf("OK: The robot's roll changed %.0f degrees.", DegreesFromRadians(roll_diff));
   } else {
-    stream.printf("ERROR: The robot's roll changed %.0f degrees, while something in [%.0f, %.0f] was expected.\n", DegreesFromRadians(roll_diff), DegreesFromRadians(kMinRollDiff), DegreesFromRadians(kMaxRollDiff));
+    PrintIndentation(stream, kResultIndentationNumSpaces);
+    stream.printf("ERROR: The robot's roll changed %.0f degrees, while something in [%.0f, %.0f] was expected.", DegreesFromRadians(roll_diff), DegreesFromRadians(kMinOrientationComponentDiff), DegreesFromRadians(kMaxOrientationComponentDiff));
   }  
-
-  // Get acceleration offsets.
-  imu::Vector<3> accel_offsets;
-  int num_samples = 0;
-  auto start_seconds = GetTimerSeconds();
-  while(GetTimerSeconds() - start_seconds < 1.0) {
-    accel_offsets = accel_offsets + body_imu.GetLinearAccelerations();
-  }
-  accel_offsets = accel_offsets / num_samples;
-
-  constexpr float kMinAccelerationComponentToMagnitudeRatio = 0.7f;
-  constexpr float kMinAccelerationMagnitude = 1.0f; // [m/s^2]
+  stream.println();
 
   // X accelerometer test.
-  stream.printf("Now, shake the robot along the front-back direction. I'll wait for %.1f seconds.\n", kTimeoutSeconds);
-  start_seconds = GetTimerSeconds();
-  imu::Vector<3> squared_accel_accum;
-  while(GetTimerSeconds() - start_seconds < kTimeoutSeconds) {
-    const auto accel = body_imu.GetLinearAccelerations() - accel_offsets;
-    squared_accel_accum = squared_accel_accum + imu::Vector<3>(accel[0] * accel[0], accel[1] * accel[1], accel[2] * accel[2]);
-  }
-  // Check if the x component is the biggest contributor to the magnitude.
-  bool x_accel_ok = false;
-  if (squared_accel_accum.magnitude() > kMinAccelerationMagnitude) {
-    if (squared_accel_accum.x() / squared_accel_accum.magnitude() >= kMinAccelerationComponentToMagnitudeRatio) {
-      x_accel_ok = true;
-      stream.println("OK: The IMU registered most of the acceleration in the x axis.");
-    } else {
-      stream.println("ERROR: The x axis is not receiving most of the acceleration.");
-    }
-  } else {
-    stream.println("ERROR: Not enough acceleration was measured.");
-  }
+  stream.printf("5. Shake the robot along its front-back direction. ");
+  StatusOr<int> maybe_movement_axis = SenseMajorAccelerationAxis(stream); stream.println();
+  const bool x_accel_ok = PrintDirectedShakeTestResult(stream, maybe_movement_axis, /*expected_axis_index=*/0, kResultIndentationNumSpaces);
+  stream.println();
+
+  // Y accelerometer test.
+  stream.printf("6. Shake the robot along its left-right direction. ");
+  maybe_movement_axis = SenseMajorAccelerationAxis(stream); stream.println();
+  const bool y_accel_ok = PrintDirectedShakeTestResult(stream, maybe_movement_axis, /*expected_axis_index=*/1, kResultIndentationNumSpaces);
+  stream.println();
+
+  // Z accelerometer test.
+  stream.printf("7. Shake the robot along its up-down direction. ");
+  maybe_movement_axis = SenseMajorAccelerationAxis(stream); stream.println();
+  const bool z_accel_ok = PrintDirectedShakeTestResult(stream, maybe_movement_axis, /*expected_axis_index=*/2, kResultIndentationNumSpaces);
+  stream.println();
   
-  if (!yaw_ok || !roll_ok || !pitch_ok || !x_accel_ok) {
+  if (!yaw_ok || !roll_ok || !pitch_ok || !x_accel_ok || !y_accel_ok || !z_accel_ok) {
     stream.println("ERROR.");
     return false;
   }

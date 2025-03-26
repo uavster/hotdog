@@ -7,4 +7,4 @@ bool CheckBattery(Stream &stream = null_stream);
 bool CheckTimer(Stream &stream = null_stream);
 bool CheckMotors(Stream &stream = null_stream, bool check_preconditions = false);
 bool CheckEncoders(Stream &stream, bool check_preconditions = false);
-bool CheckIMU(Stream &stream, bool check_preconditions = false);
+bool CheckBodyIMU(Stream &stream, bool check_preconditions = false);
