@@ -22,7 +22,7 @@ void InitMotors() {
   SetRightMotorDutyCycle(0);
 }
 
-void SetRightMotorDutyCycle(float s) {
+void SetLeftMotorDutyCycle(float s) {
   if (s > 0) {
     pinMode(4, OUTPUT);
     digitalWrite(4, 0);
@@ -44,7 +44,7 @@ void SetRightMotorDutyCycle(float s) {
   }
 }
 
-void SetLeftMotorDutyCycle(float s) {
+void SetRightMotorDutyCycle(float s) {
   if (s > 0) {
     pinMode(16, OUTPUT);
     digitalWrite(16, 0);
