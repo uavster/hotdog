@@ -150,21 +150,23 @@ bool CheckMotors(Stream &stream, bool check_preconditions) {
 
   // Move each wheel backward and forward.
   constexpr float kAtomicMotionSeconds = 0.5f;
-  stream.printf("Spinning left wheel for %.1f seconds...\n", kAtomicMotionSeconds);
+  stream.printf("Spinning left wheel backward for %.1f seconds...\n", kAtomicMotionSeconds);
   SetLeftMotorDutyCycle(-0.7);
   SleepForSeconds(kAtomicMotionSeconds);
+  stream.printf("Spinning left wheel forward for %.1f seconds...\n", kAtomicMotionSeconds);
   SetLeftMotorDutyCycle(0.7);
   SleepForSeconds(kAtomicMotionSeconds);
   SetLeftMotorDutyCycle(0);
 
-  stream.printf("Spinning right wheel for %.1f seconds...\n", kAtomicMotionSeconds);
+  stream.printf("Spinning right wheel backward for %.1f seconds...\n", kAtomicMotionSeconds);
   SetRightMotorDutyCycle(-0.7);
   SleepForSeconds(kAtomicMotionSeconds);
+  stream.printf("Spinning right wheel forward for %.1f seconds...\n", kAtomicMotionSeconds);
   SetRightMotorDutyCycle(0.7);
   SleepForSeconds(kAtomicMotionSeconds);
   SetRightMotorDutyCycle(0);
 
-  stream.printf("If the wheels did not spin back and forth one at a time -first left, then right- for %.1f seconds each, check the hardware.\n", kAtomicMotionSeconds);
+  stream.println("If the wheels did not spin back and forth one at a time (first left, then right), check the hardware.");
 
   return true;
 }
