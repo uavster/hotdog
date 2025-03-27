@@ -8,10 +8,9 @@
 #include "timer_arduino.h"
 #include "wheel_controller.h"
 #include "wheel_state_estimator.h"
+#include "operation_mode.h"
 
 extern TimerArduino timer;
-extern bool is_trajectory_control_enabled;
-extern bool is_wheel_control_enabled;
 extern WheelSpeedController left_wheel;
 extern WheelSpeedController right_wheel;
 extern WheelStateEstimator wheel_state_estimator;
@@ -328,13 +327,11 @@ void WriteMotorsPWMCommandHandler::Run(Stream &stream, const CommandLine &comman
   }
   SetLeftMotorDutyCycle(*left_pwm);
   SetRightMotorDutyCycle(*right_pwm);
-  if (is_trajectory_control_enabled) {
+  if (EnableTrajectoryControl(false)) {
     stream.println("Trajectory control has been disabled.");
-    is_trajectory_control_enabled = false;
   }
-  if (is_wheel_control_enabled) {
+  if (EnableWheelControl(false)) {
     stream.println("Wheel speed control has been disabled.");
-    is_wheel_control_enabled = false;
   }
 }
 
@@ -361,13 +358,11 @@ void WriteMotorsAngularSpeedCommandHandler::Run(Stream &stream, const CommandLin
   left_wheel.SetAngularSpeed(*left_speed);
   right_wheel.SetAngularSpeed(*right_speed);
 
-  if (is_trajectory_control_enabled) {
+  if (EnableTrajectoryControl(false)) {
     stream.println("Trajectory control has been disabled.");
-    is_trajectory_control_enabled = false;
   }
-  if (!is_wheel_control_enabled) {
+  if (!EnableTrajectoryControl(true)) {
     stream.println("Wheel speed control had been enabled.");
-    is_wheel_control_enabled = true;
   }
 }
 
@@ -394,13 +389,11 @@ void WriteMotorsLinearSpeedCommandHandler::Run(Stream &stream, const CommandLine
   left_wheel.SetLinearSpeed(*left_speed);
   right_wheel.SetLinearSpeed(*right_speed);
 
-  if (is_trajectory_control_enabled) {
+  if (EnableTrajectoryControl(false)) {
     stream.println("Trajectory control has been disabled.");
-    is_trajectory_control_enabled = false;
   }
-  if (!is_wheel_control_enabled) {
+  if (!EnableWheelControl(true)) {
     stream.println("Wheel speed control had been enabled.");
-    is_wheel_control_enabled = true;
   }
 }
 
@@ -466,6 +459,14 @@ void CheckBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &command_
 
 void CheckBodyIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Waits for you to move the robot as instructed to check the IMU output.");
+}
+
+void CheckBodyMotionCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckBodyMotion(stream, /*check_preconditions*/true);
+}
+
+void CheckBodyMotionCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Checks the base motion system by activating the motors and monitoring the readings from the wheel encoders and the body IMU.");
 }
 
 void Console::ProcessCommandLine() {

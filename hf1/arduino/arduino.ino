@@ -35,6 +35,7 @@
 #include "execute_base_trajectory_view_action_handler.h"
 #include "execute_head_trajectory_view_action_handler.h"
 #include "console.h"
+#include "operation_mode.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -77,12 +78,12 @@ ExecuteHeadTrajectoryViewActionHandler execute_head_trajectory_view_action_handl
 
 Console console(&Serial);
 
-bool is_trajectory_control_enabled;
-bool is_wheel_control_enabled;
+Trajectory<BaseTargetState, 10> base_traj;
+BaseTrajectoryView base_traj_view(&base_traj);
 
 void setup() {
-  is_trajectory_control_enabled = true;
-  is_wheel_control_enabled = true;
+  EnableWheelControl(true);
+  EnableTrajectoryControl(true);
 
   // No need to call Serial.begin() with USB port.
 
@@ -132,23 +133,33 @@ void setup() {
   p2p_action_server.Register(&execute_base_trajectory_view_action_handler);
   p2p_action_server.Register(&execute_head_trajectory_view_action_handler);
 
-  LOG_INFO("Ready.");
-
   left_wheel.Start();
   right_wheel.Start();
+
+  LOG_INFO("Ready.");
+
+// --- Square ---
+// base_traj.Insert(BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
+// base_traj.Insert(BaseWaypoint(4, BaseTargetState({ BaseStateVars(Point(1, 0), 0) })));
+// base_traj.Insert(BaseWaypoint(8, BaseTargetState({ BaseStateVars(Point(1, -1), 0) })));
+// base_traj.Insert(BaseWaypoint(12, BaseTargetState({ BaseStateVars(Point(0, -1), 0) })));
+// base_traj_view.EnableLooping(/*after_seconds=*/4).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+
+// base_trajectory_controller.trajectory(&base_traj_view);
+// base_trajectory_controller.Start();
 }
 
 void loop() {
   wheel_state_estimator.Run();
   RunRobotStateEstimator();
 
-  if (is_trajectory_control_enabled) {
+  if (IsTrajectoryControlEnabled()) {
     head_trajectory_controller.Run();
     base_trajectory_controller.Run();    
     NotifyLeftMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
     NotifyRightMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
   }
-  if (is_wheel_control_enabled) {
+  if (IsWheelControlEnabled()) {
     left_wheel.Run();
     right_wheel.Run();
   }

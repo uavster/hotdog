@@ -11,6 +11,7 @@
 #include "encoders.h"
 #include "robot_model.h"
 #include "body_imu.h"
+#include "operation_mode.h"
 
 constexpr float kMinBatteryVoltage = 7.0f;
 constexpr float kDefaultWaitInputTimeoutSeconds = 8.0f;
@@ -148,6 +149,9 @@ bool CheckMotors(Stream &stream, bool check_preconditions) {
     }  
   }
 
+  const bool old_wheel_control_status = EnableWheelControl(false);
+  const bool old_trajectory_control_status = EnableTrajectoryControl(false);
+
   // Move each wheel backward and forward.
   constexpr float kAtomicMotionSeconds = 0.5f;
   stream.printf("Spinning left wheel backward for %.1f seconds...\n", kAtomicMotionSeconds);
@@ -167,6 +171,9 @@ bool CheckMotors(Stream &stream, bool check_preconditions) {
   SetRightMotorDutyCycle(0);
 
   stream.println("If the wheels did not spin back and forth one at a time (first left, then right), check the hardware.");
+
+  EnableWheelControl(old_wheel_control_status);
+  EnableTrajectoryControl(old_trajectory_control_status);
 
   return true;
 }
@@ -404,6 +411,109 @@ bool CheckBodyIMU(Stream &stream, bool check_preconditions) {
     stream.println("ERROR.");
     return false;
   }
+
+  stream.println("OK.");
+  return true;
+}
+
+static imu::Vector<3> AverageAccelerationsForSeconds(TimerSecondsType duration_s, TimerSecondsType accum_start_s) {
+  ASSERT(duration_s > 0);
+  ASSERT(accum_start_s < duration_s);
+  imu::Vector<3> accum(0, 0, 0);
+  int num_samples = 0;
+  TimerSecondsType elapsed_s = 0;
+  constexpr float kReadFrequency = 100.0f; // [Hz]
+  const auto start_seconds = GetTimerSeconds();
+  TimerSecondsType last_sample_seconds = 0;
+  while(true) {
+    const TimerSecondsType now = GetTimerSeconds();
+    if (now - last_sample_seconds < 1.0f / kReadFrequency) {
+      continue;
+    }
+    elapsed_s = now - start_seconds;    
+    if (elapsed_s >= accum_start_s) {      
+      const auto a = body_imu.GetLinearAccelerations();
+      last_sample_seconds = now;
+      Serial.printf("%f, %f, %f\n", a.x(), a.y(), a.z());
+      accum = accum + a;
+      ++num_samples;
+    }
+    if (elapsed_s >= duration_s) {
+      break;
+    }
+  }
+  return accum / num_samples;
+}
+
+bool CheckBodyMotion(Stream &stream, bool check_preconditions) {
+  if (check_preconditions) {
+    stream.println("Running precondition tests...");
+    if (!CheckTimer()) {
+      stream.println("ERROR: The MCU timer is not working as expected.");
+      return false;
+    }
+    if (!CheckBattery()) {
+      stream.println("ERROR: Battery voltage is to low to run this test.");
+      return false;
+    }
+  }
+
+  const bool old_wheel_control_status = EnableWheelControl(false);
+  const bool old_trajectory_control_status = EnableTrajectoryControl(false);
+
+  num_left_ticks = 0;
+  num_right_ticks = 0;
+  AddEncoderIsrs(&GotLeftEncoderTick, &GotRightEncoderTick);
+
+  const auto ypr0 = body_imu.GetYawPitchRoll();
+  
+  constexpr float kBaseSpinSeconds = 1.0f;
+  stream.printf("Spinning left motor for %.1f seconds...\n", kBaseSpinSeconds);
+  SetLeftMotorDutyCycle(-0.7);
+  const float kMeasureAccelAfterSeconds = 0.75f; // In order to measure in steady state.
+  const auto average_acceleration = AverageAccelerationsForSeconds(kBaseSpinSeconds, kMeasureAccelAfterSeconds);
+
+  constexpr float kExpectedAngularSpeed = 4.85 * (2 * M_PI) / 10.0; // Steady state determined empirically [rad/s].
+  constexpr float kExpectedCentripetalAccel = -(kExpectedAngularSpeed * kExpectedAngularSpeed) * (kRobotDistanceBetweenTireCenters / 2);
+  constexpr float kMinExpectedCentripetalAccel = 1.2 * kExpectedCentripetalAccel;
+  constexpr float kMaxExpectedCentripetalAccel = 0.8 * kExpectedCentripetalAccel;
+
+  bool accel_y_ok = false;
+  if (average_acceleration.y() >= kMinExpectedCentripetalAccel && average_acceleration.y() <= kMaxExpectedCentripetalAccel) {
+    stream.printf("OK: The centripetal acceleration of %.3f m/s^2 is within the expected interval [%.3f, %.3f] m/s^2\n", average_acceleration.y(), kMinExpectedCentripetalAccel, kMaxExpectedCentripetalAccel);
+    accel_y_ok = true;
+  } else {
+    stream.printf("ERROR: The centripetal acceleration of %.3f m/s^2 is NOT within the expected interval [%.3f, %.3f] m/s^2\n", average_acceleration.y(), kMinExpectedCentripetalAccel, kMaxExpectedCentripetalAccel);
+  }
+
+  constexpr float kExpectedYawChange = kExpectedAngularSpeed * kBaseSpinSeconds;  // [rad]
+  // The actual change is expected to be lower because of the transient.
+  constexpr float kMinExpectedYawChange = 0.5 * kExpectedYawChange;
+  constexpr float kMaxExpectedYawChange = 1.2 * kExpectedYawChange;
+  bool yaw_diff_ok = false;
+  const float yaw_diff = body_imu.GetYawPitchRoll().z() - ypr0.z();
+  if (yaw_diff >= kMinExpectedYawChange && yaw_diff <= kMaxExpectedYawChange) {
+    stream.printf("OK: The yaw change of %.1f is within the expected interval [%.1f, %.1f] m/s^2\n", yaw_diff, kMinExpectedYawChange, kMaxExpectedYawChange);
+    yaw_diff_ok = true;
+  } else {
+    stream.printf("ERROR: The yaw change of %.1f is NOT within the expected interval [%.1f, %.1f] m/s^2\n", yaw_diff, kMinExpectedYawChange, kMaxExpectedYawChange);
+  }
+
+  stream.printf("Spinning left motor for %.1f seconds...\n", kBaseSpinSeconds);
+  SetLeftMotorDutyCycle(0.7);
+  SleepForSeconds(kBaseSpinSeconds);
+
+  // Clean up.
+  SetLeftMotorDutyCycle(0);
+  SetRightMotorDutyCycle(0);
+  RemoveEncoderIsrs(&GotLeftEncoderTick, &GotRightEncoderTick);
+  EnableWheelControl(old_wheel_control_status);
+  EnableTrajectoryControl(old_trajectory_control_status);
+
+  if (!accel_y_ok || !yaw_diff_ok) {
+    stream.println("ERROR.");
+    return false;
+  } 
 
   stream.println("OK.");
   return true;

@@ -491,12 +491,21 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
+class CheckBodyMotionCommandHandler : public CommandHandler {
+public:
+  CheckBodyMotionCommandHandler() : CommandHandler("body_motion") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class CheckCommandHandler : public CategoryHandler {
 public:
   CheckCommandHandler()
     : CategoryHandler("check", { 
       &check_mcu_handler_, &check_sram_handler_, &check_timer_handler_, &check_battery_handler_, 
-      &check_motors_handler_, &check_encoders_handler_, &check_body_imu_command_handler_ }) {}
+      &check_motors_handler_, &check_encoders_handler_, &check_body_imu_command_handler_,
+      &check_body_motion_command_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Checks different subsystems on the robot.");    
@@ -510,6 +519,7 @@ private:
   CheckMotorsCommandHandler check_motors_handler_;
   CheckEncodersCommandHandler check_encoders_handler_;
   CheckBodyIMUCommandHandler check_body_imu_command_handler_;
+  CheckBodyMotionCommandHandler check_body_motion_command_handler_;
 };
 
 class Console {
