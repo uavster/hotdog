@@ -60,7 +60,7 @@ Vector<NDims> Vector<NDims>::operator*(float d) const {
 template<int NDims> 
 float Vector<NDims>::Norm() const {
   float accum = 0;
-  for (int i = 0; NDims; ++i) {
+  for (int i = 0; i < NDims; ++i) {
     accum += components_[i] * components_[i];
   }
   return sqrtf(accum);
