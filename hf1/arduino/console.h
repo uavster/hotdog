@@ -178,10 +178,40 @@ public:
   void Help(Stream &stream, const CommandLine &command_line) override;  
 };
 
+class ReadBodyIMUCalibrationStatusCommandHandler : public CommandHandler {
+public:
+  ReadBodyIMUCalibrationStatusCommandHandler() : CommandHandler("status") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;  
+};
+
+class ReadBodyIMUCalibrationDataCommandHandler : public CommandHandler {
+public:
+  ReadBodyIMUCalibrationDataCommandHandler() : CommandHandler("data") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;  
+};
+
+class ReadBodyIMUCalibrationCommandHandler : public CategoryHandler {
+public:
+  ReadBodyIMUCalibrationCommandHandler() 
+    : CategoryHandler("calibration", { &read_body_imu_calibration_status_handler_, &read_body_imu_calibration_data_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Reads calibration properties from the body IMU.");
+  }
+
+private:
+  ReadBodyIMUCalibrationStatusCommandHandler read_body_imu_calibration_status_handler_;
+  ReadBodyIMUCalibrationDataCommandHandler read_body_imu_calibration_data_handler_;
+};
+
 class ReadBodyIMUCommandHandler : public CategoryHandler {
 public:
   ReadBodyIMUCommandHandler() 
-    : CategoryHandler("body_imu", { &read_bodyimu_orientation_, &read_bodyimu_acceleration_ }) {}
+    : CategoryHandler("body_imu", { &read_bodyimu_orientation_, &read_bodyimu_acceleration_, &read_bodyimu_calibration_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from the IMU at the robot's body.");    
@@ -190,6 +220,7 @@ public:
 private:
   ReadBodyIMUOrientationCommandHandler read_bodyimu_orientation_;
   ReadBodyIMUAccelerationCommandHandler read_bodyimu_acceleration_;
+  ReadBodyIMUCalibrationCommandHandler read_bodyimu_calibration_;
 };
 
 class ReadTimerUnitsCommandHandler : public CommandHandler {

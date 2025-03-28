@@ -56,6 +56,27 @@ StatusOr<TimerNanosType> NanosFromDurationString(const StringView &s) {
   return period_ns;
 }
 
+void PrintBodyIMUCalibrationStatus(Stream &stream, const BodyIMU::CalibrationStatus &status) {
+  static const char done_str[] = " (done)";
+  static const char incomplete_str[] = "";
+  static const char yes_str[] = "YES";
+  static const char no_str[] = "NO";
+  stream.printf("Body IMU calibrated: %s ; Details: system=%d%s gyroscopes=%d%s accelerometers=%d%s magnetometer=%d%s\n", 
+    status.IsFullyCalibrated() ? yes_str : no_str,
+    status.system, status.IsSystemCalibrated() ? done_str : incomplete_str, 
+    status.gyroscopes, status.AreGyroscopesCalibrated() ? done_str : incomplete_str, 
+    status.accelerometers, status.AreAccelerometersCalibrated() ? done_str : incomplete_str, 
+    status.magnetometer, status.IsMagnetometerCalibrated() ? done_str : incomplete_str);
+}
+
+void PrintBodyIMUCalibrationData(Stream &stream, const BodyIMU::CalibrationData &data) {
+  stream.printf("[Accelerometers]\n  Offsets: x=%d y=%d z=%d\n  Radius: %d\n[Gyroscopes]  Offsets: x=%d y=%d z=%d\n[Magnetometer]\n  Offsets: x=%d y=%d z=%d\n  Radius: %d\n", 
+    data.accel_offset_x, data.accel_offset_y, data.accel_offset_z, data.accel_radius,
+    data.gyro_offset_x, data.gyro_offset_y, data.gyro_offset_z, 
+    data.mag_offset_x, data.mag_offset_y, data.mag_offset_z, data.mag_radius
+  );
+}
+
 } // namespace
 
 CommandLine CommandLine::ShiftLeft() const {
@@ -310,6 +331,22 @@ void ReadEncodersLinearSpeedCommandHandler::Describe(Stream &stream, const Comma
   stream.println("Reads the linear speed of the wheels estimated with the encoders.");
 }
 
+void ReadBodyIMUCalibrationDataCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  PrintBodyIMUCalibrationData(stream, body_imu.GetCalibrationData());
+}
+
+void ReadBodyIMUCalibrationDataCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Reads the calibration data of the body IMU.");
+}
+
+void ReadBodyIMUCalibrationStatusCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  PrintBodyIMUCalibrationStatus(stream, body_imu.GetCalibrationStatus());
+}
+
+void ReadBodyIMUCalibrationStatusCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Reads the calibration status of different subsystems of the body IMU.");
+}
+
 void WriteMotorsPWMCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   if (command_line.num_params != 2) {
     stream.println("This command takes two floating point arguments in [0, 1]: write motors pwm left_pwm_duty_cycle right_pwm_duty_cycle.");
@@ -476,13 +513,7 @@ void CalibrateBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &comm
     const auto status = body_imu.GetCalibrationStatus();
     const auto now = GetTimerSeconds();
     if (now - last_print_seconds_ >= 0.5) {
-      static const char done_str[] = "done";
-      static const char in_progress_str[] = "in progress";
-      stream.printf("[Body IMU calibration] system:%d (%s) gyroscopes:%d (%s) accelerometers:%d (%s) magnetometer:%d (%s)\n", 
-        status.system, status.IsSystemCalibrated() ? done_str : in_progress_str, 
-        status.gyroscopes, status.AreGyroscopesCalibrated() ? done_str : in_progress_str, 
-        status.accelerometers, status.AreAccelerometersCalibrated() ? done_str : in_progress_str, 
-        status.magnetometer, status.IsMagnetometerCalibrated() ? done_str : in_progress_str);
+      PrintBodyIMUCalibrationStatus(stream, status);
       last_print_seconds_ = now;
     }
     if (status.IsFullyCalibrated()) {
@@ -494,10 +525,13 @@ void CalibrateBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &comm
   }
 
   if (!body_imu.IsCalibrated()) {
+    body_imu.StopCalibration();
     stream.println("ERROR: Calibration interrupted by user.");
     return;
   }
   
+  body_imu.StopCalibration();
+  PrintBodyIMUCalibrationStatus(stream, body_imu.GetCalibrationStatus());
   stream.println("OK.");
 }
 

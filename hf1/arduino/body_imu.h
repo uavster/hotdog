@@ -26,6 +26,8 @@ public:
   void StartCalibration();
   using CalibrationStatus = BNO055::CalibrationStatus;
   CalibrationStatus GetCalibrationStatus() const;
+  using CalibrationData = BNO055::CalibrationData;
+  CalibrationData GetCalibrationData() const;
   bool IsCalibrated() const;
   void StopCalibration();
 

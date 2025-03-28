@@ -55,7 +55,7 @@ Vector<3> BodyIMU::GetLinearAccelerations() {
 }
 
 void BodyIMU::StartCalibration() {
-  bno055_.setMode(BNO055_OPERATION_MODE_NDOF);
+  bno055_.begin(BNO055_OPERATION_MODE_NDOF);
 }
 
 bool BodyIMU::IsCalibrated() const {
@@ -64,6 +64,10 @@ bool BodyIMU::IsCalibrated() const {
 
 BodyIMU::CalibrationStatus BodyIMU::GetCalibrationStatus() const {
   return bno055_.GetCalibrationStatus();
+}
+
+BodyIMU::CalibrationData BodyIMU::GetCalibrationData() const {
+  return bno055_.GetCalibrationData();
 }
 
 void BodyIMU::StopCalibration() {

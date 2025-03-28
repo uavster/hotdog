@@ -16,7 +16,7 @@ typedef enum {
   BNO055_OPERATION_MODE_AMG = 0X07,
   BNO055_OPERATION_MODE_IMUPLUS = 0X08,
   BNO055_OPERATION_MODE_COMPASS = 0X09,
-  BNO055_BNO055_OPERATION_MODE_M4G = 0X0A,
+  BNO055_OPERATION_MODE_M4G = 0X0A,
   BNO055_OPERATION_MODE_NDOF_FMC_OFF = 0X0B,
   BNO055_OPERATION_MODE_NDOF = 0X0C
 } BNO055OperationMode;
@@ -36,6 +36,7 @@ public:
 
 #pragma pack(push, 1)
   struct CalibrationStatus {
+    BNO055OperationMode operation_mode;
     uint8_t system;
     uint8_t gyroscopes;
     uint8_t accelerometers;
@@ -45,9 +46,8 @@ public:
     bool AreGyroscopesCalibrated() const { return gyroscopes == 3; }
     bool AreAccelerometersCalibrated() const { return accelerometers == 3; }
     bool IsMagnetometerCalibrated() const { return magnetometer == 3; }
-    bool IsFullyCalibrated() const {
-      return IsSystemCalibrated() && AreGyroscopesCalibrated() && AreAccelerometersCalibrated() && IsMagnetometerCalibrated();
-    }
+
+    bool IsFullyCalibrated() const;
   };
   CalibrationStatus GetCalibrationStatus() const;
 
@@ -65,7 +65,6 @@ public:
     int16_t gyro_offset_z;
 
     int16_t accel_radius;
-
     int16_t mag_radius;
   };
 #pragma pack(pop)

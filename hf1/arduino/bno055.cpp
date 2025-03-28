@@ -66,9 +66,9 @@ static void WritePageID(uint8_t page_id) {
   WriteByteToI2C(PAGE_ID_REG, page_id); 
 }
 
-static uint8_t GetOperationMode() {
+static BNO055OperationMode GetOperationMode() {
   WritePageID(0);
-  return GetBytePart(ReadByteFromI2C(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK);
+  return static_cast<BNO055OperationMode>(GetBytePart(ReadByteFromI2C(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK));
 }
 
 static void SetOperationMode(BNO055OperationMode op_mode) {
@@ -162,8 +162,9 @@ Vector<3> BNO055::getVector(TVectorType vector_type) const {
 }
 
 BNO055::CalibrationStatus BNO055::GetCalibrationStatus() const {
-  const uint8_t reg = ReadByteFromI2C(CALIBRATION_STATUS_REG);
+  const uint8_t reg = ReadByteFromI2C(CALIBRATION_STATUS_REG);  
   return {
+    .operation_mode = GetOperationMode(),
     .system = static_cast<uint8_t>((reg >> 6) & 0b11),
     .gyroscopes = static_cast<uint8_t>((reg >> 4) & 0b11),
     .accelerometers = static_cast<uint8_t>((reg >> 2) & 0b11),
@@ -177,6 +178,28 @@ BNO055::CalibrationData BNO055::GetCalibrationData() const {
   ReadFromI2C(SENSOR_OFFSETS_BASE_ADDRESS, &calibration_data, SENSOR_OFFSETS_NUM_REGISTERS);
   SetOperationMode(last_mode_);
   return calibration_data;
+}
+
+bool BNO055::CalibrationStatus::IsFullyCalibrated() const {
+  switch (operation_mode) {
+    case BNO055_OPERATION_MODE_ACCONLY:
+      return AreAccelerometersCalibrated();
+    case BNO055_OPERATION_MODE_MAGONLY:
+      return IsMagnetometerCalibrated();
+    case BNO055_OPERATION_MODE_GYRONLY:
+    case BNO055_OPERATION_MODE_M4G: /* No magnetometer calibration required. */
+      return AreGyroscopesCalibrated();
+    case BNO055_OPERATION_MODE_ACCMAG:
+    case BNO055_OPERATION_MODE_COMPASS:
+      return AreAccelerometersCalibrated() && IsMagnetometerCalibrated();
+    case BNO055_OPERATION_MODE_ACCGYRO:
+    case BNO055_OPERATION_MODE_IMUPLUS:
+      return AreAccelerometersCalibrated() && AreGyroscopesCalibrated();
+    case BNO055_OPERATION_MODE_MAGGYRO:
+      return IsMagnetometerCalibrated() && AreGyroscopesCalibrated();
+    default:
+      return IsSystemCalibrated() && AreAccelerometersCalibrated() && AreGyroscopesCalibrated() && IsMagnetometerCalibrated();
+  }  
 }
 
 void BNO055::SetCalibrationData(const CalibrationData &data) const {
