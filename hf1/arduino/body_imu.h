@@ -14,10 +14,10 @@ public:
 
   // Returns the orientation with respect to the initial pose, in ZYX euler angles.
   // Value ranges are: yaw (z): [-pi, pi), pitch (y): [-pi/2, pi/2), roll (x): [-pi, pi).
-  Vector GetYawPitchRoll();
+  Vector<3> GetYawPitchRoll();
 
   // Returns the linear accelerations in m/s^2.
-  Vector GetLinearAccelerations();
+  Vector<3> GetLinearAccelerations();
 
   // Returns the angular velocities in rad/s.
   // imu::Vector<3> GetAngularVelocities();

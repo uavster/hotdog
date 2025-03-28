@@ -2,7 +2,7 @@
 #define HEAD_STATE_INCLUDED_
 
 #include "state.h"
-#include "point.h"
+#include "vector.h"
 #include <math.h>
 
 class HeadStateVars {

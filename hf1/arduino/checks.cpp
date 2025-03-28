@@ -1,4 +1,3 @@
-#include "utility/vector.h"
 #include "wiring.h"
 #include "kinetis.h"
 #include "checks.h"
@@ -272,11 +271,11 @@ bool CheckEncoders(Stream &stream, bool check_preconditions) {
 static StatusOr<int> SenseMajorAccelerationAxis(Stream &stream) {
   stream.printf("[Press ENTER when done or wait for %.1f seconds]", kDefaultWaitInputTimeoutSeconds);
   // Sample acceleration squared for some time.
-  imu::Vector<3> squared_accel_accum(0, 0, 0);
+  Vector<3> squared_accel_accum(0, 0, 0);
   auto start_seconds = GetTimerSeconds();
   while(!stream.available() && GetTimerSeconds() - start_seconds < kDefaultWaitInputTimeoutSeconds) {
     const auto accel = body_imu.GetLinearAccelerations();
-    squared_accel_accum = squared_accel_accum + imu::Vector<3>(accel[0] * accel[0], accel[1] * accel[1], accel[2] * accel[2]);
+    squared_accel_accum = squared_accel_accum + Vector<3>(accel[0] * accel[0], accel[1] * accel[1], accel[2] * accel[2]);
   }
   // If enter was pressed to end, consume all keys.
   while (stream.available()) {
@@ -284,9 +283,9 @@ static StatusOr<int> SenseMajorAccelerationAxis(Stream &stream) {
   }
 
   // The shaking should be strong enough.
-  constexpr float kMinCumulativeSquaredAccelerationMagnitude = 1.0f; // [(m/s^2)^2]
-  constexpr float kMinAccelerationComponentToMagnitudeRatio = 0.7f;
-  if (squared_accel_accum.magnitude() < kMinCumulativeSquaredAccelerationMagnitude) {
+  constexpr float kMinCumulativeSquaredAccelerationNorm = 1.0f; // [(m/s^2)^2]
+  constexpr float kMinAccelerationComponentToNormRatio = 0.7f;
+  if (squared_accel_accum.Norm() < kMinCumulativeSquaredAccelerationNorm) {
     return Status::kUnavailableError;
   }
 
@@ -294,7 +293,7 @@ static StatusOr<int> SenseMajorAccelerationAxis(Stream &stream) {
   int dominant_dimension = 0;
   if (squared_accel_accum.y() > squared_accel_accum[dominant_dimension]) { dominant_dimension = 1; }
   if (squared_accel_accum.z() > squared_accel_accum[dominant_dimension]) { dominant_dimension = 2; }
-  if (squared_accel_accum[dominant_dimension] / squared_accel_accum.magnitude() < kMinAccelerationComponentToMagnitudeRatio * kMinAccelerationComponentToMagnitudeRatio) {
+  if (squared_accel_accum[dominant_dimension] / squared_accel_accum.Norm() < kMinAccelerationComponentToNormRatio * kMinAccelerationComponentToNormRatio) {
     return Status::kMalformedError;
   }
 
@@ -416,10 +415,10 @@ bool CheckBodyIMU(Stream &stream, bool check_preconditions) {
   return true;
 }
 
-static imu::Vector<3> AverageAccelerationsForSeconds(TimerSecondsType duration_s, TimerSecondsType accum_start_s) {
+static Vector<3> AverageAccelerationsForSeconds(TimerSecondsType duration_s, TimerSecondsType accum_start_s) {
   ASSERT(duration_s > 0);
   ASSERT(accum_start_s < duration_s);
-  imu::Vector<3> accum(0, 0, 0);
+  Vector<3> accum(0, 0, 0);
   int num_samples = 0;
   TimerSecondsType elapsed_s = 0;
   constexpr float kReadFrequency = 100.0f; // [Hz]

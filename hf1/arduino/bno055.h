@@ -1,4 +1,8 @@
+#ifndef BNO055_INCLUDED_
+#define BNO055_INCLUDED_
+
 #include <stdint.h>
+#include "vector.h"
 
 // Operation mode settings.
 typedef enum {
@@ -22,21 +26,6 @@ typedef enum {
   VECTOR_LINEAR_ACCEL = 0x28
 } TVectorType;
 
-class Vector {
-public:
-  Vector() : x_(0), y_(0), z_(0) {}
-  Vector(float x, float y, float z) : x_(x), y_(y), z_(z) {}
-
-  float x() const { return x_; }
-  float y() const { return y_; }
-  float z() const { return z_; }
-
-private:
-  float x_;
-  float y_;
-  float z_;
-};
-
 // Class handling communication with the BNO055 IMU.
 class BNO055 {
 public:
@@ -44,8 +33,10 @@ public:
   bool begin(BNO055OperationMode op_mode);
   void setMode(BNO055OperationMode op_mode);
   void setSensorOffsets(const uint8_t *calibration_data);
-  Vector getVector(TVectorType vector_type);
+  Vector<3> getVector(TVectorType vector_type);
 
 private:
   BNO055OperationMode last_mode_;
 };
+
+#endif  // BNO055_INCLUDED_

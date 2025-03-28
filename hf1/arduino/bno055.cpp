@@ -132,7 +132,6 @@ bool BNO055::begin(BNO055OperationMode op_mode) {
   setMode(op_mode);
   SleepForNanos(20'000'000);
 
-  LOG_INFO("BNO055 init ok.\n");
   return true;
 }
 
@@ -151,7 +150,7 @@ void BNO055::setSensorOffsets(const uint8_t *calibration_data) {
   set_operation_mode(last_mode_);
 }
 
-Vector BNO055::getVector(TVectorType vector_type) {
+Vector<3> BNO055::getVector(TVectorType vector_type) {
   // Assume that page 0 is selected.
   uint8_t buffer[6];
   i2c_read(static_cast<uint8_t>(vector_type), buffer, sizeof(buffer) / sizeof(buffer[0]));
@@ -161,9 +160,9 @@ Vector BNO055::getVector(TVectorType vector_type) {
 
   switch(vector_type) {
     case VECTOR_EULER:
-      return Vector(static_cast<float>(x) / 16.0, static_cast<float>(y) / 16.0, static_cast<float>(z) / 16.0);
+      return Vector<3>(static_cast<float>(x) / 16.0, static_cast<float>(y) / 16.0, static_cast<float>(z) / 16.0);
     case VECTOR_LINEAR_ACCEL:
-      return Vector(static_cast<float>(x) / 100.0, static_cast<float>(y) / 100.0, static_cast<float>(z) / 100.0);
+      return Vector<3>(static_cast<float>(x) / 100.0, static_cast<float>(y) / 100.0, static_cast<float>(z) / 100.0);
   }
-  return Vector();
+  return Vector<3>();
 }
