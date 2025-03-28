@@ -1,5 +1,6 @@
 #include <status_or.h>
 #include "bno055.h"
+#include "vector.h"
 
 class BodyIMU {
 public:
@@ -21,6 +22,12 @@ public:
 
   // Returns the angular velocities in rad/s.
   // imu::Vector<3> GetAngularVelocities();
+
+  void StartCalibration();
+  using CalibrationStatus = BNO055::CalibrationStatus;
+  CalibrationStatus GetCalibrationStatus() const;
+  bool IsCalibrated() const;
+  void StopCalibration();
 
 private:
   BNO055 bno055_;

@@ -469,6 +469,42 @@ void CheckBodyMotionCommandHandler::Describe(Stream &stream, const CommandLine &
   stream.println("Checks the base motion system by activating the motors and monitoring the readings from the wheel encoders and the body IMU.");
 }
 
+void CalibrateBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  body_imu.StartCalibration();
+  TimerSecondsType last_print_seconds_ = GetTimerSeconds();
+  while(!stream.available()) {
+    const auto status = body_imu.GetCalibrationStatus();
+    const auto now = GetTimerSeconds();
+    if (now - last_print_seconds_ >= 0.5) {
+      static const char done_str[] = "done";
+      static const char in_progress_str[] = "in progress";
+      stream.printf("[Body IMU calibration] system:%d (%s) gyroscopes:%d (%s) accelerometers:%d (%s) magnetometer:%d (%s)\n", 
+        status.system, status.IsSystemCalibrated() ? done_str : in_progress_str, 
+        status.gyroscopes, status.AreGyroscopesCalibrated() ? done_str : in_progress_str, 
+        status.accelerometers, status.AreAccelerometersCalibrated() ? done_str : in_progress_str, 
+        status.magnetometer, status.IsMagnetometerCalibrated() ? done_str : in_progress_str);
+      last_print_seconds_ = now;
+    }
+    if (status.IsFullyCalibrated()) {
+      break;
+    }
+  }
+  while(stream.available()) {
+    stream.read();    
+  }
+
+  if (!body_imu.IsCalibrated()) {
+    stream.println("ERROR: Calibration interrupted by user.");
+    return;
+  }
+  
+  stream.println("OK.");
+}
+
+void CalibrateBodyIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Runs the calibration routine of the body IMU.");
+}
+
 void Console::ProcessCommandLine() {
   input_stream_.printf("\n> %s\n", command_line_);
 

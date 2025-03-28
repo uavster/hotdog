@@ -522,6 +522,26 @@ private:
   CheckBodyMotionCommandHandler check_body_motion_command_handler_;
 };
 
+class CalibrateBodyIMUCommandHandler : public CommandHandler {
+public:
+  CalibrateBodyIMUCommandHandler() : CommandHandler("body_imu") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CalibrateCommandHandler : public CategoryHandler {
+public:
+  CalibrateCommandHandler() : CategoryHandler("calibrate", { &calibrate_body_imu_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Calibrates different subsystems on the robot.");    
+  }
+
+private:
+  CalibrateBodyIMUCommandHandler calibrate_body_imu_handler_;
+};
+
 class Console {
 public:
   Console(Stream *input_stream)
@@ -534,6 +554,7 @@ public:
                      &read_command_handler_,
                      &write_command_handler_,
                      &check_command_handler_,
+                     &calibrate_command_handler_,
                      &every_command_handler_ }) {
   }
   void Run();
@@ -553,6 +574,7 @@ private:
   ReadCommandHandler read_command_handler_;
   WriteCommandHandler write_command_handler_;
   CheckCommandHandler check_command_handler_;
+  CalibrateCommandHandler calibrate_command_handler_;
   EveryCommandHandler every_command_handler_;
 
   CommandInterpreter interpreter_;

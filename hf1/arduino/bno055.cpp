@@ -11,30 +11,34 @@
 #define PAGE_ID_REG             0x7
 
 #define OPERATION_MODE_POS			0
-#define OPERATION_MODE_MASK			0Xf
+#define OPERATION_MODE_MASK			0xf
 #define OPERATION_MODE_REG			0x3d
 #define SYS_TRIGGER_REG         0x3f
 #define SYS_CLK_STATUS_REG      0x38
+#define CALIBRATION_STATUS_REG  0x35
 
-#define SET_SENSOR_OFFSETS_BASE_ADDRESS 0x55
+#define SENSOR_OFFSETS_BASE_ADDRESS   0x55
+#define SENSOR_OFFSETS_NUM_REGISTERS  22
 
-static void ReadFromI2C(uint8_t register_address, uint8_t *data, uint8_t length) {
+static void ReadFromI2C(uint8_t register_address, void *data, uint8_t length) {
 	Wire.beginTransmission(DEVICE_ADDRESS);	
 	Wire.write(register_address);
 	Wire.endTransmission();
   SleepForNanos(150000);
 	Wire.requestFrom(DEVICE_ADDRESS, length);
+  auto bytes = reinterpret_cast<uint8_t *>(data);
 	while(Wire.available()) {
-		*(data++) = Wire.read();
+		*(bytes++) = Wire.read();
 	}
 }
 
-static void WriteToI2C(uint8_t register_address, const uint8_t *data, uint8_t length) {
+static void WriteToI2C(uint8_t register_address, const void *data, uint8_t length) {
 	Wire.beginTransmission(DEVICE_ADDRESS);
 	Wire.write(register_address);	
+  auto bytes = reinterpret_cast<const uint8_t *>(data);
 	for(uint8_t i = 0; i < length; ++i) {
-		Wire.write(*data);
-		++data;
+		Wire.write(*bytes);
+		++bytes;
 	}
 	Wire.endTransmission();
 	SleepForNanos(150000);
@@ -140,17 +144,7 @@ void BNO055::setMode(BNO055OperationMode op_mode) {
   last_mode_ = op_mode;
 }
 
-// TODO: Clean up interface to pass a packed structure.
-void BNO055::setSensorOffsets(const uint8_t *calibration_data) {
-  SetOperationMode(BNO055_OPERATION_MODE_CONFIG);
-  SleepForNanos(25000000);
-
-  WriteToI2C(SET_SENSOR_OFFSETS_BASE_ADDRESS, calibration_data, 22);
-
-  SetOperationMode(last_mode_);
-}
-
-Vector<3> BNO055::getVector(TVectorType vector_type) {
+Vector<3> BNO055::getVector(TVectorType vector_type) const {
   // Assume that page 0 is selected.
   uint8_t buffer[6];
   ReadFromI2C(static_cast<uint8_t>(vector_type), buffer, sizeof(buffer) / sizeof(buffer[0]));
@@ -165,4 +159,29 @@ Vector<3> BNO055::getVector(TVectorType vector_type) {
       return Vector<3>(static_cast<float>(x) / 100.0, static_cast<float>(y) / 100.0, static_cast<float>(z) / 100.0);
   }
   return Vector<3>();
+}
+
+BNO055::CalibrationStatus BNO055::GetCalibrationStatus() const {
+  const uint8_t reg = ReadByteFromI2C(CALIBRATION_STATUS_REG);
+  return {
+    .system = static_cast<uint8_t>((reg >> 6) & 0b11),
+    .gyroscopes = static_cast<uint8_t>((reg >> 4) & 0b11),
+    .accelerometers = static_cast<uint8_t>((reg >> 2) & 0b11),
+    .magnetometer = static_cast<uint8_t>(reg & 0b11)
+  };
+}
+
+BNO055::CalibrationData BNO055::GetCalibrationData() const {
+  SetOperationMode(BNO055_OPERATION_MODE_CONFIG);
+  CalibrationData calibration_data;
+  ReadFromI2C(SENSOR_OFFSETS_BASE_ADDRESS, &calibration_data, SENSOR_OFFSETS_NUM_REGISTERS);
+  SetOperationMode(last_mode_);
+  return calibration_data;
+}
+
+void BNO055::SetCalibrationData(const CalibrationData &data) const {
+  SetOperationMode(BNO055_OPERATION_MODE_CONFIG);
+  SleepForNanos(25000000);
+  WriteToI2C(SENSOR_OFFSETS_BASE_ADDRESS, &data, SENSOR_OFFSETS_NUM_REGISTERS);
+  SetOperationMode(last_mode_);
 }

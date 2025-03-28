@@ -32,8 +32,45 @@ public:
   BNO055() {}
   bool begin(BNO055OperationMode op_mode);
   void setMode(BNO055OperationMode op_mode);
-  void setSensorOffsets(const uint8_t *calibration_data);
-  Vector<3> getVector(TVectorType vector_type);
+  Vector<3> getVector(TVectorType vector_type) const;
+
+#pragma pack(push, 1)
+  struct CalibrationStatus {
+    uint8_t system;
+    uint8_t gyroscopes;
+    uint8_t accelerometers;
+    uint8_t magnetometer;
+
+    bool IsSystemCalibrated() const { return system == 3; }
+    bool AreGyroscopesCalibrated() const { return gyroscopes == 3; }
+    bool AreAccelerometersCalibrated() const { return accelerometers == 3; }
+    bool IsMagnetometerCalibrated() const { return magnetometer == 3; }
+    bool IsFullyCalibrated() const {
+      return IsSystemCalibrated() && AreGyroscopesCalibrated() && AreAccelerometersCalibrated() && IsMagnetometerCalibrated();
+    }
+  };
+  CalibrationStatus GetCalibrationStatus() const;
+
+  struct CalibrationData {
+    int16_t accel_offset_x;
+    int16_t accel_offset_y;
+    int16_t accel_offset_z;
+
+    int16_t mag_offset_x;
+    int16_t mag_offset_y;
+    int16_t mag_offset_z;
+
+    int16_t gyro_offset_x;
+    int16_t gyro_offset_y;
+    int16_t gyro_offset_z;
+
+    int16_t accel_radius;
+
+    int16_t mag_radius;
+  };
+#pragma pack(pop)
+  CalibrationData GetCalibrationData() const;
+  void SetCalibrationData(const CalibrationData &data) const;
 
 private:
   BNO055OperationMode last_mode_;

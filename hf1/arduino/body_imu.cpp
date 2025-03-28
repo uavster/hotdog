@@ -35,7 +35,7 @@ void BodyIMU::Init() {
     0x0, 0x0, 0x0, 0xff, 0xff, 0x1, 0x0, 0xe8, 0x3, 0x33, 0x2 
   };
   ASSERT(bno055_.begin(BNO055_OPERATION_MODE_CONFIG));
-  bno055_.setSensorOffsets(calibration_data);
+  bno055_.SetCalibrationData(*reinterpret_cast<const BNO055::CalibrationData *>(calibration_data));
   bno055_.setMode(BNO055_OPERATION_MODE_IMUPLUS);
 #endif
 }
@@ -52,4 +52,20 @@ Vector<3> BodyIMU::GetYawPitchRoll() {
 
 Vector<3> BodyIMU::GetLinearAccelerations() {
   return bno055_.getVector(TVectorType::VECTOR_LINEAR_ACCEL);
+}
+
+void BodyIMU::StartCalibration() {
+  bno055_.setMode(BNO055_OPERATION_MODE_NDOF);
+}
+
+bool BodyIMU::IsCalibrated() const {
+  return GetCalibrationStatus().IsFullyCalibrated();
+}
+
+BodyIMU::CalibrationStatus BodyIMU::GetCalibrationStatus() const {
+  return bno055_.GetCalibrationStatus();
+}
+
+void BodyIMU::StopCalibration() {
+  bno055_.setMode(BNO055_OPERATION_MODE_IMUPLUS);
 }
