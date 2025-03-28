@@ -18,7 +18,7 @@
 
 #define SET_SENSOR_OFFSETS_BASE_ADDRESS 0x55
 
-static void i2c_read(uint8_t register_address, uint8_t *data, uint8_t length) {
+static void ReadFromI2C(uint8_t register_address, uint8_t *data, uint8_t length) {
 	Wire.beginTransmission(DEVICE_ADDRESS);	
 	Wire.write(register_address);
 	Wire.endTransmission();
@@ -29,7 +29,7 @@ static void i2c_read(uint8_t register_address, uint8_t *data, uint8_t length) {
 	}
 }
 
-static void i2c_write(uint8_t register_address, const uint8_t *data, uint8_t length) {
+static void WriteToI2C(uint8_t register_address, const uint8_t *data, uint8_t length) {
 	Wire.beginTransmission(DEVICE_ADDRESS);
 	Wire.write(register_address);	
 	for(uint8_t i = 0; i < length; ++i) {
@@ -40,48 +40,48 @@ static void i2c_write(uint8_t register_address, const uint8_t *data, uint8_t len
 	SleepForNanos(150000);
 }
 
-static uint8_t i2c_read_byte(uint8_t reg_addr) {
+static uint8_t ReadByteFromI2C(uint8_t reg_addr) {
   uint8_t data;
-  i2c_read(reg_addr, &data, 1);
+  ReadFromI2C(reg_addr, &data, 1);
   return data;
 }
 
-static void i2c_write_byte(uint8_t reg_addr, uint8_t value) {
-  i2c_write(reg_addr, &value, 1);
+static void WriteByteToI2C(uint8_t reg_addr, uint8_t value) {
+  WriteToI2C(reg_addr, &value, 1);
 }
 
-static uint8_t set_byte_part(uint8_t dest, uint8_t offset, uint8_t mask, uint8_t value) {
+static uint8_t SetBytePart(uint8_t dest, uint8_t offset, uint8_t mask, uint8_t value) {
   return (dest & (~mask)) | ((value & mask) << offset);
 }
 
-static uint8_t get_byte_part(uint8_t source, uint8_t offset, uint8_t mask) {
+static uint8_t GetBytePart(uint8_t source, uint8_t offset, uint8_t mask) {
   return (source & mask) >> offset;
 }
 
-static void write_page_id(uint8_t page_id) {
-  i2c_write_byte(PAGE_ID_REG, page_id); 
+static void WritePageID(uint8_t page_id) {
+  WriteByteToI2C(PAGE_ID_REG, page_id); 
 }
 
-static uint8_t get_operation_mode() {
-  write_page_id(0);
-  return get_byte_part(i2c_read_byte(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK);
+static uint8_t GetOperationMode() {
+  WritePageID(0);
+  return GetBytePart(ReadByteFromI2C(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK);
 }
 
-static void set_operation_mode(BNO055OperationMode op_mode) {
-  if (get_operation_mode() == BNO055_OPERATION_MODE_CONFIG) {
-    i2c_write_byte(
+static void SetOperationMode(BNO055OperationMode op_mode) {
+  if (GetOperationMode() == BNO055_OPERATION_MODE_CONFIG) {
+    WriteByteToI2C(
       OPERATION_MODE_REG, 
-      set_byte_part(i2c_read_byte(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK, op_mode)
+      SetBytePart(ReadByteFromI2C(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK, op_mode)
     );
   } else {
-    i2c_write_byte(
+    WriteByteToI2C(
       OPERATION_MODE_REG, 
-      set_byte_part(i2c_read_byte(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK, BNO055_OPERATION_MODE_CONFIG) 
+      SetBytePart(ReadByteFromI2C(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK, BNO055_OPERATION_MODE_CONFIG) 
     );
     if (op_mode != BNO055_OPERATION_MODE_CONFIG) {
-      i2c_write_byte(
+      WriteByteToI2C(
         OPERATION_MODE_REG, 
-        set_byte_part(i2c_read_byte(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK, op_mode)
+        SetBytePart(ReadByteFromI2C(OPERATION_MODE_REG), OPERATION_MODE_POS, OPERATION_MODE_MASK, op_mode)
       );
     }
   }
@@ -94,7 +94,7 @@ bool BNO055::begin(BNO055OperationMode op_mode) {
   // Wait for the chip to start up and check that we have the right model.
   SleepForNanos(400'000'000); // Typical start-up time is 400 ms.
   int timeout_ms = 200;  
-  while(i2c_read_byte(CHIP_ID_REG) != EXPECTED_CHIP_ID && timeout_ms > 0) {
+  while(ReadByteFromI2C(CHIP_ID_REG) != EXPECTED_CHIP_ID && timeout_ms > 0) {
     SleepForNanos(10'000'000);
     timeout_ms -= 10;
   }
@@ -102,13 +102,13 @@ bool BNO055::begin(BNO055OperationMode op_mode) {
 
   // Reset the chip in case begin() has been called a second time, 
   // or the MCU was reset by the programmer without power-cycling the IMU.
-  set_operation_mode(BNO055_OPERATION_MODE_CONFIG);
-  i2c_write_byte(SYS_TRIGGER_REG, 0x20);
+  SetOperationMode(BNO055_OPERATION_MODE_CONFIG);
+  WriteByteToI2C(SYS_TRIGGER_REG, 0x20);
 
   // Check that we have the right chip. Retry until it is on.
   SleepForNanos(650'000'000);  // Typical POR time is 650 ms.
   timeout_ms = 200;
-  while(i2c_read_byte(CHIP_ID_REG) != EXPECTED_CHIP_ID && timeout_ms > 0) {
+  while(ReadByteFromI2C(CHIP_ID_REG) != EXPECTED_CHIP_ID && timeout_ms > 0) {
     SleepForNanos(10'000'000);
     timeout_ms -= 10;
   }
@@ -116,18 +116,18 @@ bool BNO055::begin(BNO055OperationMode op_mode) {
   SleepForNanos(50'000'000);
 
   // Configure external crystal.
-  set_operation_mode(BNO055_OPERATION_MODE_CONFIG);
+  SetOperationMode(BNO055_OPERATION_MODE_CONFIG);
   SleepForNanos(25'000'000);
-  write_page_id(0);
-  i2c_write_byte(SYS_TRIGGER_REG, 0x80);
+  WritePageID(0);
+  WriteByteToI2C(SYS_TRIGGER_REG, 0x80);
   SleepForNanos(600'000'000);
   timeout_ms = 1000;
-  while(i2c_read_byte(SYS_CLK_STATUS_REG) & 1) {
+  while(ReadByteFromI2C(SYS_CLK_STATUS_REG) & 1) {
     SleepForNanos(10'000'000);
     timeout_ms -= 10;
   }
-  ASSERTM(!(i2c_read_byte(SYS_CLK_STATUS_REG) & 1), "Timed out waiting for ST_MAIN_CLK to become low.");
-  ASSERTM(i2c_read_byte(SYS_TRIGGER_REG) & 0x80, "Unable to start external oscillator.");
+  ASSERTM(!(ReadByteFromI2C(SYS_CLK_STATUS_REG) & 1), "Timed out waiting for ST_MAIN_CLK to become low.");
+  ASSERTM(ReadByteFromI2C(SYS_TRIGGER_REG) & 0x80, "Unable to start external oscillator.");
 
   setMode(op_mode);
   SleepForNanos(20'000'000);
@@ -136,24 +136,24 @@ bool BNO055::begin(BNO055OperationMode op_mode) {
 }
 
 void BNO055::setMode(BNO055OperationMode op_mode) {
-  set_operation_mode(op_mode);
+  SetOperationMode(op_mode);
   last_mode_ = op_mode;
 }
 
 // TODO: Clean up interface to pass a packed structure.
 void BNO055::setSensorOffsets(const uint8_t *calibration_data) {
-  set_operation_mode(BNO055_OPERATION_MODE_CONFIG);
+  SetOperationMode(BNO055_OPERATION_MODE_CONFIG);
   SleepForNanos(25000000);
 
-  i2c_write(SET_SENSOR_OFFSETS_BASE_ADDRESS, calibration_data, 22);
+  WriteToI2C(SET_SENSOR_OFFSETS_BASE_ADDRESS, calibration_data, 22);
 
-  set_operation_mode(last_mode_);
+  SetOperationMode(last_mode_);
 }
 
 Vector<3> BNO055::getVector(TVectorType vector_type) {
   // Assume that page 0 is selected.
   uint8_t buffer[6];
-  i2c_read(static_cast<uint8_t>(vector_type), buffer, sizeof(buffer) / sizeof(buffer[0]));
+  ReadFromI2C(static_cast<uint8_t>(vector_type), buffer, sizeof(buffer) / sizeof(buffer[0]));
   const int16_t x = ((int16_t)buffer[0]) | (((int16_t)buffer[1]) << 8);
   const int16_t y = ((int16_t)buffer[2]) | (((int16_t)buffer[3]) << 8);
   const int16_t z = ((int16_t)buffer[4]) | (((int16_t)buffer[5]) << 8);
