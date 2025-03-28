@@ -490,7 +490,7 @@ bool CheckBodyMotion(Stream &stream, bool check_preconditions) {
   constexpr float kMinExpectedYawChange = 0.5 * kExpectedYawChange;
   constexpr float kMaxExpectedYawChange = 1.2 * kExpectedYawChange;
   bool yaw_diff_ok = false;
-  const float yaw_diff = body_imu.GetYawPitchRoll().z() - ypr0.z();
+  const float yaw_diff = NormalizeRadians(body_imu.GetYawPitchRoll().z() - ypr0.z());
   if (yaw_diff >= kMinExpectedYawChange && yaw_diff <= kMaxExpectedYawChange) {
     stream.printf("OK: The yaw change of %.1f is within the expected interval [%.1f, %.1f] m/s^2\n", yaw_diff, kMinExpectedYawChange, kMaxExpectedYawChange);
     yaw_diff_ok = true;
