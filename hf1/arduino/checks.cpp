@@ -435,8 +435,7 @@ static Vector<3> AverageAccelerationsForSeconds(TimerSecondsType duration_s, Tim
       last_sample_seconds = now;
       const auto accel = body_imu.GetLinearAccelerations();
       const auto ypr = body_imu.GetYawPitchRoll();
-      const auto accel_minus_gravity = Vector<3>(accel.x() - 9.81f * cosf(M_PI / 2 - ypr.y()), accel.y() - 9.81f * cosf(M_PI / 2 + ypr.x()) * cosf(ypr.y() - M_PI / 2), accel.z());
-      Serial.printf("%f %f %f\n", accel_minus_gravity.x(), accel_minus_gravity.y(), accel_minus_gravity.z());
+      const auto accel_minus_gravity = Vector<3>((accel.x() - 9.81f * cosf(M_PI / 2 - ypr.y())) / cosf(ypr.y()), (accel.y() + 9.81f * cosf(M_PI / 2 - ypr.x()) / cosf(ypr.x())), accel.z());
       accum = accum + accel_minus_gravity;
       ++num_samples;
     }
@@ -452,13 +451,11 @@ constexpr float kCheckBodyMotionBaseSpinSeconds = 1.0f;
 
 static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector<3> &ypr0, const Vector<3> &average_acceleration, bool is_clockwise) {
   // Check centripetal acceleration due to one wheel rotation.
-  constexpr float kExpectedAngularSpeed = 4.85 * (2 * M_PI) / 10.0; // Steady state determined empirically for 0.7 PWM duty cycle [rad/s].
-  constexpr float kExpectedCentripetalAccel = (kExpectedAngularSpeed * kExpectedAngularSpeed) * (kRobotDistanceBetweenTireCenters / 2);
+  constexpr float kMinExpectedAngularSpeed = 4 * (2 * M_PI) / 10.0; // Steady state determined empirically for 0.7 PWM duty cycle [rad/s].
+  constexpr float kMaxExpectedAngularSpeed = 6 * (2 * M_PI) / 10.0; // Steady state determined empirically for 0.7 PWM duty cycle [rad/s].
+  constexpr float kMinExpectedCentripetalAccel = (kMinExpectedAngularSpeed * kMinExpectedAngularSpeed) * (kRobotDistanceBetweenTireCenters / 2);
+  constexpr float kMaxExpectedCentripetalAccel = (kMaxExpectedAngularSpeed * kMaxExpectedAngularSpeed) * (kRobotDistanceBetweenTireCenters / 2);
   const float sign = is_clockwise ? 1.0f : -1.0f;
-  // The IMU gives 2x the analytical acceleration at this angular speed. It could be due to non-linearities. 
-  // Producing a higher acceleration involves a more violent movement, and so we don't do it.
-  constexpr float kMinExpectedCentripetalAccel = 0.6 * (kExpectedCentripetalAccel);
-  constexpr float kMaxExpectedCentripetalAccel = 1.4 * (kExpectedCentripetalAccel);
   const float min_accel_y = sign * (is_clockwise ? kMinExpectedCentripetalAccel : kMaxExpectedCentripetalAccel);
   const float max_accel_y = sign * (is_clockwise ? kMaxExpectedCentripetalAccel : kMinExpectedCentripetalAccel);
   bool accel_y_ok = false;
@@ -470,10 +467,9 @@ static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector
   }
 
   // Check orientation change due to one wheel rotation.
-  constexpr float kExpectedYawChange = -kExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds;  // [rad]
-  // The actual change is expected to be lower because of the transient.
-  constexpr float kMinExpectedYawChange = 0.5 * kExpectedYawChange;
-  constexpr float kMaxExpectedYawChange = 1.2 * kExpectedYawChange;
+  // The actual change could be lower because of the wheel acceleration transient; therefore, the factor < 1.
+  constexpr float kMinExpectedYawChange = -0.7 * kMinExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds;  // [rad]
+  constexpr float kMaxExpectedYawChange = -0.95 * kMaxExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds;  // [rad]
   const float min_yaw_change = sign * (is_clockwise ? kMaxExpectedYawChange : kMinExpectedYawChange);
   const float max_yaw_change = sign * (is_clockwise ? kMinExpectedYawChange : kMaxExpectedYawChange);
   constexpr float kMaxExpectedNonYawAbsoluteChange = 10 * M_PI / 180;
