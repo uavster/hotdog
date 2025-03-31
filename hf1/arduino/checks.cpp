@@ -435,7 +435,7 @@ static Vector<3> AverageAccelerationsForSeconds(TimerSecondsType duration_s, Tim
       last_sample_seconds = now;
       const auto accel = body_imu.GetLinearAccelerations();
       const auto ypr = body_imu.GetYawPitchRoll();
-      const auto accel_minus_gravity = Vector<3>(accel.x() - 9.81 * cos(M_PI / 2 - ypr.y()), accel.y() + 9.81 * cos(M_PI / 2 - ypr.x()), accel.z());
+      const auto accel_minus_gravity = Vector<3>(accel.x() - 9.81f * cosf(M_PI / 2 - ypr.y()), accel.y() - 9.81f * cosf(M_PI / 2 + ypr.x()) * cosf(ypr.y() - M_PI / 2), accel.z());
       Serial.printf("%f %f %f\n", accel_minus_gravity.x(), accel_minus_gravity.y(), accel_minus_gravity.z());
       accum = accum + accel_minus_gravity;
       ++num_samples;
