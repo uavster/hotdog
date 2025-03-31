@@ -230,11 +230,11 @@ void ReadBatteryCommandHandler::Describe(Stream &stream, const CommandLine &comm
 
 void ReadBodyIMUOrientationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   const auto ypr = body_imu.GetYawPitchRoll();
-  stream.printf("(%f, %f, %f) radians\n", ypr.x(), ypr.y(), ypr.z());
+  stream.printf("yaw:%f, pitch:%f, roll:%f [radians]\n", ypr.z(), ypr.y(), ypr.x());
 }
 
 void ReadBodyIMUOrientationCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Orientation in euler angles: (yaw, pitch, roll) radians.");
+  stream.println("Orientation in yaw, pitch, roll euler angles, in radians.");
 }
 
 void ReadBodyIMUOrientationCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
