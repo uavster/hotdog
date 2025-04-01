@@ -22,6 +22,7 @@ typedef enum {
 } BNO055OperationMode;
 
 typedef enum {
+  VECTOR_RAW_ACCEL = 0x8,
   VECTOR_EULER = 0x1a,
   VECTOR_LINEAR_ACCEL = 0x28
 } TVectorType;

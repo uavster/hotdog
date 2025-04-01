@@ -153,6 +153,8 @@ Vector<3> BNO055::getVector(TVectorType vector_type) const {
   const int16_t z = ((int16_t)buffer[4]) | (((int16_t)buffer[5]) << 8);
 
   switch(vector_type) {
+    case VECTOR_RAW_ACCEL:
+      return Vector<3>(static_cast<float>(x) / 100.0, static_cast<float>(y) / 100.0, static_cast<float>(z) / 100.0);
     case VECTOR_EULER:
       return Vector<3>(static_cast<float>(x) / 16.0, static_cast<float>(y) / 16.0, static_cast<float>(z) / 16.0);
     case VECTOR_LINEAR_ACCEL:
