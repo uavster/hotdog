@@ -433,9 +433,12 @@ static Vector<3> AverageCorrectedAccelerations(TimerSecondsType duration_s, Time
         continue;
       }
       last_sample_seconds = now;
-      const auto accel = body_imu.GetLinearAccelerations();
+      const auto lin_accel = body_imu.GetLinearAccelerations();
       const auto ypr = body_imu.GetYawPitchRoll();
-      const auto accel_minus_gravity = Vector<3>((accel.x() - 9.81f * cosf(M_PI / 2 - ypr.y())) / cosf(ypr.y()), (accel.y() + 9.81f * cosf(M_PI / 2 - ypr.x()) / cosf(ypr.x())), accel.z());
+      // The linear acceleration estimate is not great for the y axis with the sort of movement 
+      // used in our circular motion checks, but it seems correctable if we compensante for the 
+      // part of the gravity vector projected on the y axis due to pitch.
+      const auto accel_minus_gravity = Vector<3>(lin_accel.x(), lin_accel.y() + 9.81f * cosf(M_PI / 2 - ypr.x()) / cosf(ypr.x()), lin_accel.z());
       accum = accum + accel_minus_gravity;
       ++num_samples;
     }
@@ -448,43 +451,59 @@ static Vector<3> AverageCorrectedAccelerations(TimerSecondsType duration_s, Time
 
 constexpr float kCheckBodyMotionBaseSpinSeconds = 1.0f;
 
-static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector<3> &ypr0, const Vector<3> &average_acceleration, bool is_clockwise) {
-  constexpr float kMinExpectedAngularSpeed = 4 * (2 * M_PI) / 10.0; // Steady state determined empirically for 0.7 PWM duty cycle [rad/s].
-  constexpr float kMaxExpectedAngularSpeed = 6 * (2 * M_PI) / 10.0; // Steady state determined empirically for 0.7 PWM duty cycle [rad/s].
+static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector<3> &ypr0, const Vector<3> &start_average_acceleration, const Vector<3> &end_average_acceleration, bool is_clockwise) {
+  // Steady state determined empirically for 0.7 PWM duty cycle is approx. 5 turns in 10s.
+  constexpr float kMinExpectedAngularSpeed = 3.5 * (2 * M_PI) / 10.0;
+  constexpr float kMaxExpectedAngularSpeed = 6.5 * (2 * M_PI) / 10.0;
 
-  const int kMinExpectedActiveWheelTicks = static_cast<int>(ceilf((kMinExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds) / kRadiansPerWheelTick));
-  const int kMaxExpectedActiveWheelTicks = static_cast<int>(ceilf((kMaxExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds) / kRadiansPerWheelTick));
-  const int kMaxExpectedInactiveWheelTicks = ((2 * M_PI) / kRadiansPerWheelTick) * 0.1;
+  constexpr float kMinExpectedWheelTurns = (kMinExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds * kRobotDistanceBetweenTireCenters) / (2 * M_PI * kWheelRadius);
+  constexpr float kMaxExpectedWheelTurns = (kMaxExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds * kRobotDistanceBetweenTireCenters) / (2 * M_PI * kWheelRadius);
+  constexpr int kMinExpectedActiveWheelTicks = static_cast<int>((kMinExpectedWheelTurns * 2 * M_PI) / kRadiansPerWheelTick);
+  constexpr int kMaxExpectedActiveWheelTicks = static_cast<int>(ceilf((kMaxExpectedWheelTurns * 2 * M_PI) / kRadiansPerWheelTick));
+  constexpr int kMaxExpectedInactiveWheelTicks = ((2 * M_PI) / kRadiansPerWheelTick) * 0.1;
   bool num_active_encoder_ticks_ok = false;
   bool num_inactive_encoder_ticks_ok = false;
   if (is_clockwise) {
     // The right wheel turned backwards.
     if (num_right_ticks >= kMinExpectedActiveWheelTicks && num_right_ticks <= kMaxExpectedActiveWheelTicks) {
       num_active_encoder_ticks_ok = true;
-      stream.printf("OK: Got %d ticks from the right encoder, which is within the expected range [%d, %d]\n", num_right_ticks, kMinExpectedActiveWheelTicks, kMaxExpectedActiveWheelTicks);
+      stream.printf("OK: Got %d ticks from the right encoder, which is within the expected range [%d, %d].\n", num_right_ticks, kMinExpectedActiveWheelTicks, kMaxExpectedActiveWheelTicks);
     } else {
-      stream.printf("ERROR: Got %d ticks from the right encoder, which is NOT within the expected range [%d, %d]\n", num_right_ticks, kMinExpectedActiveWheelTicks, kMaxExpectedActiveWheelTicks);
+      stream.printf("ERROR: Got %d ticks from the right encoder, whi  h is NOT within the expected range [%d, %d].\n", num_right_ticks, kMinExpectedActiveWheelTicks, kMaxExpectedActiveWheelTicks);
     }
     if (num_left_ticks <= kMaxExpectedInactiveWheelTicks) {
       num_inactive_encoder_ticks_ok = true;
-      stream.printf("OK: Got %d ticks from the left encoder, which is within the expected range [0, %d]\n", num_left_ticks, kMaxExpectedInactiveWheelTicks);
+      stream.printf("OK: Got %d ticks from the left encoder, which is within the expected range [0, %d].\n", num_left_ticks, kMaxExpectedInactiveWheelTicks);
     } else {
-      stream.printf("ERROR: Got %d ticks from the left encoder, which is NOT within the expected range [0, %d]\n", num_left_ticks, kMaxExpectedInactiveWheelTicks);
+      stream.printf("ERROR: Got %d ticks from the left encoder, which is NOT within the expected range [0, %d].\n", num_left_ticks, kMaxExpectedInactiveWheelTicks);
     }
   } else {
     // The left wheel turned backwards.
     if (num_left_ticks >= kMinExpectedActiveWheelTicks && num_left_ticks <= kMaxExpectedActiveWheelTicks) {
       num_active_encoder_ticks_ok = true;
-      stream.printf("OK: Got %d ticks from the left encoder, which is within the expected range [%d, %d]\n", num_left_ticks, kMinExpectedActiveWheelTicks, kMaxExpectedActiveWheelTicks);
+      stream.printf("OK: Got %d ticks from the left encoder, which is within the expected range [%d, %d].\n", num_left_ticks, kMinExpectedActiveWheelTicks, kMaxExpectedActiveWheelTicks);
     } else {
-      stream.printf("ERROR: Got %d ticks from the left encoder, which is NOT within the expected range [%d, %d]\n", num_left_ticks, kMinExpectedActiveWheelTicks, kMaxExpectedActiveWheelTicks);
+      stream.printf("ERROR: Got %d ticks from the left encoder, which is NOT within the expected range [%d, %d].\n", num_left_ticks, kMinExpectedActiveWheelTicks, kMaxExpectedActiveWheelTicks);
     }
     if (num_right_ticks <= kMaxExpectedInactiveWheelTicks) {
       num_inactive_encoder_ticks_ok = true;
-      stream.printf("OK: Got %d ticks from the right encoder, which is within the expected range [0, %d]\n", num_right_ticks, kMaxExpectedInactiveWheelTicks);
+      stream.printf("OK: Got %d ticks from the right encoder, which is within the expected range [0, %d].\n", num_right_ticks, kMaxExpectedInactiveWheelTicks);
     } else {
-      stream.printf("ERROR: Got %d ticks from the right encoder, which is NOT within the expected range [0, %d]\n", num_right_ticks, kMaxExpectedInactiveWheelTicks);
+      stream.printf("ERROR: Got %d ticks from the right encoder, which is NOT within the expected range [0, %d].\n", num_right_ticks, kMaxExpectedInactiveWheelTicks);
     }
+  }
+
+  // Check backward acceleration due to starting to move backwards.
+  constexpr float kMinExpectedTimeToReachAngularSpeed = 0.25;
+  constexpr float kMaxExpectedTimeToReachAngularSpeed = 1.0;
+  constexpr float kMaxExpectedForwardAcceleration = -(kMinExpectedAngularSpeed * kRobotDistanceBetweenTireCenters) / kMaxExpectedTimeToReachAngularSpeed;
+  constexpr float kMinExpectedForwardAcceleration = -(kMaxExpectedAngularSpeed * kRobotDistanceBetweenTireCenters) / kMinExpectedTimeToReachAngularSpeed;
+  bool accel_x_ok = false;
+  if (start_average_acceleration.x() >= kMinExpectedForwardAcceleration && start_average_acceleration.x() <= kMaxExpectedForwardAcceleration) {
+    accel_x_ok = true;
+    stream.printf("OK: The forward acceleration of %.3f m/s^2 is within the expected interval [%.3f, %.3f] m/s^2.\n", start_average_acceleration.x(), kMinExpectedForwardAcceleration, kMaxExpectedForwardAcceleration);
+  } else {
+    stream.printf("ERROR: The forward acceleration of %.3f m/s^2 is NOT within the expected interval [%.3f, %.3f] m/s^2.\n", start_average_acceleration.x(), kMinExpectedForwardAcceleration, kMaxExpectedForwardAcceleration);
   }
 
   // Check centripetal acceleration due to one wheel rotation.
@@ -494,11 +513,11 @@ static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector
   const float min_accel_y = sign * (is_clockwise ? kMinExpectedCentripetalAccel : kMaxExpectedCentripetalAccel);
   const float max_accel_y = sign * (is_clockwise ? kMaxExpectedCentripetalAccel : kMinExpectedCentripetalAccel);
   bool accel_y_ok = false;
-  if (average_acceleration.y() >= min_accel_y && average_acceleration.y() <= max_accel_y) {
+  if (end_average_acceleration.y() >= min_accel_y && end_average_acceleration.y() <= max_accel_y) {
     accel_y_ok = true;
-    stream.printf("OK: The centripetal acceleration of %.3f m/s^2 is within the expected interval [%.3f, %.3f] m/s^2.\n", average_acceleration.y(), min_accel_y, max_accel_y);
+    stream.printf("OK: The centripetal acceleration of %.3f m/s^2 is within the expected interval [%.3f, %.3f] m/s^2.\n", end_average_acceleration.y(), min_accel_y, max_accel_y);
   } else {
-    stream.printf("ERROR: The centripetal acceleration of %.3f m/s^2 is NOT within the expected interval [%.3f, %.3f] m/s^2.\n", average_acceleration.y(), min_accel_y, max_accel_y);
+    stream.printf("ERROR: The centripetal acceleration of %.3f m/s^2 is NOT within the expected interval [%.3f, %.3f] m/s^2.\n", end_average_acceleration.y(), min_accel_y, max_accel_y);
   }
 
   // Check orientation change due to one wheel rotation.
@@ -534,7 +553,7 @@ static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector
     stream.printf("ERROR: The roll change of %.1f degress is NOT within the expected interval [%.1f, %.1f] degrees.\n", DegreesFromRadians(roll_diff), DegreesFromRadians(-kMaxExpectedNonYawAbsoluteChange), DegreesFromRadians(kMaxExpectedNonYawAbsoluteChange));
   }
 
-  return num_active_encoder_ticks_ok && num_inactive_encoder_ticks_ok && accel_y_ok && yaw_diff_ok && roll_diff_ok && pitch_diff_ok;
+  return num_active_encoder_ticks_ok && num_inactive_encoder_ticks_ok && accel_x_ok && accel_y_ok && yaw_diff_ok && roll_diff_ok && pitch_diff_ok;
 }
 
 bool CheckBodyMotion(Stream &stream, bool check_preconditions) {
@@ -561,14 +580,14 @@ bool CheckBodyMotion(Stream &stream, bool check_preconditions) {
   num_left_ticks = 0;
   num_right_ticks = 0;
   auto ypr0 = body_imu.GetYawPitchRoll();  
-  stream.printf("Spinning left motor for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
+  stream.printf("Spinning left motor backward for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
   SetLeftMotorDutyCycle(-0.7);
 
-  const float kMeasureAccelAfterSeconds = 0.75f; // In order to measure in steady state.
-  auto average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds, kMeasureAccelAfterSeconds);
-  const bool left_ok = CheckBodyMotionParamsAfterWheelRotation(stream, ypr0, average_acceleration, /*is_clockwise=*/false);
+  auto start_average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds * 0.25f, 0);
+  auto end_average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds * 0.75f, kCheckBodyMotionBaseSpinSeconds * 0.75f * 0.75f);
+  const bool left_ok = CheckBodyMotionParamsAfterWheelRotation(stream, ypr0, start_average_acceleration, end_average_acceleration, /*is_clockwise=*/false);
 
-  stream.printf("Spinning left motor for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
+  stream.printf("Spinning left motor forward for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
   SetLeftMotorDutyCycle(0.7);
   SleepForSeconds(kCheckBodyMotionBaseSpinSeconds);
   SetLeftMotorDutyCycle(0);
@@ -579,13 +598,14 @@ bool CheckBodyMotion(Stream &stream, bool check_preconditions) {
   num_left_ticks = 0;
   num_right_ticks = 0;
   ypr0 = body_imu.GetYawPitchRoll();  
-  stream.printf("Spinning right motor for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
+  stream.printf("Spinning right motor backward for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
   SetRightMotorDutyCycle(-0.7);
 
-  average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds, kMeasureAccelAfterSeconds);
-  const bool right_ok = CheckBodyMotionParamsAfterWheelRotation(stream, ypr0, average_acceleration, /*is_clockwise=*/true);
+  start_average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds * 0.25f, 0);
+  end_average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds * 0.75f, kCheckBodyMotionBaseSpinSeconds * 0.75f * 0.75f);
+  const bool right_ok = CheckBodyMotionParamsAfterWheelRotation(stream, ypr0, start_average_acceleration, end_average_acceleration, /*is_clockwise=*/true);
 
-  stream.printf("Spinning right motor for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
+  stream.printf("Spinning right motor forward for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
   SetRightMotorDutyCycle(0.7);
   SleepForSeconds(kCheckBodyMotionBaseSpinSeconds);
   SetRightMotorDutyCycle(0);
