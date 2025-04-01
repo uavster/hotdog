@@ -50,6 +50,10 @@ Vector<3> BodyIMU::GetYawPitchRoll() {
   return Vector<3>((-euler.z() * M_PI) / 180.0f, (-euler.y() * M_PI) / 180.0f, (yaw_symmetric * M_PI) / 180.0f);
 }
 
+Vector<3> BodyIMU::GetRawAccelerations() {
+  return bno055_.getVector(TVectorType::VECTOR_RAW_ACCEL);
+}
+
 Vector<3> BodyIMU::GetLinearAccelerations() {
   return bno055_.getVector(TVectorType::VECTOR_LINEAR_ACCEL);
 }

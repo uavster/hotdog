@@ -20,6 +20,9 @@ public:
   // Returns the linear accelerations in m/s^2.
   Vector<3> GetLinearAccelerations();
 
+  // Returns the raw accelerations in m/s^2.
+  Vector<3> GetRawAccelerations();
+
   // Returns the angular velocities in rad/s.
   // imu::Vector<3> GetAngularVelocities();
 
