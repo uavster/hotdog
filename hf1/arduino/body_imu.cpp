@@ -1,43 +1,30 @@
 #include "logger_interface.h"
 #include "body_imu.h"
 #include "timer.h"
+#include <EEPROM.h>
 
 #define kSensorID 55
 
-#define kCalibrationMode false
+constexpr int kCalibrationDataEEPROMOffset = 0;
 
 BodyIMU body_imu;
 
 BodyIMU::BodyIMU() {}
 
 void BodyIMU::Init() {
-#if kCalibrationMode  
-  ASSERT(bno055_.begin(BNO055_OPERATION_MODE_NDOF));
-  uint8_t system = 0, gyro = 0, accel = 0, mag = 0;
-  do {
-    bno055_.getCalibration(&system, &gyro, &accel, &mag);
-    Serial.printf("Body IMU calibration status - system:%d gyro:%d accel:%d mag:%d\n", system, gyro, accel, mag);
-    SleepForSeconds(0.5);
-  } while(!bno055_.isFullyCalibrated());
-  Serial.printf("Body IMU calibration status - system:%d gyro:%d accel:%d mag:%d\n", system, gyro, accel, mag);  
-  adafruit_bno055_offsets_t calibration_data;
-  ASSERT(bno055_.getSensorOffsets(calibration_data));
-  for (size_t i = 0; i < sizeof(adafruit_bno055_offsets_t); ++i) {
-    Serial.printf("0x%x", reinterpret_cast<uint8_t *>(&calibration_data)[i]);
-    if (i < sizeof(adafruit_bno055_offsets_t) - 1) {
-      Serial.printf(", ");
-    }
-  }
-  while(true) {}
-#else
-  const static uint8_t calibration_data[] = { 
-    0xe8, 0xff, 0xd8, 0xff, 0xd7, 0xff, 0xe, 0x1, 0x42, 0xf8, 0xbf, 
-    0x0, 0x0, 0x0, 0xff, 0xff, 0x1, 0x0, 0xe8, 0x3, 0x33, 0x2 
-  };
   ASSERT(bno055_.begin(BNO055_OPERATION_MODE_CONFIG));
-  bno055_.SetCalibrationData(*reinterpret_cast<const BNO055::CalibrationData *>(calibration_data));
+  if (LoadCalibrationData()) {
+    LOG_INFO("Body IMU calibration data loaded from EEPROM.");
+  } else {
+    LOG_WARNING("Unable to load body IMU calibration data. Please recalibrate!");
+    // Fallback calibration in case EEPROM copy fails. Causes: faulty EEPROM, corrupted data, new CalibrationData size.
+    const static uint8_t calibration_data[] = { 
+      0xe8, 0xff, 0xd8, 0xff, 0xd7, 0xff, 0xe, 0x1, 0x42, 0xf8, 0xbf, 
+      0x0, 0x0, 0x0, 0xff, 0xff, 0x1, 0x0, 0xe8, 0x3, 0x33, 0x2 
+    };
+    bno055_.SetCalibrationData(*reinterpret_cast<const BNO055::CalibrationData *>(calibration_data));
+  }
   bno055_.setMode(BNO055_OPERATION_MODE_IMUPLUS);
-#endif
 }
 
 Vector<3> BodyIMU::GetYawPitchRoll() {
@@ -76,4 +63,22 @@ BodyIMU::CalibrationData BodyIMU::GetCalibrationData() const {
 
 void BodyIMU::StopCalibration() {
   bno055_.setMode(BNO055_OPERATION_MODE_IMUPLUS);
+}
+#include <Arduino.h>
+
+bool BodyIMU::LoadCalibrationData() {
+  uint8_t calibration_data_size = 0;
+  if (EEPROM.get(kCalibrationDataEEPROMOffset, calibration_data_size) != sizeof(CalibrationData)) {
+    return false;
+  }
+  CalibrationData calibration_data;
+  EEPROM.get(kCalibrationDataEEPROMOffset + sizeof(kCalibrationDataEEPROMOffset), calibration_data);
+  bno055_.SetCalibrationData(calibration_data);
+  return true;
+}
+
+bool BodyIMU::SaveCalibrationData() {
+  EEPROM.update(kCalibrationDataEEPROMOffset, static_cast<uint8_t>(sizeof(CalibrationData)));
+  EEPROM.put(kCalibrationDataEEPROMOffset + sizeof(kCalibrationDataEEPROMOffset), bno055_.GetCalibrationData());
+  return true;
 }

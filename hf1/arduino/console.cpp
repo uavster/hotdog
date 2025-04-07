@@ -532,6 +532,11 @@ void CalibrateBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &comm
   
   body_imu.StopCalibration();
   PrintBodyIMUCalibrationStatus(stream, body_imu.GetCalibrationStatus());
+
+  stream.print("Saving calibration data to EEPROM");
+  if (body_imu.SaveCalibrationData()) { stream.println(": OK."); }
+  else { stream.println(": ERROR."); }
+
   stream.println("OK.");
 }
 

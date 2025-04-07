@@ -31,6 +31,8 @@ public:
   CalibrationStatus GetCalibrationStatus() const;
   using CalibrationData = BNO055::CalibrationData;
   CalibrationData GetCalibrationData() const;
+  bool SaveCalibrationData();
+  bool LoadCalibrationData();
   bool IsCalibrated() const;
   void StopCalibration();
 
