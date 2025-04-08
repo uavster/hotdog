@@ -482,6 +482,14 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
+class CheckEEPROMCommandHandler : public CommandHandler {
+public:
+  CheckEEPROMCommandHandler() : CommandHandler("eeprom") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class CheckBatteryCommandHandler : public CommandHandler {
 public:
   CheckBatteryCommandHandler() : CommandHandler("battery") {}
@@ -534,7 +542,7 @@ class CheckCommandHandler : public CategoryHandler {
 public:
   CheckCommandHandler()
     : CategoryHandler("check", { 
-      &check_mcu_handler_, &check_sram_handler_, &check_timer_handler_, &check_battery_handler_, 
+      &check_mcu_handler_, &check_sram_handler_, &check_eeprom_handler_, &check_timer_handler_, &check_battery_handler_, 
       &check_motors_handler_, &check_encoders_handler_, &check_body_imu_command_handler_,
       &check_body_motion_command_handler_ }) {}
 
@@ -545,6 +553,7 @@ public:
 private:
   CheckMCUCommandHandler check_mcu_handler_;
   CheckSRAMCommandHandler check_sram_handler_;
+  CheckEEPROMCommandHandler check_eeprom_handler_;
   CheckTimerCommandHandler check_timer_handler_;
   CheckBatteryCommandHandler check_battery_handler_;
   CheckMotorsCommandHandler check_motors_handler_;
@@ -573,6 +582,26 @@ private:
   CalibrateBodyIMUCommandHandler calibrate_body_imu_handler_;
 };
 
+class ResetMCUCommandHandler : public CommandHandler {
+public:
+  ResetMCUCommandHandler() : CommandHandler("mcu") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class ResetCommandHandler : public CategoryHandler {
+public:
+  ResetCommandHandler() : CategoryHandler("reset", { &reset_mcu_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Resets a subsystem.");    
+  }
+
+private:
+  ResetMCUCommandHandler reset_mcu_handler_;
+};
+
 class Console {
 public:
   Console(Stream *input_stream)
@@ -586,6 +615,7 @@ public:
                      &write_command_handler_,
                      &check_command_handler_,
                      &calibrate_command_handler_,
+                     &reset_command_handler_,
                      &every_command_handler_ }) {
   }
   void Run();
@@ -606,6 +636,7 @@ private:
   WriteCommandHandler write_command_handler_;
   CheckCommandHandler check_command_handler_;
   CalibrateCommandHandler calibrate_command_handler_;
+  ResetCommandHandler reset_command_handler_;
   EveryCommandHandler every_command_handler_;
 
   CommandInterpreter interpreter_;

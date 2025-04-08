@@ -1,3 +1,4 @@
+#include "kinetis.h"
 #include "console.h"
 #include "battery.h"
 #include "status_or.h"
@@ -458,6 +459,14 @@ void CheckSRAMCommandHandler::Describe(Stream &stream, const CommandLine &comman
   stream.println("Checks the integrity of the SRAM memory in the MCU.");
 }
 
+void CheckEEPROMCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckEEPROM(stream);
+}
+
+void CheckEEPROMCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Checks the integrity of the EEPROM memory.");
+}
+
 void CheckBatteryCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   CheckBattery(stream);
 }
@@ -542,6 +551,24 @@ void CalibrateBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &comm
 
 void CalibrateBodyIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Runs the calibration routine of the body IMU.");
+}
+
+void ResetMCUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (!CheckMCU(null_stream)) {
+    stream.println("Cannot reset an unsupported MCU.");
+    return;
+  }
+  stream.println("Resetting the MCU, including its peripherals...");
+  // Wait for command and progress message to be printed to the console.
+  SleepForSeconds(0.25);
+  // Write the reset request to the Application Interrupt and Reset Control Register (AIRCR).
+  // VECTKEY [bits 31:16]: Vector key bits. On writes, write 0x05FA to VECTKEY, otherwise the write is ignored.
+  // System reset request bit [bit 2]: 1 = Request a system reset.
+  SCB_AIRCR = 0x05FA0004;
+}
+
+void ResetMCUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Resets the MCU, including the peripherals.");
 }
 
 void Console::ProcessCommandLine() {

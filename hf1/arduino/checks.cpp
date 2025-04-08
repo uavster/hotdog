@@ -12,6 +12,7 @@
 #include "robot_model.h"
 #include "body_imu.h"
 #include "operation_mode.h"
+#include <EEPROM.h>
 
 constexpr float kMinBatteryVoltage = 7.0f;
 constexpr float kDefaultWaitInputTimeoutSeconds = 8.0f;
@@ -68,7 +69,7 @@ bool CheckSRAM(Stream &stream) {
 #else
             const volatile uint8_t *bad_address = reinterpret_cast<volatile uint8_t *>(p) + (sizeof(uint32_t) / sizeof(uint8_t) - 1 - j);
 #endif
-            stream.printf("SRAM is damaged at %p.", bad_address);
+            stream.printf("ERROR: SRAM is damaged at %p.\n", bad_address);
             break;
           }
           test_mask >>= 8;
@@ -87,14 +88,39 @@ bool CheckSRAM(Stream &stream) {
       *bp += increment;
       if (*bp != old_value + increment) {
         *bp = old_value;
-        stream.printf("SRAM is damaged at %p.", bp);
+        stream.printf("ERROR: SRAM is damaged at %p.\n", bp);
         return false;
       }
       *bp = old_value;
     }
 
-    stream.printf("OK.");
+    stream.println("OK.");
   }
+  return true;
+}
+
+bool CheckEEPROM(Stream &stream) {
+  stream.printf("Checking %d bytes of EEPROM...\n", EEPROM.length());
+  int first_error_index = -1;
+  int num_errors = 0;
+  for (int i = EEPROM.begin(); i < EEPROM.end(); ++i) {
+    uint8_t value = EEPROM.read(i);
+    const uint8_t test_value = value + 0x52;
+    EEPROM.write(i, test_value);
+    if (EEPROM.read(i) != test_value) {
+      if (first_error_index < 0) {
+        first_error_index = i;
+      }
+      ++num_errors;
+    }
+    EEPROM.write(i, value);
+  }
+  if (num_errors > 0) {
+    stream.printf("ERROR: EEPROM has %d damaged positions, starting at 0x%x.\n", num_errors, first_error_index);
+    return false;
+  }
+
+  stream.println("OK.");
   return true;
 }
 
