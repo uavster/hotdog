@@ -438,10 +438,18 @@ private:
   WriteMotorsLinearSpeedCommandHandler write_motores_linear_speed_handler_;
 };
 
+class WriteServosCommandHandler : public CommandHandler {
+public:
+  WriteServosCommandHandler() : CommandHandler("servos") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class WriteCommandHandler : public CategoryHandler {
 public:
   WriteCommandHandler()
-    : CategoryHandler("write", { &write_motors_handler_ }) {}
+    : CategoryHandler("write", { &write_motors_handler_, &write_servos_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Writes to an information sink on the robot.");
@@ -449,6 +457,7 @@ public:
 
 private:
   WriteMotorsCommandHandler write_motors_handler_;
+  WriteServosCommandHandler write_servos_handler_;
 };
 
 class Console;
