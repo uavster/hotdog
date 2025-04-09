@@ -460,8 +460,8 @@ void WriteServosCommandHandler::Run(Stream &stream, const CommandLine &command_l
     return;
   }
 
-  SetHeadPitchDegrees(pitch_radians);
-  SetHeadRollDegrees(roll_radians);
+  SetHeadPitchDegrees(DegreesFromRadians(pitch_radians));
+  SetHeadRollDegrees(DegreesFromRadians(roll_radians));
 }
 
 void WriteServosCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
