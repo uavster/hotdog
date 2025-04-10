@@ -7,12 +7,12 @@
 
 #define kControlLoopPeriodSeconds 0.005
 
-#define kSpeedModelTimeConstant 0.29
-#define kSpeedModelDutyCycleOffset -0.99
-#define kSpeedModelFactor 0.041
-#define kSpeedModelSpeedOffset 0.66
+#define kSpeedModelTimeConstant 0.2
+#define kSpeedModelDutyCycleOffset -0.13
+#define kSpeedModelFactor 0.8
+#define kSpeedModelSpeedOffset 0.9
 
-#define kP 1.0
+#define kP 4.0
 #define kI 2.0
 #define kD 0.0
 
@@ -22,7 +22,7 @@
 // seconds to reach the next_target speed from current_target speed. The higher the step in
 // target speed the softer the ramp.
 #define kSpeedTargetRampExtraSecondsPerUnitSpeedIncrement 4.0
-#define kSpeedTargetRampExtraSecondsPerUnitSpeedIncrementReverse 8.0
+#define kSpeedTargetRampExtraSecondsPerUnitSpeedIncrementReverse 4.0
 
 #define kPWMDutyCycleMin 0.0f
 #define kPWMDutyCycleMax 1.0f
@@ -35,6 +35,7 @@ WheelSpeedController::WheelSpeedController(
     wheel_state_filter_(*ASSERT_NOT_NULL(wheel_state_filter)),
     duty_cycle_setter_(*ASSERT_NOT_NULL(duty_cycle_setter)),
     last_run_seconds_(-1),
+    time_start_(-1),
     is_turning_forward_(true),
     target_speed_(0),
     initial_target_speed_(0),
@@ -86,10 +87,11 @@ void WheelSpeedController::SetAngularSpeed(float radians_per_second) {
 
 void WheelSpeedController::Update(TimerSecondsType seconds_since_start) {
   // Ramp up or down the speed target.
-  const float current_target = initial_target_speed_ + seconds_since_start * target_speed_slope_;
+  const TimerSecondsType seconds_since_set_speed = GetTimerSeconds() - time_start_;
+  const float current_target = initial_target_speed_ + seconds_since_set_speed * target_speed_slope_;
   pid_.target(target_speed_ >= 0 ? std::min(target_speed_, current_target) : std::max(target_speed_, current_target));
   
-  auto wheel_speed = wheel_state_filter_.state().speed();
+  auto wheel_speed = wheel_state_filter_.state().linear_speed();
 
   // Estimate wheel turn direction.
   // Assume the wheel is turning in the commanded direction because we cannot sense it.
@@ -106,7 +108,7 @@ void WheelSpeedController::Update(TimerSecondsType seconds_since_start) {
 
   // Update duty cycle with the speed estimate.
   const float pid_output = pid_.update(is_turning_forward_ ? wheel_speed : -wheel_speed);
-  float duty_cycle = DutyCycleFromLinearSpeed(pid_.target()) + pid_output;
+  float duty_cycle = DutyCycleFromLinearSpeed(pid_.target() + pid_output);
   if ((is_turning_forward && duty_cycle < 0) || (!is_turning_forward && duty_cycle > 0)) {
     // Avoid speed commands opposite to the driving direction as that can make the wheel
     // slip and hurt localization, making the error irrecoverable by the trajectory
