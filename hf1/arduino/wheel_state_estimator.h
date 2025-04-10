@@ -4,18 +4,20 @@
 #include "timer.h"
 #include "status_or.h"
 #include "periodic_runnable.h"
+#include "robot_model.h"
 
 class WheelState {
   friend class WheelStateFilter;
 public:
-  WheelState() : speed_(0) {}
-  WheelState(float speed) : speed_(speed) {}
-  float speed() const { return speed_; }
+  WheelState() : linear_speed_(0) {}
+  WheelState(float speed) : linear_speed_(speed) {}
+  float angular_speed() const { return linear_speed_ / kWheelRadius; }
+  float linear_speed() const { return linear_speed_; }
 
 protected:
-  void speed(float speed) { speed_ = speed; };
+  void linear_speed(float speed) { linear_speed_ = speed; };
 private:
-  float speed_;
+  float linear_speed_;
 };
 
 class WheelStateFilter {

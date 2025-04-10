@@ -11,11 +11,13 @@
 #include "wheel_controller.h"
 #include "wheel_state_estimator.h"
 #include "operation_mode.h"
+#include "base_controller.h"
 
 extern TimerArduino timer;
 extern WheelSpeedController left_wheel;
 extern WheelSpeedController right_wheel;
 extern WheelStateEstimator wheel_state_estimator;
+extern BaseTrajectoryController base_trajectory_controller;
 
 namespace {
 const char *SkipSpaces(const char *str) {  
@@ -325,8 +327,16 @@ void ReadEncodersTicksCommandHandler::Describe(Stream &stream, const CommandLine
   stream.println("Reads the timestamps of the last encoder ticks.");
 }
 
+void ReadEncodersAngularSpeedCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.printf("%f, %f rad/s\n", wheel_state_estimator.left_wheel_state_filter().state().angular_speed(), wheel_state_estimator.right_wheel_state_filter().state().angular_speed());
+}
+
+void ReadEncodersAngularSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Reads the angular speed of the wheels estimated with the encoders.");
+}
+
 void ReadEncodersLinearSpeedCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  stream.printf("%f, %f m/s\n", wheel_state_estimator.left_wheel_state_filter().state().speed(), wheel_state_estimator.right_wheel_state_filter().state().speed());
+  stream.printf("%f, %f m/s\n", wheel_state_estimator.left_wheel_state_filter().state().linear_speed(), wheel_state_estimator.right_wheel_state_filter().state().linear_speed());
 }
 
 void ReadEncodersLinearSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
@@ -400,7 +410,7 @@ void WriteMotorsAngularSpeedCommandHandler::Run(Stream &stream, const CommandLin
   if (EnableTrajectoryControl(false)) {
     stream.println("Trajectory control has been disabled.");
   }
-  if (!EnableTrajectoryControl(true)) {
+  if (!EnableWheelControl(true)) {
     stream.println("Wheel speed control had been enabled.");
   }
 }
@@ -438,6 +448,69 @@ void WriteMotorsLinearSpeedCommandHandler::Run(Stream &stream, const CommandLine
 
 void WriteMotorsLinearSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Sets the linear speed of the left and right motors of the robot in m/s.");
+}
+
+
+void WriteWheelsAngularSpeedCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (command_line.num_params != 2) {
+    stream.println("This command takes two floating point arguments: write wheels angular_speed left_radians_per_second right_radians_per_second.");
+    return;
+  }
+  const StatusOr<float> left_speed = command_line.params[0].ToFloat();
+  if (!left_speed.ok()) {
+    stream.println("Unable to parse left wheel's angular speed.");
+    return;
+  }
+  const StatusOr<float> right_speed = command_line.params[1].ToFloat();
+  if (!right_speed.ok()) {
+    stream.println("Unable to parse right wheel's angular speed.");
+    return;
+  }
+
+  base_trajectory_controller.base_speed_controller().left_wheel_speed_controller().SetAngularSpeed(*left_speed);
+  base_trajectory_controller.base_speed_controller().right_wheel_speed_controller().SetAngularSpeed(*right_speed);
+
+  if (EnableTrajectoryControl(false)) {
+    stream.println("Trajectory control has been disabled.");
+  }
+  if (!EnableWheelControl(true)) {
+    stream.println("Wheel speed control had been enabled.");
+  }
+}
+
+void WriteWheelsAngularSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Sets the angular speed of the left and right wheels in rad/s.");
+}
+
+void WriteWheelsLinearSpeedCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  if (command_line.num_params != 2) {
+    stream.println("This command takes two floating point arguments: write wheels linear_speed left_meters_per_second right_meters_per_second.");
+    return;
+  }
+  const StatusOr<float> left_speed = command_line.params[0].ToFloat();
+  if (!left_speed.ok()) {
+    stream.println("Unable to parse left wheel's linear speed.");
+    return;
+  }
+  const StatusOr<float> right_speed = command_line.params[1].ToFloat();
+  if (!right_speed.ok()) {
+    stream.println("Unable to parse right wheel's linear speed.");
+    return;
+  }
+  
+  base_trajectory_controller.base_speed_controller().left_wheel_speed_controller().SetLinearSpeed(*left_speed);
+  base_trajectory_controller.base_speed_controller().right_wheel_speed_controller().SetLinearSpeed(*right_speed);
+
+  if (EnableTrajectoryControl(false)) {
+    stream.println("Trajectory control has been disabled.");
+  }
+  if (!EnableWheelControl(true)) {
+    stream.println("Wheel speed control had been enabled.");
+  }
+}
+
+void WriteWheelsLinearSpeedCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Sets the linear speed of the left and right wheels in m/s.");
 }
 
 void WriteServosCommandHandler::Run(Stream &stream, const CommandLine &command_line) {

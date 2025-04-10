@@ -9,9 +9,9 @@
 #define kUpdatePeriodSeconds (1/160.0)
 
 // Target fraction of the last measured wheel speed fed to the filter after kWheelSpeedDecaySeconds.
-#define kWheelSpeedDecayReduction 1e-3
+#define kWheelSpeedDecayReduction 1e-2
 // Seconds required to reduce the wheel speed to kOdomCenterVelocityDecayReduction of the last measurement.
-#define kWheelSpeedDecaySeconds 0.2
+#define kWheelSpeedDecaySeconds 1.0
 #define kWheelSpeedDecayFactor (exp((log(kWheelSpeedDecayReduction) * kUpdatePeriodSeconds) / kWheelSpeedDecaySeconds))
 
 static WheelStateEstimator *wheel_state_estimator_singleton = nullptr;
@@ -44,7 +44,7 @@ void WheelStateEstimator::RunAfterPeriod(TimerNanosType now_nanos, TimerNanosTyp
 void WheelStateFilter::NotifyEncoderEdge(TimerTicksType timer_ticks) {
   if (last_encoder_edge_timer_ticks_.ok()) {
     const auto timer_ticks_between_encoder_edges = timer_ticks - *last_encoder_edge_timer_ticks_;
-    wheel_state_.speed((kWheelRadius * kRadiansPerWheelTick) / SecondsFromTimerTicks(timer_ticks_between_encoder_edges));
+    wheel_state_.linear_speed((kWheelRadius * kRadiansPerWheelTick) / SecondsFromTimerTicks(timer_ticks_between_encoder_edges));
   }
   last_encoder_edge_timer_ticks_ = timer_ticks;
 }
@@ -53,7 +53,7 @@ void WheelStateFilter::UpdateState() {
   NO_ENCODER_IRQ {
     // When no encoder edges arrive, assume the wheel slows down to prevent estimating 
     // constant speed when it's actually stopped.
-    wheel_state_.speed(wheel_state_.speed() * kWheelSpeedDecayFactor);  
+    wheel_state_.linear_speed(wheel_state_.linear_speed() * kWheelSpeedDecayFactor);  
   }
 }
 

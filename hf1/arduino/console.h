@@ -360,6 +360,14 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
+class ReadEncodersAngularSpeedCommandHandler : public CommandHandler {
+public:
+  ReadEncodersAngularSpeedCommandHandler() : CommandHandler("angular_speed") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class ReadEncodersLinearSpeedCommandHandler : public CommandHandler {
 public:
   ReadEncodersLinearSpeedCommandHandler() : CommandHandler("linear_speed") {}
@@ -371,7 +379,7 @@ public:
 class ReadEncodersCommandHandler : public CategoryHandler {
 public:
   ReadEncodersCommandHandler() 
-    : CategoryHandler("encoders", { &read_encoders_ticks_handler_, &read_encoders_linear_speed_handler_ }) {}
+    : CategoryHandler("encoders", { &read_encoders_ticks_handler_, &read_encoders_angular_speed_handler_, &read_encoders_linear_speed_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads measurements from the encoders.");
@@ -379,6 +387,7 @@ public:
 
 private:
   ReadEncodersTicksCommandHandler read_encoders_ticks_handler_;
+  ReadEncodersAngularSpeedCommandHandler read_encoders_angular_speed_handler_;
   ReadEncodersLinearSpeedCommandHandler read_encoders_linear_speed_handler_;
 };
 
@@ -426,16 +435,46 @@ public:
 class WriteMotorsCommandHandler : public CategoryHandler {
 public:
   WriteMotorsCommandHandler()
-    : CategoryHandler("motors", { &write_motors_pwm_handler_, &write_motors_angular_speed_handler_, &write_motores_linear_speed_handler_ }) {}
+    : CategoryHandler("motors", { &write_motors_pwm_handler_, &write_motors_angular_speed_handler_, &write_motors_linear_speed_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
-    stream.println("Writes commands to the robot motors.");
+    stream.println("Writes open-loop commands to the robot motors.");
   }
   
 private:
   WriteMotorsPWMCommandHandler write_motors_pwm_handler_;
   WriteMotorsAngularSpeedCommandHandler write_motors_angular_speed_handler_;
-  WriteMotorsLinearSpeedCommandHandler write_motores_linear_speed_handler_;
+  WriteMotorsLinearSpeedCommandHandler write_motors_linear_speed_handler_;
+};
+
+class WriteWheelsAngularSpeedCommandHandler : public CommandHandler {
+public:
+  WriteWheelsAngularSpeedCommandHandler() : CommandHandler("angular_speed") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class WriteWheelsLinearSpeedCommandHandler : public CommandHandler {
+public:
+  WriteWheelsLinearSpeedCommandHandler() : CommandHandler("linear_speed") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class WriteWheelsCommandHandler : public CategoryHandler {
+public:
+  WriteWheelsCommandHandler()
+    : CategoryHandler("wheels", { &write_wheels_angular_speed_handler_, &write_wheels_linear_speed_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Sends commands to the closed-loop wheel speed controller.");
+  }
+  
+private:
+  WriteWheelsAngularSpeedCommandHandler write_wheels_angular_speed_handler_;
+  WriteWheelsLinearSpeedCommandHandler write_wheels_linear_speed_handler_;
 };
 
 class WriteServosCommandHandler : public CommandHandler {
@@ -449,7 +488,7 @@ public:
 class WriteCommandHandler : public CategoryHandler {
 public:
   WriteCommandHandler()
-    : CategoryHandler("write", { &write_motors_handler_, &write_servos_handler_ }) {}
+    : CategoryHandler("write", { &write_motors_handler_, &write_wheels_handler_, &write_servos_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Writes to an information sink on the robot.");
@@ -457,6 +496,7 @@ public:
 
 private:
   WriteMotorsCommandHandler write_motors_handler_;
+  WriteWheelsCommandHandler write_wheels_handler_;
   WriteServosCommandHandler write_servos_handler_;
 };
 
