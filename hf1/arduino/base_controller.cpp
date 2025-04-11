@@ -17,7 +17,7 @@
 #define kBaseTrajectoryControllerK2 3.0
 #define kBaseTrajectoryControllerK3 0.8*2
 
-#define kBaseTrajectoryTangentialSpeedMax 0.5
+#define kBaseTrajectoryTangentialSpeedMax 0.7
 #define kBaseTrajectoryAngularSpeedMax (2*M_PI/3)
 
 #define kMaxPositionErrorForAtState 0.15 // [m]
