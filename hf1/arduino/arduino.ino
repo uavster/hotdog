@@ -139,11 +139,11 @@ void setup() {
   LOG_INFO("Ready.");
 
 // --- Square ---
-// base_traj.Insert(BaseWaypoint(0, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
-// base_traj.Insert(BaseWaypoint(4, BaseTargetState({ BaseStateVars(Point(1, 0), 0) })));
-// base_traj.Insert(BaseWaypoint(8, BaseTargetState({ BaseStateVars(Point(1, -1), 0) })));
-// base_traj.Insert(BaseWaypoint(12, BaseTargetState({ BaseStateVars(Point(0, -1), 0) })));
-// base_traj_view.EnableLooping(/*after_seconds=*/4).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+// base_traj.Insert(BaseWaypoint(1.62, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
+// base_traj.Insert(BaseWaypoint(2*1.62, BaseTargetState({ BaseStateVars(Point(1, 0), 0) })));
+// base_traj.Insert(BaseWaypoint(3*1.62, BaseTargetState({ BaseStateVars(Point(1, -1), 0) })));
+// base_traj.Insert(BaseWaypoint(4*1.62, BaseTargetState({ BaseStateVars(Point(0, -1), 0) })));
+// base_traj_view.EnableLooping(/*after_seconds=*/1.62).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
 // base_trajectory_controller.trajectory(&base_traj_view);
 // base_trajectory_controller.Start();
