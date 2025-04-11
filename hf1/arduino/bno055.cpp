@@ -126,7 +126,7 @@ bool BNO055::begin(BNO055OperationMode op_mode) {
   WriteByteToI2C(SYS_TRIGGER_REG, 0x80);
   SleepForNanos(600'000'000);
   timeout_ms = 1000;
-  while(ReadByteFromI2C(SYS_CLK_STATUS_REG) & 1) {
+  while((ReadByteFromI2C(SYS_CLK_STATUS_REG) & 1) && timeout_ms > 0) {
     SleepForNanos(10'000'000);
     timeout_ms -= 10;
   }
