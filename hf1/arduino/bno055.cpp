@@ -20,16 +20,31 @@
 #define SENSOR_OFFSETS_BASE_ADDRESS   0x55
 #define SENSOR_OFFSETS_NUM_REGISTERS  22
 
+constexpr TimerNanosType kI2CBusFrequency = 100'000;
+constexpr TimerNanosType kReadTimeoutPerByteNs = (20 * 1'000'000'000ULL) / kI2CBusFrequency;
+constexpr TimerNanosType kReadTimeoutConstantNs = 100'000'000;
+
 static void ReadFromI2C(uint8_t register_address, void *data, uint8_t length) {
 	Wire.beginTransmission(DEVICE_ADDRESS);	
 	Wire.write(register_address);
-	Wire.endTransmission();
+	const auto tx_result = Wire.endTransmission();
+  switch(tx_result) {
+    case 0: break;  // Success.
+    case 1: ASSERTM(false, "ReadFromI2C ERROR: data too long.");
+    case 2: ASSERTM(false, "ReadFromI2C ERROR: no ACK to address.");
+    case 3: ASSERTM(false, "ReadFromI2C ERROR: no ACK to data.");
+    default: ASSERTM(false, "ReadFromI2C ERROR: unknown error.");
+  }
   SleepForNanos(150000);
 	Wire.requestFrom(DEVICE_ADDRESS, length);
   auto bytes = reinterpret_cast<uint8_t *>(data);
-	while(Wire.available()) {
+  const auto start_ns = GetTimerNanoseconds();
+  const TimerNanosType timeout_ns = length * kReadTimeoutPerByteNs + kReadTimeoutConstantNs;
+	while(Wire.available() && GetTimerNanoseconds() - start_ns < timeout_ns) {
 		*(bytes++) = Wire.read();
+    --length;
 	}
+  ASSERTM(length == 0, "ReadFromI2C ERROR: device responded by the timeout expired reading data.");
 }
 
 static void WriteToI2C(uint8_t register_address, const void *data, uint8_t length) {
