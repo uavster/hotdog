@@ -1,3 +1,4 @@
+#include "core_pins.h"
 #include "bno055.h"
 #include "i2c_t3.h"
 #include "timer.h"
@@ -107,6 +108,13 @@ static void SetOperationMode(BNO055OperationMode op_mode) {
 }
 
 bool BNO055::begin(BNO055OperationMode op_mode) {
+  // Hard reset.
+  pinMode(27, OUTPUT);
+  digitalWrite(27, 0);
+  SleepForSeconds(0.01);
+  pinMode(27, INPUT);
+  SleepForNanos(650'000'000);  // Typical POR time is 650 ms.
+
   Wire.begin();
   SleepForNanos(1'000'000);
   
