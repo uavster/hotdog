@@ -62,20 +62,32 @@ void RestoreTimerIrq(bool previous_state) {
   }
 }
 
+bool DidTimerCountReachZero() {
+  return FTM2_SC & FTM_SC_TOF;
+}
+
 void ftm2_isr(void) {
-  if (FTM2_SC & FTM_SC_TOF) {
+  const uint8_t timer_overflow_mask = FTM2_SC & FTM_SC_TOF;
+  if (timer_overflow_mask) {
     // The timer counter overflowed
     ++timer_num_overflows;
-    // TODO: Check if clearing the flag reenables the IRQ from here or only after returning.
-    // Avoid reenabling right away so ISRs don't need to be reentrant.
-    // Reset overflow flag (read SC and write 0 to TOF)
-    FTM2_SC &= ~FTM_SC_TOF;
   }
   for (int i = 0; i < kMaxIsrs; ++i) {
     if (isr[i] != NULL) {
       isr[i]();
     }
   }
+  // From the MCU's documentation: 
+  // "TOF bit is cleared by reading the SC register while TOF is set and then writing a 0 to TOF bit.
+  // Writing a 1 to TOF has no effect. If another FTM overflow occurs between the read and write 
+  // operations, the write operation has no effect; therefore, TOF remains set indicating an overflow
+  // has occurred. In this case, a TOF interrupt request is not lost due to the clearing sequence 
+  // for a previous TOF."
+  //
+  // Reset the overflow flag only if the timer actually overflowed (timer_overflow_mask & FTM_SC_TOF != 0), 
+  // not if something like an input capture channel triggered it (timer_overflow_mask & FTM_SC_TOF == 0).
+  // Doing it after all ISRs means they don't have to be reentrant.  
+  FTM2_SC &= ~timer_overflow_mask;
 }
 
 TimerTicksType GetTimerTicks() {

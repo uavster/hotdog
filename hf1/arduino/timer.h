@@ -13,11 +13,11 @@ Maintains a clock, and offers timing services.
 // Maximum number of custom ISRs that can be added with AddTimerIsr().
 #define kTimerMaxIsrs 4
 
-// Minimum rate at which ISRs added with AddTimerIsr() are called.
+// Maximum period between calls to ISRs added with AddTimerIsr().
 // Other than a timer overflow, ISRs can also be called if any channel configured as input 
-// capture gets triggered. ISRs should check the necessary channel flags if they want to 
-// avoid that.
-#define kTimerISRRate (65536.0 / kTimerTicksPerSecond)
+// capture gets triggered. ISRs should call DidTimerCountReachZero() if they want to only run
+// if the timer overflowed.
+#define kMaxTimerISRPeriod (65536.0 / kTimerTicksPerSecond)
 
 // Initializes the timer.
 void InitTimer();
@@ -74,6 +74,13 @@ void AddTimerIsr(TimerISR custom_isr);
 
 // Removes a custom ISR. Asserts if it was not previously added.
 void RemoveTimerIsr(TimerISR custom_isr);
+
+// WARNING: This is meant to be called only from within a timer ISR.
+// Returns true if the timer ISR was triggered due to the timer counter reaching zero.
+// Returns false if the ISR was triggered by another condition, like a channel input capture flag.
+// The encoders, for instance, trigger the timer ISR via their respective input capture channels.
+// This function helps the ISR filter out those events.
+bool DidTimerCountReachZero();
 
 // Disables the timer IRQ in the following scope.
 // The IRQ is restored to its previous value at the end of the scope.
