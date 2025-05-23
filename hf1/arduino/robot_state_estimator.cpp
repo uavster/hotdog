@@ -106,6 +106,8 @@ static int CompareEventPointers(const void *p1, const void *p2) {
 }
 
 void RunRobotStateEstimator() {
+  body_imu.Run();
+  
   const TimerNanosType now_ns = GetTimerNanoseconds();
   if (now_ns - last_imu_poll_time_ns >= kMinIMUPollingPeriodNs) {
     last_imu_poll_time_ns = now_ns;

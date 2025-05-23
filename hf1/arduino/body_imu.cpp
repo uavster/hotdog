@@ -3,13 +3,12 @@
 #include "timer.h"
 #include <EEPROM.h>
 
-#define kSensorID 55
-
 constexpr int kCalibrationDataEEPROMOffset = 0;
+constexpr uint8_t kDeviceAddress = 0x28;
 
 BodyIMU body_imu;
 
-BodyIMU::BodyIMU() {}
+BodyIMU::BodyIMU() : bno055_(kDeviceAddress) {}
 
 void BodyIMU::Init() {
   ASSERT(bno055_.begin(BNO055_OPERATION_MODE_CONFIG));
@@ -27,14 +26,12 @@ void BodyIMU::Init() {
   bno055_.setMode(BNO055_OPERATION_MODE_IMUPLUS);
 }
 
+void BodyIMU::Run() {
+  bno055_.Run();
+}
+
 Vector<3> BodyIMU::GetYawPitchRoll() {
-  // The IMU returns angles around x, y and z axes, where x points to the ground,
-  // y points to the robot's right, and z points to the robot's back. 
-  const Vector euler = bno055_.getVector(TVectorType::VECTOR_EULER);
-  // Transform to the canonical reference frame.
-  // The yaw is in [0, 360), but we want it in [-180, 180).
-  float yaw_symmetric = euler.x() <= 180 ? -euler.x() : 360 - euler.x();
-  return Vector<3>((-euler.z() * M_PI) / 180.0f, (-euler.y() * M_PI) / 180.0f, (yaw_symmetric * M_PI) / 180.0f);
+  return CanonicalizeEulerVector(bno055_.getVector(TVectorType::VECTOR_EULER));
 }
 
 Vector<3> BodyIMU::GetRawAccelerations() {
@@ -49,15 +46,15 @@ void BodyIMU::StartCalibration() {
   bno055_.begin(BNO055_OPERATION_MODE_NDOF);
 }
 
-bool BodyIMU::IsCalibrated() const {
+bool BodyIMU::IsCalibrated() {
   return GetCalibrationStatus().IsFullyCalibrated();
 }
 
-BodyIMU::CalibrationStatus BodyIMU::GetCalibrationStatus() const {
+BodyIMU::CalibrationStatus BodyIMU::GetCalibrationStatus() {
   return bno055_.GetCalibrationStatus();
 }
 
-BodyIMU::CalibrationData BodyIMU::GetCalibrationData() const {
+BodyIMU::CalibrationData BodyIMU::GetCalibrationData() {
   return bno055_.GetCalibrationData();
 }
 
@@ -81,4 +78,41 @@ bool BodyIMU::SaveCalibrationData() {
   EEPROM.update(kCalibrationDataEEPROMOffset, static_cast<uint8_t>(sizeof(CalibrationData)));
   EEPROM.put(kCalibrationDataEEPROMOffset + sizeof(kCalibrationDataEEPROMOffset), bno055_.GetCalibrationData());
   return true;
+}
+
+Status BodyIMU::AsyncRequestYawPitchRoll() {
+  return bno055_.RequestVectorAsync(TVectorType::VECTOR_EULER);
+}
+
+Status BodyIMU::AsyncRequestLinearAccelerations() {
+  return bno055_.RequestVectorAsync(TVectorType::VECTOR_LINEAR_ACCEL);
+}
+
+Status BodyIMU::AsyncRequestRawAccelerations() {
+  return bno055_.RequestVectorAsync(TVectorType::VECTOR_RAW_ACCEL);
+}
+
+StatusOr<Vector<3>> BodyIMU::GetLastYawPitchRoll() {
+  StatusOr<Vector<3>> maybe_vector = bno055_.GetLastRequestedVector(TVectorType::VECTOR_EULER);
+  if (!maybe_vector.ok()) {
+    return maybe_vector;
+  }
+  return CanonicalizeEulerVector(*maybe_vector);
+}
+
+StatusOr<Vector<3>> BodyIMU::GetLastLinearAccelerations() {
+  return bno055_.GetLastRequestedVector(TVectorType::VECTOR_LINEAR_ACCEL);
+}
+
+StatusOr<Vector<3>> BodyIMU::GetLastRawAccelerations() {
+  return bno055_.GetLastRequestedVector(TVectorType::VECTOR_RAW_ACCEL);
+}
+
+Vector<3> BodyIMU::CanonicalizeEulerVector(const Vector<3> &vector) {
+  // The IMU returns angles around x, y and z axes, where x points to the ground,
+  // y points to the robot's right, and z points to the robot's back. 
+  // Transform to the canonical reference frame.
+  // The yaw is in [0, 360), but we want it in [-180, 180).
+  float yaw_symmetric = vector.x() <= 180 ? -vector.x() : 360 - vector.x();
+  return Vector<3>((-vector.z() * M_PI) / 180.0f, (-vector.y() * M_PI) / 180.0f, (yaw_symmetric * M_PI) / 180.0f);
 }
