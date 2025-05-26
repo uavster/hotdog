@@ -211,7 +211,7 @@ private:
 class ReadBaseIMUCommandHandler : public CategoryHandler {
 public:
   ReadBaseIMUCommandHandler() 
-    : CategoryHandler("base_imu", { &read_baseimu_orientation_, &read_baseimu_acceleration_, &read_baseimu_calibration_ }) {}
+    : CategoryHandler("imu", { &read_baseimu_orientation_, &read_baseimu_acceleration_, &read_baseimu_calibration_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from the IMU at the robot's base.");    
@@ -221,6 +221,19 @@ private:
   ReadBaseIMUOrientationCommandHandler read_baseimu_orientation_;
   ReadBaseIMUAccelerationCommandHandler read_baseimu_acceleration_;
   ReadBaseIMUCalibrationCommandHandler read_baseimu_calibration_;
+};
+
+class ReadBaseCommandHandler : public CategoryHandler {
+public:
+  ReadBaseCommandHandler() 
+    : CategoryHandler("base", { &read_baseimu_command_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Reads from information sources at the robot's base.");    
+  }
+
+private:
+  ReadBaseIMUCommandHandler read_baseimu_command_handler_;
 };
 
 class ReadTimerUnitsCommandHandler : public CommandHandler {
@@ -394,7 +407,7 @@ private:
 class ReadCommandHandler : public CategoryHandler {
 public:
   ReadCommandHandler()
-    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_baseimu_handler_, &read_encoders_handler_ }) {}
+    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_base_handler_, &read_encoders_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from an information source on the robot.");    
@@ -404,7 +417,7 @@ private:
   ReadTimerCommandHandler read_timer_handler_;
   ReadGlobalTimerCommandHandler read_global_timer_handler_;
   ReadBatteryCommandHandler read_battery_handler_;
-  ReadBaseIMUCommandHandler read_baseimu_handler_;
+  ReadBaseCommandHandler read_base_handler_;
   ReadEncodersCommandHandler read_encoders_handler_;
 };
 
@@ -573,7 +586,7 @@ public:
 
 class CheckBaseIMUCommandHandler : public CommandHandler {
 public:
-  CheckBaseIMUCommandHandler() : CommandHandler("base_imu") {}
+  CheckBaseIMUCommandHandler() : CommandHandler("imu") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;
@@ -581,10 +594,25 @@ public:
 
 class CheckBaseMotionCommandHandler : public CommandHandler {
 public:
-  CheckBaseMotionCommandHandler() : CommandHandler("base_motion") {}
+  CheckBaseMotionCommandHandler() : CommandHandler("motion") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
+class CheckBaseCommandHandler : public CategoryHandler {
+public:
+  CheckBaseCommandHandler()
+    : CategoryHandler("base", {       
+      &check_base_imu_command_handler_, &check_base_motion_command_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Checks different subsystems on the robot's base.");    
+  }
+
+private:
+  CheckBaseIMUCommandHandler check_base_imu_command_handler_;
+  CheckBaseMotionCommandHandler check_base_motion_command_handler_;
 };
 
 class CheckCommandHandler : public CategoryHandler {
@@ -592,8 +620,7 @@ public:
   CheckCommandHandler()
     : CategoryHandler("check", { 
       &check_mcu_handler_, &check_sram_handler_, &check_eeprom_handler_, &check_timer_handler_, &check_battery_handler_, 
-      &check_motors_handler_, &check_encoders_handler_, &check_base_imu_command_handler_,
-      &check_base_motion_command_handler_ }) {}
+      &check_motors_handler_, &check_encoders_handler_, &check_base_command_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Checks different subsystems on the robot.");    
@@ -607,28 +634,39 @@ private:
   CheckBatteryCommandHandler check_battery_handler_;
   CheckMotorsCommandHandler check_motors_handler_;
   CheckEncodersCommandHandler check_encoders_handler_;
-  CheckBaseIMUCommandHandler check_base_imu_command_handler_;
-  CheckBaseMotionCommandHandler check_base_motion_command_handler_;
+  CheckBaseCommandHandler check_base_command_handler_;
 };
 
 class CalibrateBaseIMUCommandHandler : public CommandHandler {
 public:
-  CalibrateBaseIMUCommandHandler() : CommandHandler("base_imu") {}
+  CalibrateBaseIMUCommandHandler() : CommandHandler("imu") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
+class CalibrateBaseCommandHandler : public CategoryHandler {
+public:
+  CalibrateBaseCommandHandler() : CategoryHandler("base", { &calibrate_base_imu_handler_ }) {}
+
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Calibrates different subsystems on the robot's base.");
+  }
+
+private:
+  CalibrateBaseIMUCommandHandler calibrate_base_imu_handler_;
+};
+
 class CalibrateCommandHandler : public CategoryHandler {
 public:
-  CalibrateCommandHandler() : CategoryHandler("calibrate", { &calibrate_base_imu_handler_ }) {}
+  CalibrateCommandHandler() : CategoryHandler("calibrate", { &calibrate_base_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Calibrates different subsystems on the robot.");    
   }
 
 private:
-  CalibrateBaseIMUCommandHandler calibrate_base_imu_handler_;
+  CalibrateBaseCommandHandler calibrate_base_handler_;
 };
 
 class ResetMCUCommandHandler : public CommandHandler {
