@@ -1,21 +1,21 @@
 #include "logger_interface.h"
-#include "body_imu.h"
+#include "base_imu.h"
 #include "timer.h"
 #include <EEPROM.h>
 
 constexpr int kCalibrationDataEEPROMOffset = 0;
 constexpr uint8_t kDeviceAddress = 0x28;
 
-BodyIMU body_imu;
+BaseIMU base_imu;
 
-BodyIMU::BodyIMU() : bno055_(kDeviceAddress) {}
+BaseIMU::BaseIMU() : bno055_(kDeviceAddress) {}
 
-void BodyIMU::Init() {
+void BaseIMU::Init() {
   ASSERT(bno055_.begin(BNO055_OPERATION_MODE_CONFIG));
   if (LoadCalibrationData()) {
-    LOG_INFO("Body IMU calibration data loaded from EEPROM.");
+    LOG_INFO("Base IMU calibration data loaded from EEPROM.");
   } else {
-    LOG_WARNING("Unable to load body IMU calibration data. Please recalibrate!");
+    LOG_WARNING("Unable to load base IMU calibration data. Please recalibrate!");
     // Fallback calibration in case EEPROM copy fails. Causes: faulty EEPROM, corrupted data, new CalibrationData size.
     const static uint8_t calibration_data[] = { 
       0xe8, 0xff, 0xd8, 0xff, 0xd7, 0xff, 0xe, 0x1, 0x42, 0xf8, 0xbf, 
@@ -26,44 +26,44 @@ void BodyIMU::Init() {
   bno055_.setMode(BNO055_OPERATION_MODE_IMUPLUS);
 }
 
-void BodyIMU::Run() {
+void BaseIMU::Run() {
   bno055_.Run();
 }
 
-Vector<3> BodyIMU::GetYawPitchRoll() {
+Vector<3> BaseIMU::GetYawPitchRoll() {
   return CanonicalizeEulerVector(bno055_.getVector(TVectorType::VECTOR_EULER));
 }
 
-Vector<3> BodyIMU::GetRawAccelerations() {
+Vector<3> BaseIMU::GetRawAccelerations() {
   return bno055_.getVector(TVectorType::VECTOR_RAW_ACCEL);
 }
 
-Vector<3> BodyIMU::GetLinearAccelerations() {
+Vector<3> BaseIMU::GetLinearAccelerations() {
   return bno055_.getVector(TVectorType::VECTOR_LINEAR_ACCEL);
 }
 
-void BodyIMU::StartCalibration() {
+void BaseIMU::StartCalibration() {
   bno055_.begin(BNO055_OPERATION_MODE_NDOF);
 }
 
-bool BodyIMU::IsCalibrated() {
+bool BaseIMU::IsCalibrated() {
   return GetCalibrationStatus().IsFullyCalibrated();
 }
 
-BodyIMU::CalibrationStatus BodyIMU::GetCalibrationStatus() {
+BaseIMU::CalibrationStatus BaseIMU::GetCalibrationStatus() {
   return bno055_.GetCalibrationStatus();
 }
 
-BodyIMU::CalibrationData BodyIMU::GetCalibrationData() {
+BaseIMU::CalibrationData BaseIMU::GetCalibrationData() {
   return bno055_.GetCalibrationData();
 }
 
-void BodyIMU::StopCalibration() {
+void BaseIMU::StopCalibration() {
   bno055_.setMode(BNO055_OPERATION_MODE_IMUPLUS);
 }
 #include <Arduino.h>
 
-bool BodyIMU::LoadCalibrationData() {
+bool BaseIMU::LoadCalibrationData() {
   uint8_t calibration_data_size = 0;
   if (EEPROM.get(kCalibrationDataEEPROMOffset, calibration_data_size) != sizeof(CalibrationData)) {
     return false;
@@ -74,25 +74,25 @@ bool BodyIMU::LoadCalibrationData() {
   return true;
 }
 
-bool BodyIMU::SaveCalibrationData() {
+bool BaseIMU::SaveCalibrationData() {
   EEPROM.update(kCalibrationDataEEPROMOffset, static_cast<uint8_t>(sizeof(CalibrationData)));
   EEPROM.put(kCalibrationDataEEPROMOffset + sizeof(kCalibrationDataEEPROMOffset), bno055_.GetCalibrationData());
   return true;
 }
 
-Status BodyIMU::AsyncRequestYawPitchRoll() {
+Status BaseIMU::AsyncRequestYawPitchRoll() {
   return bno055_.RequestVectorAsync(TVectorType::VECTOR_EULER);
 }
 
-Status BodyIMU::AsyncRequestLinearAccelerations() {
+Status BaseIMU::AsyncRequestLinearAccelerations() {
   return bno055_.RequestVectorAsync(TVectorType::VECTOR_LINEAR_ACCEL);
 }
 
-Status BodyIMU::AsyncRequestRawAccelerations() {
+Status BaseIMU::AsyncRequestRawAccelerations() {
   return bno055_.RequestVectorAsync(TVectorType::VECTOR_RAW_ACCEL);
 }
 
-StatusOr<Vector<3>> BodyIMU::GetLastYawPitchRoll() {
+StatusOr<Vector<3>> BaseIMU::GetLastYawPitchRoll() {
   StatusOr<Vector<3>> maybe_vector = bno055_.GetLastRequestedVector(TVectorType::VECTOR_EULER);
   if (!maybe_vector.ok()) {
     return maybe_vector;
@@ -100,15 +100,15 @@ StatusOr<Vector<3>> BodyIMU::GetLastYawPitchRoll() {
   return CanonicalizeEulerVector(*maybe_vector);
 }
 
-StatusOr<Vector<3>> BodyIMU::GetLastLinearAccelerations() {
+StatusOr<Vector<3>> BaseIMU::GetLastLinearAccelerations() {
   return bno055_.GetLastRequestedVector(TVectorType::VECTOR_LINEAR_ACCEL);
 }
 
-StatusOr<Vector<3>> BodyIMU::GetLastRawAccelerations() {
+StatusOr<Vector<3>> BaseIMU::GetLastRawAccelerations() {
   return bno055_.GetLastRequestedVector(TVectorType::VECTOR_RAW_ACCEL);
 }
 
-Vector<3> BodyIMU::CanonicalizeEulerVector(const Vector<3> &vector) {
+Vector<3> BaseIMU::CanonicalizeEulerVector(const Vector<3> &vector) {
   // The IMU returns angles around x, y and z axes, where x points to the ground,
   // y points to the robot's right, and z points to the robot's back. 
   // Transform to the canonical reference frame.

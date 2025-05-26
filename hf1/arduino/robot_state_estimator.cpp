@@ -1,7 +1,7 @@
 #include "ring_buffer.h"
 #include "timer.h"
 #include "encoders.h"
-#include "body_imu.h"
+#include "base_imu.h"
 #include "base_state_filter.h"
 #include "logger_interface.h"
 #include "periodic_runnable.h"
@@ -57,8 +57,8 @@ void InitRobotStateEstimator() {
   AddEncoderIsrs(&LeftEncoderIsr, &RightEncoderIsr);
 
   last_imu_poll_time_ns = 0;
-  LOG_INFO("Initializing body IMU.");
-  body_imu.Init();
+  LOG_INFO("Initializing base IMU.");
+  base_imu.Init();
 }
 
 static void RegisterIMUEvent(const Vector<3> &attitude, const Vector<3> &accels) {  
@@ -121,12 +121,12 @@ protected:
 
   void StartPolling() {
     if (state_ != State::kIdle) { return; }
-    const Status request_status = body_imu.AsyncRequestYawPitchRoll();
+    const Status request_status = base_imu.AsyncRequestYawPitchRoll();
     if (request_status != Status::kSuccess) {
       switch(request_status) {
-        case Status::kUnavailableError: ASSERTM(false, "Communication failed requesting attitude of body IMU."); break;
-        case Status::kExistsError: ASSERTM(false, "An aynchronous request of a body IMU vector already exists."); break;
-        default: ASSERTM(false, "Unknown error requesting attitude of body IMU."); break;
+        case Status::kUnavailableError: ASSERTM(false, "Communication failed requesting attitude of base IMU."); break;
+        case Status::kExistsError: ASSERTM(false, "An aynchronous request of a base IMU vector already exists."); break;
+        default: ASSERTM(false, "Unknown error requesting attitude of base IMU."); break;
       }
       return;
     }
@@ -136,32 +136,32 @@ protected:
 
 public:
   bool HandlePolling() {
-    body_imu.Run();
+    base_imu.Run();
     bool got_all_vectors = false;
     switch(state_) {
       case kIdle: break;
       case kReceivingAttitude: {
-        if (body_imu.GetLastYawPitchRoll().status() == Status::kInProgressError) {
+        if (base_imu.GetLastYawPitchRoll().status() == Status::kInProgressError) {
           break;
         }
 
-        if (!body_imu.GetLastYawPitchRoll().ok()) {
-          switch(body_imu.GetLastYawPitchRoll().status()) {
-            case Status::kUnavailableError: ASSERTM(false, "Communication failed receiving attitude of body IMU."); break;
-            case Status::kDoesNotExistError: ASSERTM(false, "Attempting to get body IMU attitude when it had not been requested."); break;
-            default: ASSERTM(false, "Unknown error getting attitude of body IMU."); break;
+        if (!base_imu.GetLastYawPitchRoll().ok()) {
+          switch(base_imu.GetLastYawPitchRoll().status()) {
+            case Status::kUnavailableError: ASSERTM(false, "Communication failed receiving attitude of base IMU."); break;
+            case Status::kDoesNotExistError: ASSERTM(false, "Attempting to get base IMU attitude when it had not been requested."); break;
+            default: ASSERTM(false, "Unknown error getting attitude of base IMU."); break;
           }
           break;
         }
 
         // Attitude received corretly.
         // Request next data.
-        const Status request_status = body_imu.AsyncRequestLinearAccelerations();
+        const Status request_status = base_imu.AsyncRequestLinearAccelerations();
         if (request_status != Status::kSuccess) {
           switch(request_status) {
-            case Status::kUnavailableError: ASSERTM(false, "Communication failed requesting linear accelerations of body IMU."); break;
-            case Status::kExistsError: ASSERTM(false, "An aynchronous request of a body IMU vector already exists."); break;
-            default: ASSERTM(false, "Unknown error requesting linear accelerations of body IMU."); break;
+            case Status::kUnavailableError: ASSERTM(false, "Communication failed requesting linear accelerations of base IMU."); break;
+            case Status::kExistsError: ASSERTM(false, "An aynchronous request of a base IMU vector already exists."); break;
+            default: ASSERTM(false, "Unknown error requesting linear accelerations of base IMU."); break;
           }
           break;
         }
@@ -171,15 +171,15 @@ public:
         break;
       }
       case kReceivingAccelerations: {
-        if (body_imu.GetLastLinearAccelerations().status() == Status::kInProgressError) {
+        if (base_imu.GetLastLinearAccelerations().status() == Status::kInProgressError) {
           break;
         }
 
-        if (!body_imu.GetLastLinearAccelerations().ok()) {
-          switch(body_imu.GetLastLinearAccelerations().status()) {
-            case Status::kUnavailableError: ASSERTM(false, "Communication failed receiving linear accelerations of body IMU."); break;
-            case Status::kDoesNotExistError: ASSERTM(false, "Attempting to get body IMU linear accelerations when it had not been requested."); break;
-            default: ASSERTM(false, "Unknown error getting linear accelerations of body IMU."); break;
+        if (!base_imu.GetLastLinearAccelerations().ok()) {
+          switch(base_imu.GetLastLinearAccelerations().status()) {
+            case Status::kUnavailableError: ASSERTM(false, "Communication failed receiving linear accelerations of base IMU."); break;
+            case Status::kDoesNotExistError: ASSERTM(false, "Attempting to get base IMU linear accelerations when it had not been requested."); break;
+            default: ASSERTM(false, "Unknown error getting linear accelerations of base IMU."); break;
           }
           break;
         }
@@ -199,13 +199,13 @@ private:
   State state_;
 };
 
-IMUAsyncReader body_imu_reader;
+IMUAsyncReader base_imu_reader;
 
 void RunRobotStateEstimator() {
-  body_imu_reader.Run();
-  if (body_imu_reader.HandlePolling()) {
+  base_imu_reader.Run();
+  if (base_imu_reader.HandlePolling()) {
     // All IMU data is ready.
-    RegisterIMUEvent(*body_imu.GetLastYawPitchRoll(), *body_imu.GetLastLinearAccelerations());
+    RegisterIMUEvent(*base_imu.GetLastYawPitchRoll(), *base_imu.GetLastLinearAccelerations());
   }
   
   // Copy all queue events to a separate buffer as processing them might take time  

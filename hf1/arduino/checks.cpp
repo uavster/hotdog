@@ -10,7 +10,7 @@
 #include <util/atomic.h>
 #include "encoders.h"
 #include "robot_model.h"
-#include "body_imu.h"
+#include "base_imu.h"
 #include "operation_mode.h"
 #include <EEPROM.h>
 
@@ -301,7 +301,7 @@ static StatusOr<int> SenseMajorAccelerationAxis(Stream &stream) {
   Vector<3> squared_accel_accum(0, 0, 0);
   auto start_seconds = GetTimerSeconds();
   while(!stream.available() && GetTimerSeconds() - start_seconds < kDefaultWaitInputTimeoutSeconds) {
-    const auto accel = body_imu.GetLinearAccelerations();
+    const auto accel = base_imu.GetLinearAccelerations();
     squared_accel_accum = squared_accel_accum + Vector<3>(accel[0] * accel[0], accel[1] * accel[1], accel[2] * accel[2]);
   }
   // If enter was pressed to end, consume all keys.
@@ -350,7 +350,7 @@ static bool PrintDirectedShakeTestResult(Stream &stream, StatusOr<int> test_resu
   return result;
 }
 
-bool CheckBodyIMU(Stream &stream, bool check_preconditions) {
+bool CheckBaseIMU(Stream &stream, bool check_preconditions) {
   if (check_preconditions) {
     stream.println("Running precondition tests...");
     if (!CheckTimer()) {
@@ -363,7 +363,7 @@ bool CheckBodyIMU(Stream &stream, bool check_preconditions) {
 
   stream.print("1. Put the robot on a flat surface. ");
   WaitForEnterOrTimeout(stream); stream.println();
-  const auto ypr0 = body_imu.GetYawPitchRoll();
+  const auto ypr0 = base_imu.GetYawPitchRoll();
 
   constexpr float kExpectedOrientationComponentDiff = M_PI / 2;  
   constexpr float kMaxOrientationComponentDiffError = 0.2 * kExpectedOrientationComponentDiff;
@@ -373,7 +373,7 @@ bool CheckBodyIMU(Stream &stream, bool check_preconditions) {
   // Yaw test.
   stream.printf("2. Turn the robot %.0f degrees counterclockwise around a vertical axis. ", DegreesFromRadians(kExpectedOrientationComponentDiff));
   WaitForEnterOrTimeout(stream); stream.println();
-  const float yaw_diff = body_imu.GetYawPitchRoll().z() - ypr0.z();
+  const float yaw_diff = base_imu.GetYawPitchRoll().z() - ypr0.z();
   bool yaw_ok = false;
   if (yaw_diff >= kMinOrientationComponentDiff && yaw_diff <= kMaxOrientationComponentDiff) {
     yaw_ok = true;
@@ -388,7 +388,7 @@ bool CheckBodyIMU(Stream &stream, bool check_preconditions) {
   // Pitch test.
   stream.printf("3. Point the robot's front to the floor. ");
   WaitForEnterOrTimeout(stream); stream.println();
-  const float pitch_diff = body_imu.GetYawPitchRoll().y() - ypr0.y();
+  const float pitch_diff = base_imu.GetYawPitchRoll().y() - ypr0.y();
   bool pitch_ok = false;
   if (pitch_diff >= kMinOrientationComponentDiff && pitch_diff <= kMaxOrientationComponentDiff) {
     pitch_ok = true;
@@ -403,7 +403,7 @@ bool CheckBodyIMU(Stream &stream, bool check_preconditions) {
   // Roll test.
   stream.printf("4. Lay the robot over the right wheel's side. ");
   WaitForEnterOrTimeout(stream); stream.println();
-  const float roll_diff = body_imu.GetYawPitchRoll().x() - ypr0.x();
+  const float roll_diff = base_imu.GetYawPitchRoll().x() - ypr0.x();
   bool roll_ok = false;
   if (roll_diff >= kMinOrientationComponentDiff && roll_diff <= kMaxOrientationComponentDiff) {
     roll_ok = true;
@@ -459,8 +459,8 @@ static Vector<3> AverageCorrectedAccelerations(TimerSecondsType duration_s, Time
         continue;
       }
       last_sample_seconds = now;
-      const auto lin_accel = body_imu.GetLinearAccelerations();
-      const auto ypr = body_imu.GetYawPitchRoll();
+      const auto lin_accel = base_imu.GetLinearAccelerations();
+      const auto ypr = base_imu.GetYawPitchRoll();
       // The linear acceleration estimate is not great for the y axis with the sort of movement 
       // used in our circular motion checks, but it seems correctable if we compensante for the 
       // part of the gravity vector projected on the y axis due to pitch.
@@ -475,15 +475,15 @@ static Vector<3> AverageCorrectedAccelerations(TimerSecondsType duration_s, Time
   return accum / num_samples;
 }
 
-constexpr float kCheckBodyMotionBaseSpinSeconds = 1.0f;
+constexpr float kCheckBaseMotionBaseSpinSeconds = 1.0f;
 
-static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector<3> &ypr0, const Vector<3> &start_average_acceleration, const Vector<3> &end_average_acceleration, bool is_clockwise) {
+static bool CheckBaseMotionParamsAfterWheelRotation(Stream &stream, const Vector<3> &ypr0, const Vector<3> &start_average_acceleration, const Vector<3> &end_average_acceleration, bool is_clockwise) {
   // Steady state determined empirically for 0.7 PWM duty cycle is approx. 5 turns in 10s.
   constexpr float kMinExpectedAngularSpeed = 3.5 * (2 * M_PI) / 10.0;
   constexpr float kMaxExpectedAngularSpeed = 6.5 * (2 * M_PI) / 10.0;
 
-  constexpr float kMinExpectedWheelTurns = (kMinExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds * kRobotDistanceBetweenTireCenters) / (2 * M_PI * kWheelRadius);
-  constexpr float kMaxExpectedWheelTurns = (kMaxExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds * kRobotDistanceBetweenTireCenters) / (2 * M_PI * kWheelRadius);
+  constexpr float kMinExpectedWheelTurns = (kMinExpectedAngularSpeed * kCheckBaseMotionBaseSpinSeconds * kRobotDistanceBetweenTireCenters) / (2 * M_PI * kWheelRadius);
+  constexpr float kMaxExpectedWheelTurns = (kMaxExpectedAngularSpeed * kCheckBaseMotionBaseSpinSeconds * kRobotDistanceBetweenTireCenters) / (2 * M_PI * kWheelRadius);
   constexpr int kMinExpectedActiveWheelTicks = static_cast<int>((kMinExpectedWheelTurns * 2 * M_PI) / kRadiansPerWheelTick);
   constexpr int kMaxExpectedActiveWheelTicks = static_cast<int>(ceilf((kMaxExpectedWheelTurns * 2 * M_PI) / kRadiansPerWheelTick));
   constexpr int kMaxExpectedInactiveWheelTicks = ((2 * M_PI) / kRadiansPerWheelTick) * 0.1;
@@ -548,13 +548,13 @@ static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector
 
   // Check orientation change due to one wheel rotation.
   // The actual change could be lower because of the wheel acceleration transient; therefore, the factor < 1.
-  constexpr float kMinExpectedYawChange = -0.7 * kMinExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds;  // [rad]
-  constexpr float kMaxExpectedYawChange = -0.95 * kMaxExpectedAngularSpeed * kCheckBodyMotionBaseSpinSeconds;  // [rad]
+  constexpr float kMinExpectedYawChange = -0.7 * kMinExpectedAngularSpeed * kCheckBaseMotionBaseSpinSeconds;  // [rad]
+  constexpr float kMaxExpectedYawChange = -0.95 * kMaxExpectedAngularSpeed * kCheckBaseMotionBaseSpinSeconds;  // [rad]
   const float min_yaw_change = sign * (is_clockwise ? kMaxExpectedYawChange : kMinExpectedYawChange);
   const float max_yaw_change = sign * (is_clockwise ? kMinExpectedYawChange : kMaxExpectedYawChange);
   constexpr float kMaxExpectedNonYawAbsoluteChange = 10 * M_PI / 180;
   bool yaw_diff_ok = false;
-  auto ypr = body_imu.GetYawPitchRoll();
+  auto ypr = base_imu.GetYawPitchRoll();
   const float yaw_diff = NormalizeRadians(ypr.z() - ypr0.z());
   if (yaw_diff >= min_yaw_change && yaw_diff <= max_yaw_change) {
     yaw_diff_ok = true;
@@ -582,7 +582,7 @@ static bool CheckBodyMotionParamsAfterWheelRotation(Stream &stream, const Vector
   return num_active_encoder_ticks_ok && num_inactive_encoder_ticks_ok && accel_x_ok && accel_y_ok && yaw_diff_ok && roll_diff_ok && pitch_diff_ok;
 }
 
-bool CheckBodyMotion(Stream &stream, bool check_preconditions) {
+bool CheckBaseMotion(Stream &stream, bool check_preconditions) {
   if (check_preconditions) {
     stream.println("Running precondition tests...");
     if (!CheckTimer()) {
@@ -605,17 +605,17 @@ bool CheckBodyMotion(Stream &stream, bool check_preconditions) {
   // Move left wheel.
   num_left_ticks = 0;
   num_right_ticks = 0;
-  auto ypr0 = body_imu.GetYawPitchRoll();  
-  stream.printf("Spinning left motor backward for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
+  auto ypr0 = base_imu.GetYawPitchRoll();  
+  stream.printf("Spinning left motor backward for %.1f seconds...\n", kCheckBaseMotionBaseSpinSeconds);
   SetLeftMotorDutyCycle(-0.7);
 
-  auto start_average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds * 0.25f, 0);
-  auto end_average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds * 0.75f, kCheckBodyMotionBaseSpinSeconds * 0.75f * 0.75f);
-  const bool left_ok = CheckBodyMotionParamsAfterWheelRotation(stream, ypr0, start_average_acceleration, end_average_acceleration, /*is_clockwise=*/false);
+  auto start_average_acceleration = AverageCorrectedAccelerations(kCheckBaseMotionBaseSpinSeconds * 0.25f, 0);
+  auto end_average_acceleration = AverageCorrectedAccelerations(kCheckBaseMotionBaseSpinSeconds * 0.75f, kCheckBaseMotionBaseSpinSeconds * 0.75f * 0.75f);
+  const bool left_ok = CheckBaseMotionParamsAfterWheelRotation(stream, ypr0, start_average_acceleration, end_average_acceleration, /*is_clockwise=*/false);
 
-  stream.printf("Spinning left motor forward for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
+  stream.printf("Spinning left motor forward for %.1f seconds...\n", kCheckBaseMotionBaseSpinSeconds);
   SetLeftMotorDutyCycle(0.7);
-  SleepForSeconds(kCheckBodyMotionBaseSpinSeconds);
+  SleepForSeconds(kCheckBaseMotionBaseSpinSeconds);
   SetLeftMotorDutyCycle(0);
 
   SleepForSeconds(1.0f);
@@ -623,17 +623,17 @@ bool CheckBodyMotion(Stream &stream, bool check_preconditions) {
   // Move right wheel.
   num_left_ticks = 0;
   num_right_ticks = 0;
-  ypr0 = body_imu.GetYawPitchRoll();  
-  stream.printf("Spinning right motor backward for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
+  ypr0 = base_imu.GetYawPitchRoll();  
+  stream.printf("Spinning right motor backward for %.1f seconds...\n", kCheckBaseMotionBaseSpinSeconds);
   SetRightMotorDutyCycle(-0.7);
 
-  start_average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds * 0.25f, 0);
-  end_average_acceleration = AverageCorrectedAccelerations(kCheckBodyMotionBaseSpinSeconds * 0.75f, kCheckBodyMotionBaseSpinSeconds * 0.75f * 0.75f);
-  const bool right_ok = CheckBodyMotionParamsAfterWheelRotation(stream, ypr0, start_average_acceleration, end_average_acceleration, /*is_clockwise=*/true);
+  start_average_acceleration = AverageCorrectedAccelerations(kCheckBaseMotionBaseSpinSeconds * 0.25f, 0);
+  end_average_acceleration = AverageCorrectedAccelerations(kCheckBaseMotionBaseSpinSeconds * 0.75f, kCheckBaseMotionBaseSpinSeconds * 0.75f * 0.75f);
+  const bool right_ok = CheckBaseMotionParamsAfterWheelRotation(stream, ypr0, start_average_acceleration, end_average_acceleration, /*is_clockwise=*/true);
 
-  stream.printf("Spinning right motor forward for %.1f seconds...\n", kCheckBodyMotionBaseSpinSeconds);
+  stream.printf("Spinning right motor forward for %.1f seconds...\n", kCheckBaseMotionBaseSpinSeconds);
   SetRightMotorDutyCycle(0.7);
-  SleepForSeconds(kCheckBodyMotionBaseSpinSeconds);
+  SleepForSeconds(kCheckBaseMotionBaseSpinSeconds);
   SetRightMotorDutyCycle(0);
 
   // Clean up.

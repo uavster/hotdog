@@ -160,67 +160,67 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
-class ReadBodyIMUOrientationCommandHandler : public CommandHandler {
+class ReadBaseIMUOrientationCommandHandler : public CommandHandler {
 public:
-  ReadBodyIMUOrientationCommandHandler() : CommandHandler("orientation") {}
+  ReadBaseIMUOrientationCommandHandler() : CommandHandler("orientation") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;  
   void Help(Stream &stream, const CommandLine &command_line) override;  
 };
 
-class ReadBodyIMUAccelerationCommandHandler : public CommandHandler {
+class ReadBaseIMUAccelerationCommandHandler : public CommandHandler {
 public:
-  ReadBodyIMUAccelerationCommandHandler() : CommandHandler("acceleration") {}
+  ReadBaseIMUAccelerationCommandHandler() : CommandHandler("acceleration") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;  
   void Help(Stream &stream, const CommandLine &command_line) override;  
 };
 
-class ReadBodyIMUCalibrationStatusCommandHandler : public CommandHandler {
+class ReadBaseIMUCalibrationStatusCommandHandler : public CommandHandler {
 public:
-  ReadBodyIMUCalibrationStatusCommandHandler() : CommandHandler("status") {}
+  ReadBaseIMUCalibrationStatusCommandHandler() : CommandHandler("status") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;  
 };
 
-class ReadBodyIMUCalibrationDataCommandHandler : public CommandHandler {
+class ReadBaseIMUCalibrationDataCommandHandler : public CommandHandler {
 public:
-  ReadBodyIMUCalibrationDataCommandHandler() : CommandHandler("data") {}
+  ReadBaseIMUCalibrationDataCommandHandler() : CommandHandler("data") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;  
 };
 
-class ReadBodyIMUCalibrationCommandHandler : public CategoryHandler {
+class ReadBaseIMUCalibrationCommandHandler : public CategoryHandler {
 public:
-  ReadBodyIMUCalibrationCommandHandler() 
-    : CategoryHandler("calibration", { &read_body_imu_calibration_status_handler_, &read_body_imu_calibration_data_handler_ }) {}
+  ReadBaseIMUCalibrationCommandHandler() 
+    : CategoryHandler("calibration", { &read_base_imu_calibration_status_handler_, &read_base_imu_calibration_data_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
-    stream.println("Reads calibration properties from the body IMU.");
+    stream.println("Reads calibration properties from the base IMU.");
   }
 
 private:
-  ReadBodyIMUCalibrationStatusCommandHandler read_body_imu_calibration_status_handler_;
-  ReadBodyIMUCalibrationDataCommandHandler read_body_imu_calibration_data_handler_;
+  ReadBaseIMUCalibrationStatusCommandHandler read_base_imu_calibration_status_handler_;
+  ReadBaseIMUCalibrationDataCommandHandler read_base_imu_calibration_data_handler_;
 };
 
-class ReadBodyIMUCommandHandler : public CategoryHandler {
+class ReadBaseIMUCommandHandler : public CategoryHandler {
 public:
-  ReadBodyIMUCommandHandler() 
-    : CategoryHandler("body_imu", { &read_bodyimu_orientation_, &read_bodyimu_acceleration_, &read_bodyimu_calibration_ }) {}
+  ReadBaseIMUCommandHandler() 
+    : CategoryHandler("base_imu", { &read_baseimu_orientation_, &read_baseimu_acceleration_, &read_baseimu_calibration_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
-    stream.println("Reads from the IMU at the robot's body.");    
+    stream.println("Reads from the IMU at the robot's base.");    
   }
 
 private:
-  ReadBodyIMUOrientationCommandHandler read_bodyimu_orientation_;
-  ReadBodyIMUAccelerationCommandHandler read_bodyimu_acceleration_;
-  ReadBodyIMUCalibrationCommandHandler read_bodyimu_calibration_;
+  ReadBaseIMUOrientationCommandHandler read_baseimu_orientation_;
+  ReadBaseIMUAccelerationCommandHandler read_baseimu_acceleration_;
+  ReadBaseIMUCalibrationCommandHandler read_baseimu_calibration_;
 };
 
 class ReadTimerUnitsCommandHandler : public CommandHandler {
@@ -394,7 +394,7 @@ private:
 class ReadCommandHandler : public CategoryHandler {
 public:
   ReadCommandHandler()
-    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_bodyimu_handler_, &read_encoders_handler_ }) {}
+    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_baseimu_handler_, &read_encoders_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from an information source on the robot.");    
@@ -404,7 +404,7 @@ private:
   ReadTimerCommandHandler read_timer_handler_;
   ReadGlobalTimerCommandHandler read_global_timer_handler_;
   ReadBatteryCommandHandler read_battery_handler_;
-  ReadBodyIMUCommandHandler read_bodyimu_handler_;
+  ReadBaseIMUCommandHandler read_baseimu_handler_;
   ReadEncodersCommandHandler read_encoders_handler_;
 };
 
@@ -571,17 +571,17 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
-class CheckBodyIMUCommandHandler : public CommandHandler {
+class CheckBaseIMUCommandHandler : public CommandHandler {
 public:
-  CheckBodyIMUCommandHandler() : CommandHandler("body_imu") {}
+  CheckBaseIMUCommandHandler() : CommandHandler("base_imu") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
-class CheckBodyMotionCommandHandler : public CommandHandler {
+class CheckBaseMotionCommandHandler : public CommandHandler {
 public:
-  CheckBodyMotionCommandHandler() : CommandHandler("body_motion") {}
+  CheckBaseMotionCommandHandler() : CommandHandler("base_motion") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;
@@ -592,8 +592,8 @@ public:
   CheckCommandHandler()
     : CategoryHandler("check", { 
       &check_mcu_handler_, &check_sram_handler_, &check_eeprom_handler_, &check_timer_handler_, &check_battery_handler_, 
-      &check_motors_handler_, &check_encoders_handler_, &check_body_imu_command_handler_,
-      &check_body_motion_command_handler_ }) {}
+      &check_motors_handler_, &check_encoders_handler_, &check_base_imu_command_handler_,
+      &check_base_motion_command_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Checks different subsystems on the robot.");    
@@ -607,13 +607,13 @@ private:
   CheckBatteryCommandHandler check_battery_handler_;
   CheckMotorsCommandHandler check_motors_handler_;
   CheckEncodersCommandHandler check_encoders_handler_;
-  CheckBodyIMUCommandHandler check_body_imu_command_handler_;
-  CheckBodyMotionCommandHandler check_body_motion_command_handler_;
+  CheckBaseIMUCommandHandler check_base_imu_command_handler_;
+  CheckBaseMotionCommandHandler check_base_motion_command_handler_;
 };
 
-class CalibrateBodyIMUCommandHandler : public CommandHandler {
+class CalibrateBaseIMUCommandHandler : public CommandHandler {
 public:
-  CalibrateBodyIMUCommandHandler() : CommandHandler("body_imu") {}
+  CalibrateBaseIMUCommandHandler() : CommandHandler("base_imu") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;
@@ -621,14 +621,14 @@ public:
 
 class CalibrateCommandHandler : public CategoryHandler {
 public:
-  CalibrateCommandHandler() : CategoryHandler("calibrate", { &calibrate_body_imu_handler_ }) {}
+  CalibrateCommandHandler() : CategoryHandler("calibrate", { &calibrate_base_imu_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Calibrates different subsystems on the robot.");    
   }
 
 private:
-  CalibrateBodyIMUCommandHandler calibrate_body_imu_handler_;
+  CalibrateBaseIMUCommandHandler calibrate_base_imu_handler_;
 };
 
 class ResetMCUCommandHandler : public CommandHandler {

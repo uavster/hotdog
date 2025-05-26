@@ -3,9 +3,9 @@
 #include "vector.h"
 #include "status_or.h"
 
-class BodyIMU {
+class BaseIMU {
 public:
-  BodyIMU();
+  BaseIMU();
 
   void Init();
   void Run();
@@ -64,4 +64,4 @@ private:
   Vector<3> CanonicalizeEulerVector(const Vector<3> &vector);
 };
 
-extern BodyIMU body_imu;
+extern BaseIMU base_imu;
