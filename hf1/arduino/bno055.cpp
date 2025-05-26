@@ -332,7 +332,7 @@ void BNO055::Run() {
       break;
 
     case State::kReadingData:
-      if (Wire.done()) { break; }
+      if (!Wire.done()) { break; }
       state_ = State::kIdle;
       const auto in_progress_type = GetVectorTypeOfTransferInProgress();
       ASSERT(in_progress_type.ok());

@@ -4,9 +4,17 @@
 #include "body_imu.h"
 #include "base_state_filter.h"
 #include "logger_interface.h"
+#include "periodic_runnable.h"
 
-#define kEventRingBufferCapacity 16
-#define kMinIMUPollingPeriodNs 20'000'000
+// Maximum number of events the ring buffer can hold.
+constexpr int kEventRingBufferCapacity = 16;
+
+// Time between consecutive IMU data retrievals.
+constexpr TimerNanosType kIMUPollingPeriodNs = 20'000'000;
+
+// Maximum time the state can be without an update.
+// After this time, it is updated based on the latest measurements and the state transition model.
+constexpr float kMaxStagnantStateSeconds = 1.0f / 100.0f;
 
 typedef enum {
   kLeftWheelTick,
@@ -53,9 +61,7 @@ void InitRobotStateEstimator() {
   body_imu.Init();
 }
 
-static void RegisterIMUEvent() {  
-  const auto attitude = body_imu.GetYawPitchRoll();
-  const auto accels = body_imu.GetLinearAccelerations();
+static void RegisterIMUEvent(const Vector<3> &attitude, const Vector<3> &accels) {  
   NO_TIMER_IRQ {
     event_buffer.Write(Event{ 
       .type = kIMUReading, 
@@ -105,16 +111,103 @@ static int CompareEventPointers(const void *p1, const void *p2) {
   return e1->timer_ticks < e2->timer_ticks ? -1 : (e1->timer_ticks > e2->timer_ticks ? 1 : 0);
 }
 
-void RunRobotStateEstimator() {
-  body_imu.Run();
-  
-  const TimerNanosType now_ns = GetTimerNanoseconds();
-  if (now_ns - last_imu_poll_time_ns >= kMinIMUPollingPeriodNs) {
-    last_imu_poll_time_ns = now_ns;
-    // Poll the IMU and register event.
-    RegisterIMUEvent();
+class IMUAsyncReader : public PeriodicRunnable {
+public:
+  IMUAsyncReader() : PeriodicRunnable("IMUAsyncReader", kIMUPollingPeriodNs), state_(State::kIdle) {}
+
+protected:
+  virtual void RunFirstTime(TimerNanosType now_nanos) { StartPolling(); }
+  virtual void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) { StartPolling(); }
+
+  void StartPolling() {
+    if (state_ != State::kIdle) { return; }
+    const Status request_status = body_imu.AsyncRequestYawPitchRoll();
+    if (request_status != Status::kSuccess) {
+      switch(request_status) {
+        case Status::kUnavailableError: ASSERTM(false, "Communication failed requesting attitude of body IMU."); break;
+        case Status::kExistsError: ASSERTM(false, "An aynchronous request of a body IMU vector already exists."); break;
+        default: ASSERTM(false, "Unknown error requesting attitude of body IMU."); break;
+      }
+      return;
+    }
+    // Attitude requested successfully; move to reception state.
+    state_ = State::kReceivingAttitude;
   }
 
+public:
+  bool HandlePolling() {
+    body_imu.Run();
+    bool got_all_vectors = false;
+    switch(state_) {
+      case kIdle: break;
+      case kReceivingAttitude: {
+        if (body_imu.GetLastYawPitchRoll().status() == Status::kInProgressError) {
+          break;
+        }
+
+        if (!body_imu.GetLastYawPitchRoll().ok()) {
+          switch(body_imu.GetLastYawPitchRoll().status()) {
+            case Status::kUnavailableError: ASSERTM(false, "Communication failed receiving attitude of body IMU."); break;
+            case Status::kDoesNotExistError: ASSERTM(false, "Attempting to get body IMU attitude when it had not been requested."); break;
+            default: ASSERTM(false, "Unknown error getting attitude of body IMU."); break;
+          }
+          break;
+        }
+
+        // Attitude received corretly.
+        // Request next data.
+        const Status request_status = body_imu.AsyncRequestLinearAccelerations();
+        if (request_status != Status::kSuccess) {
+          switch(request_status) {
+            case Status::kUnavailableError: ASSERTM(false, "Communication failed requesting linear accelerations of body IMU."); break;
+            case Status::kExistsError: ASSERTM(false, "An aynchronous request of a body IMU vector already exists."); break;
+            default: ASSERTM(false, "Unknown error requesting linear accelerations of body IMU."); break;
+          }
+          break;
+        }
+
+        // Requet of linear acceleration successful; move to reception state.
+        state_ = State::kReceivingAccelerations;
+        break;
+      }
+      case kReceivingAccelerations: {
+        if (body_imu.GetLastLinearAccelerations().status() == Status::kInProgressError) {
+          break;
+        }
+
+        if (!body_imu.GetLastLinearAccelerations().ok()) {
+          switch(body_imu.GetLastLinearAccelerations().status()) {
+            case Status::kUnavailableError: ASSERTM(false, "Communication failed receiving linear accelerations of body IMU."); break;
+            case Status::kDoesNotExistError: ASSERTM(false, "Attempting to get body IMU linear accelerations when it had not been requested."); break;
+            default: ASSERTM(false, "Unknown error getting linear accelerations of body IMU."); break;
+          }
+          break;
+        }
+
+        got_all_vectors = true;
+
+        state_ = State::kIdle;
+        break;
+      }
+    }
+
+    return got_all_vectors;
+  }
+
+private:
+  using State = enum { kIdle, kReceivingAttitude, kReceivingAccelerations };
+  State state_;
+};
+
+IMUAsyncReader body_imu_reader;
+
+void RunRobotStateEstimator() {
+  body_imu_reader.Run();
+  if (body_imu_reader.HandlePolling()) {
+    // All IMU data is ready.
+    RegisterIMUEvent(*body_imu.GetLastYawPitchRoll(), *body_imu.GetLastLinearAccelerations());
+  }
+  
   // Copy all queue events to a separate buffer as processing them might take time  
   // and we don't want to block the queue to new events for too long.
   Event events[kEventRingBufferCapacity];
@@ -127,7 +220,10 @@ void RunRobotStateEstimator() {
     }
   }
   if (num_events == 0) {
-    base_state_filter.EstimateState(GetTimerTicks());
+    // Update the state based on the state transition model, if not new events in a while.
+    if (SecondsFromTimerTicks(GetTimerTicks() - base_state_filter.last_state_update_timer_ticks()) >= kMaxStagnantStateSeconds) {
+      base_state_filter.EstimateState(GetTimerTicks());
+    }
     return;
   }
   // Sort event order to process chronologically.
