@@ -105,7 +105,7 @@ BaseStateFilter::BaseStateFilter()
   const float rpx = kStdevOdomPosX * kStdevOdomPosX;  // [m^2]
   const float rpy = kStdevOdomPosY * kStdevOdomPosY;  // [m^2]
   const float rpa = kStdevOdomYaw * kStdevOdomYaw;  // [rad^2]
-  // Velocity is calculated from position, 
+  // Velocity is calculated from position.
   const float rvx = (2 * rpx * rpx) / time_inc_2;  // [(m/s)^2]
   const float rvy = (2 * rpy * rpy) / time_inc_2;  // [(m/s)^2]
   // Since yaw is represented as a complex number, we need the noise variance in each component.

@@ -61,7 +61,6 @@ BaseIMU::CalibrationData BaseIMU::GetCalibrationData() {
 void BaseIMU::StopCalibration() {
   bno055_.setMode(BNO055_OPERATION_MODE_IMUPLUS);
 }
-#include <Arduino.h>
 
 bool BaseIMU::LoadCalibrationData() {
   uint8_t calibration_data_size = 0;

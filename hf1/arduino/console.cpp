@@ -12,6 +12,7 @@
 #include "wheel_state_estimator.h"
 #include "operation_mode.h"
 #include "base_controller.h"
+#include "robot_state_estimator.h"
 
 extern TimerArduino timer;
 extern WheelSpeedController left_wheel;
@@ -265,6 +266,11 @@ void ReadBaseIMUAccelerationCommandHandler::Help(Stream &stream, const CommandLi
   stream.println("The x axis points to robot's front.");
   stream.println("The y axis points to robot's left.");
   stream.println("The z axis points to sky.");
+}
+
+void ReadBaseStateCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  const auto base_state = GetBaseState();
+  stream.printf("location: (%.3f, %.3f, %.3f) ; velocity: (%.3f, %.3f, %.3f)\n", base_state.location().position().x, base_state.location().position().y, base_state.location().yaw(), base_state.velocity().position().x, base_state.velocity().position().y, base_state.velocity().yaw());
 }
 
 void ReadTimerTicksCommandHandler::Run(Stream &stream, const CommandLine &command_line) {

@@ -223,17 +223,32 @@ private:
   ReadBaseIMUCalibrationCommandHandler read_baseimu_calibration_;
 };
 
+class ReadBaseStateCommandHandler : public CommandHandler {
+public:
+  ReadBaseStateCommandHandler() : CommandHandler("state") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Prints the estimated state of the base, including location and velocity with respect to where the MCU booted up.");
+  }
+  void Help(Stream &stream, const CommandLine &command_line) override {
+    stream.println("Prints the estimated state of the base in the following format:");
+    stream.println("location: (x, y, yaw) ; velocity: (vx, vy, vyaw)");
+  }
+};
+
 class ReadBaseCommandHandler : public CategoryHandler {
 public:
   ReadBaseCommandHandler() 
-    : CategoryHandler("base", { &read_baseimu_command_handler_ }) {}
+    : CategoryHandler("base", { &read_base_imu_command_handler_, &read_base_state_command_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
-    stream.println("Reads from information sources at the robot's base.");    
+    stream.println("Reads information on the robot's base.");    
   }
 
 private:
-  ReadBaseIMUCommandHandler read_baseimu_command_handler_;
+  ReadBaseIMUCommandHandler read_base_imu_command_handler_;
+  ReadBaseStateCommandHandler read_base_state_command_handler_;
 };
 
 class ReadTimerUnitsCommandHandler : public CommandHandler {
