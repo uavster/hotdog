@@ -2,7 +2,7 @@
 #include "console.h"
 #include "battery.h"
 #include "status_or.h"
-#include "body_imu.h"
+#include "base_imu.h"
 #include "motors.h"
 #include "checks.h"
 #include "servos.h"
@@ -12,6 +12,7 @@
 #include "wheel_state_estimator.h"
 #include "operation_mode.h"
 #include "base_controller.h"
+#include "robot_state_estimator.h"
 
 extern TimerArduino timer;
 extern WheelSpeedController left_wheel;
@@ -60,12 +61,12 @@ StatusOr<TimerNanosType> NanosFromDurationString(const StringView &s) {
   return period_ns;
 }
 
-void PrintBodyIMUCalibrationStatus(Stream &stream, const BodyIMU::CalibrationStatus &status) {
+void PrintBaseIMUCalibrationStatus(Stream &stream, const BaseIMU::CalibrationStatus &status) {
   static const char done_str[] = " (done)";
   static const char incomplete_str[] = "";
   static const char yes_str[] = "YES";
   static const char no_str[] = "NO";
-  stream.printf("Body IMU calibrated: %s ; Details: system=%d%s gyroscopes=%d%s accelerometers=%d%s magnetometer=%d%s\n", 
+  stream.printf("Base IMU calibrated: %s ; Details: system=%d%s gyroscopes=%d%s accelerometers=%d%s magnetometer=%d%s\n", 
     status.IsFullyCalibrated() ? yes_str : no_str,
     status.system, status.IsSystemCalibrated() ? done_str : incomplete_str, 
     status.gyroscopes, status.AreGyroscopesCalibrated() ? done_str : incomplete_str, 
@@ -73,7 +74,7 @@ void PrintBodyIMUCalibrationStatus(Stream &stream, const BodyIMU::CalibrationSta
     status.magnetometer, status.IsMagnetometerCalibrated() ? done_str : incomplete_str);
 }
 
-void PrintBodyIMUCalibrationData(Stream &stream, const BodyIMU::CalibrationData &data) {
+void PrintBaseIMUCalibrationData(Stream &stream, const BaseIMU::CalibrationData &data) {
   stream.printf("[Accelerometers]\n  Offsets: x=%d y=%d z=%d\n  Radius: %d\n[Gyroscopes]  Offsets: x=%d y=%d z=%d\n[Magnetometer]\n  Offsets: x=%d y=%d z=%d\n  Radius: %d\n", 
     data.accel_offset_x, data.accel_offset_y, data.accel_offset_z, data.accel_radius,
     data.gyro_offset_x, data.gyro_offset_y, data.gyro_offset_z, 
@@ -232,16 +233,16 @@ void ReadBatteryCommandHandler::Describe(Stream &stream, const CommandLine &comm
   stream.println("Prints the battery voltage.");
 }
 
-void ReadBodyIMUOrientationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  const auto ypr = body_imu.GetYawPitchRoll();
+void ReadBaseIMUOrientationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  const auto ypr = base_imu.GetYawPitchRoll();
   stream.printf("yaw:%f, pitch:%f, roll:%f [radians]\n", ypr.z(), ypr.y(), ypr.x());
 }
 
-void ReadBodyIMUOrientationCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+void ReadBaseIMUOrientationCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Orientation in yaw, pitch, roll euler angles, in radians.");
 }
 
-void ReadBodyIMUOrientationCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
+void ReadBaseIMUOrientationCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
   Describe(stream, command_line);
   stream.println("Every eurler angle is rotation around an axis of the reference frame, following the right hand rule.");
   stream.println("The reference frame is located at the center of the robot.");
@@ -250,21 +251,26 @@ void ReadBodyIMUOrientationCommandHandler::Help(Stream &stream, const CommandLin
   stream.println("The z axis points to sky.");
 }
 
-void ReadBodyIMUAccelerationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  const auto acceleration = body_imu.GetLinearAccelerations();
+void ReadBaseIMUAccelerationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  const auto acceleration = base_imu.GetLinearAccelerations();
   stream.printf("(%f, %f, %f) m/s^2\n", acceleration.x(), acceleration.y(), acceleration.z());
 }
 
-void ReadBodyIMUAccelerationCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+void ReadBaseIMUAccelerationCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Acceleration vector: (x, y, z) m/s^2.");
 }
 
-void ReadBodyIMUAccelerationCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
+void ReadBaseIMUAccelerationCommandHandler::Help(Stream &stream, const CommandLine &command_line) {
   Describe(stream, command_line);
   stream.println("The reference frame is located at the center of the robot.");
   stream.println("The x axis points to robot's front.");
   stream.println("The y axis points to robot's left.");
   stream.println("The z axis points to sky.");
+}
+
+void ReadBaseStateCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  const auto base_state = GetBaseState();
+  stream.printf("location: (%.3f, %.3f, %.3f) ; velocity: (%.3f, %.3f, %.3f)\n", base_state.location().position().x, base_state.location().position().y, base_state.location().yaw(), base_state.velocity().position().x, base_state.velocity().position().y, base_state.velocity().yaw());
 }
 
 void ReadTimerTicksCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
@@ -343,20 +349,20 @@ void ReadEncodersLinearSpeedCommandHandler::Describe(Stream &stream, const Comma
   stream.println("Reads the linear speed of the wheels estimated with the encoders.");
 }
 
-void ReadBodyIMUCalibrationDataCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  PrintBodyIMUCalibrationData(stream, body_imu.GetCalibrationData());
+void ReadBaseIMUCalibrationDataCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  PrintBaseIMUCalibrationData(stream, base_imu.GetCalibrationData());
 }
 
-void ReadBodyIMUCalibrationDataCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Reads the calibration data of the body IMU.");
+void ReadBaseIMUCalibrationDataCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Reads the calibration data of the base IMU.");
 }
 
-void ReadBodyIMUCalibrationStatusCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  PrintBodyIMUCalibrationStatus(stream, body_imu.GetCalibrationStatus());
+void ReadBaseIMUCalibrationStatusCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  PrintBaseIMUCalibrationStatus(stream, base_imu.GetCalibrationStatus());
 }
 
-void ReadBodyIMUCalibrationStatusCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Reads the calibration status of different subsystems of the body IMU.");
+void ReadBaseIMUCalibrationStatusCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Reads the calibration status of different subsystems of the base IMU.");
 }
 
 void WriteMotorsPWMCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
@@ -601,30 +607,30 @@ void CheckEncodersCommandHandler::Describe(Stream &stream, const CommandLine &co
   stream.println("Waits for you to rotate the wheels to check encoder signals.");
 }
 
-void CheckBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  CheckBodyIMU(stream, /*check_preconditions*/true);
+void CheckBaseIMUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckBaseIMU(stream, /*check_preconditions*/true);
 }
 
-void CheckBodyIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+void CheckBaseIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Waits for you to move the robot as instructed to check the IMU output.");
 }
 
-void CheckBodyMotionCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  CheckBodyMotion(stream, /*check_preconditions*/true);
+void CheckBaseMotionCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckBaseMotion(stream, /*check_preconditions*/true);
 }
 
-void CheckBodyMotionCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Checks the base motion system by activating the motors and monitoring the readings from the wheel encoders and the body IMU.");
+void CheckBaseMotionCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Checks the base motion system by activating the motors and monitoring the readings from the wheel encoders and the base IMU.");
 }
 
-void CalibrateBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  body_imu.StartCalibration();
+void CalibrateBaseIMUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  base_imu.StartCalibration();
   TimerSecondsType last_print_seconds_ = GetTimerSeconds();
   while(!stream.available()) {
-    const auto status = body_imu.GetCalibrationStatus();
+    const auto status = base_imu.GetCalibrationStatus();
     const auto now = GetTimerSeconds();
     if (now - last_print_seconds_ >= 0.5) {
-      PrintBodyIMUCalibrationStatus(stream, status);
+      PrintBaseIMUCalibrationStatus(stream, status);
       last_print_seconds_ = now;
     }
     if (status.IsFullyCalibrated()) {
@@ -635,24 +641,24 @@ void CalibrateBodyIMUCommandHandler::Run(Stream &stream, const CommandLine &comm
     stream.read();    
   }
 
-  if (!body_imu.IsCalibrated()) {
-    body_imu.StopCalibration();
+  if (!base_imu.IsCalibrated()) {
+    base_imu.StopCalibration();
     stream.println("ERROR: Calibration interrupted by user.");
     return;
   }
   
-  body_imu.StopCalibration();
-  PrintBodyIMUCalibrationStatus(stream, body_imu.GetCalibrationStatus());
+  base_imu.StopCalibration();
+  PrintBaseIMUCalibrationStatus(stream, base_imu.GetCalibrationStatus());
 
   stream.print("Saving calibration data to EEPROM");
-  if (body_imu.SaveCalibrationData()) { stream.println(": OK."); }
+  if (base_imu.SaveCalibrationData()) { stream.println(": OK."); }
   else { stream.println(": ERROR."); }
 
   stream.println("OK.");
 }
 
-void CalibrateBodyIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Runs the calibration routine of the body IMU.");
+void CalibrateBaseIMUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Runs the calibration routine of the base IMU.");
 }
 
 void ResetMCUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {

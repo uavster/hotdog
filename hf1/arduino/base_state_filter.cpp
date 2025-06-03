@@ -1,8 +1,6 @@
 #include <BasicLinearAlgebra.h>
 #include "base_state_filter.h"
 
-// Approximate rate at which the state estimation is updated.
-#define kApproximateUpdateRate 160.0
 
 // Standard deviations of the IMU measures.
 #define kStdevIMUAccelX 0.0118  // [m/s^2] Estimated from accelerometer data in https://forums.adafruit.com/viewtopic.php?t=122078
@@ -10,14 +8,15 @@
 #define kStdevIMUYaw 0.001   // [rad] Estimated experimentally. The measure comes from the IMU internal filter, so noise is pretty low.
 
 // Standard deviations of the odometry measures.
-#define kStdevOdomPosX (0.005 / (0.85 * kApproximateUpdateRate))  // +/-5 mm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
-#define kStdevOdomPosY (0.005 / (0.85 * kApproximateUpdateRate))  // +/-5 mm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
+#define kOdomSamplingRate 160.0
+#define kStdevOdomPosX (0.005 / (0.85 * kOdomSamplingRate))  // +/-5 mm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
+#define kStdevOdomPosY (0.005 / (0.85 * kOdomSamplingRate))  // +/-5 mm error in a 0.85-seconds test (21.5 cm/s) at the approximate sample rate [m]
 // For a 90-degree turn in 1 second, we get +/-10 degrees of error. However, testing different
 // trajectories, we see the error can be much higher for sudden movements, so we apply an error
 // multiplier to account for the worst case, as it can have devastating effects on the
 // localization accuracy in the long term. In this way, yaw is mostly determined by the IMU
 // measurement whose accuracy is stable across our acceleration range.
-#define kStdevOdomYaw (100 * (M_PI / 180 * (10 / (90.0 / 90.0 * kApproximateUpdateRate))))  // +/-10 degreed after 90 degrees turn, at 90 deg/s and the approximate sample rate [rad]
+#define kStdevOdomYaw (100 * (M_PI / 180 * (10 / (90.0 / 90.0 * kOdomSamplingRate))))  // +/-10 degreed after 90 degrees turn, at 90 deg/s and the approximate sample rate [rad]
 
 // Any estimate above this value is rejected.
 // Meant to prevent too high estimates due to co-occuring encoder edges.
@@ -33,7 +32,8 @@
 #define kOdomCenterVelocityDecayReduction 1e-3
 // Seconds required to reduce the odometry center velocity to kOdomCenterVelocityDecayReduction of the last measurement.
 #define kOdomCenterVelocityDecaySeconds ((kWheelRadius * kRadiansPerWheelTick) / 0.5)  // The time between wheel ticks at 0.5 m/s.
-#define kOdomCenterVelocityDecayFactor (exp(log(kOdomCenterVelocityDecayReduction) / (kApproximateUpdateRate * kOdomCenterVelocityDecaySeconds)))
+// Time constant of the decay factor applied to the last odometry center measure: exp(-time_since_last_odom_center_measure / kOdomCenterDecayTimeConstant)
+#define kOdomCenterDecayTimeConstant (-kOdomCenterVelocityDecaySeconds / log(kOdomCenterVelocityDecayReduction))
 
 BaseStateFilter::BaseStateFilter() 
   : last_odom_timer_ticks_(0), 
@@ -105,7 +105,7 @@ BaseStateFilter::BaseStateFilter()
   const float rpx = kStdevOdomPosX * kStdevOdomPosX;  // [m^2]
   const float rpy = kStdevOdomPosY * kStdevOdomPosY;  // [m^2]
   const float rpa = kStdevOdomYaw * kStdevOdomYaw;  // [rad^2]
-  // Velocity is calculated from position, 
+  // Velocity is calculated from position.
   const float rvx = (2 * rpx * rpx) / time_inc_2;  // [(m/s)^2]
   const float rvy = (2 * rpy * rpy) / time_inc_2;  // [(m/s)^2]
   // Since yaw is represented as a complex number, we need the noise variance in each component.
@@ -128,15 +128,13 @@ void BaseStateFilter::EstimateState(TimerTicksType timer_ticks) {
   const float state_update_timer_inc = SecondsFromTimerTicks(timer_ticks - last_state_update_timer_ticks_);
   kalman_.F(0, 2) = state_update_timer_inc;
   kalman_.F(1, 3) = state_update_timer_inc;
-
-  // Decay odometry velocity, so it goes to zero if no more wheel ticks are received.
-  odom_center_velocity_.x *= kOdomCenterVelocityDecayFactor;
-  odom_center_velocity_.y *= kOdomCenterVelocityDecayFactor;
   
   // Update state estimation.
   // Avoid yaw discontinuities messing with the Kalman estimate by representing the yaw as a
   // complex number on the unit circle.
-  kalman_.update(/*obs=*/{ odom_center_.x, odom_center_.y, odom_center_velocity_.x, odom_center_velocity_.y, cosf(odom_yaw_), sinf(odom_yaw_) }, 
+  // Decay odometry velocity, so it goes to zero if no more wheel ticks are received.  
+  const float odom_velocity_decay_factor = expf(-SecondsFromTimerTicks(timer_ticks - last_odom_timer_ticks_) / kOdomCenterDecayTimeConstant);
+  kalman_.update(/*obs=*/{ odom_center_.x, odom_center_.y, odom_center_velocity_.x * odom_velocity_decay_factor, odom_center_velocity_.y * odom_velocity_decay_factor, cosf(odom_yaw_), sinf(odom_yaw_) }, 
                  /*command=*/{ imu_acceleration_.x, imu_acceleration_.y, cosf(imu_yaw_), sinf(imu_yaw_) });
 
   // Serial.printf("F = {{ %f %f %f %f %f }, {%f %f %f %f %f}, {%f %f %f %f %f}, { %f %f %f %f %f }, {%f %f %f %f %f}}\n", kalman_.F(0, 0), kalman_.F(0, 1), kalman_.F(0, 2), kalman_.F(0, 3), kalman_.F(0, 4), kalman_.F(1, 0), kalman_.F(1, 1), kalman_.F(1, 2), kalman_.F(1, 3), kalman_.F(1, 4), kalman_.F(2, 0), kalman_.F(2, 1), kalman_.F(2, 2), kalman_.F(2, 3), kalman_.F(2, 4), kalman_.F(3, 0), kalman_.F(3, 1), kalman_.F(3, 2), kalman_.F(3, 3), kalman_.F(3, 4), kalman_.F(4, 0), kalman_.F(4, 1), kalman_.F(4, 2), kalman_.F(4, 3), kalman_.F(4, 4));

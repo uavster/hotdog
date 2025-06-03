@@ -35,6 +35,8 @@ class BaseStateFilter {
       return NanosFromTimerTicks(last_state_update_timer_ticks_);
     }
 
+    TimerTicksType last_state_update_timer_ticks() const { return last_state_update_timer_ticks_; }
+
   private:
     float GetFilteredYaw() const;
     
