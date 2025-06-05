@@ -36,6 +36,7 @@
 #include "execute_head_trajectory_view_action_handler.h"
 #include "console.h"
 #include "operation_mode.h"
+#include "led.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -43,6 +44,10 @@
 #define kMaxRxTxLoopBlockingDurationNs 5'000'000
 
 Logger logger;
+
+LedGreen green_led;
+LedModulator led_modulator(&green_led);
+LedRGB rgb_led(&green_led);
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
@@ -81,19 +86,35 @@ Console console(&Serial);
 Trajectory<BaseTargetState, 10> base_traj;
 BaseTrajectoryView base_traj_view(&base_traj);
 
-void setup() {
-  EnableWheelControl(true);
-  EnableTrajectoryControl(true);
+class LedAnimation : public PeriodicRunnable {
+public:
+  LedAnimation() : PeriodicRunnable("led animation", static_cast<TimerSecondsType>(1.0/30)), level_(0) {}
+  
+  // Subclasses must override this function. It is called every given period.
+  void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override {
+    rgb_led.SetRGB(0, 1/32.0 + 1 - (1 + cosf(2 * M_PI * 1 * (SecondsFromNanos(now_nanos) - 5))) / 2, 0);
+  }
 
+private:
+  uint8_t level_;
+};
+
+LedAnimation led_animation;
+
+void setup() {  
   // No need to call Serial.begin() with USB port.
 
   // Configure logger.
   *logger.base_logger() = SetLogger(&logger);
 
+  InitLeds();
   InitTimer();
 
   // Serial starts working after some time. Wait, so we don't miss any log.
   while(GetTimerNanoseconds() < 3'000'000'000ULL) {}
+
+  EnableWheelControl(true);
+  EnableTrajectoryControl(true);
 
   LOG_INFO("Initialized debugging serial port and timing modules.");
 
@@ -150,6 +171,8 @@ void setup() {
 }
 
 void loop() {
+  led_animation.Run();
+
   wheel_state_estimator.Run();
   RunRobotStateEstimator();
 
