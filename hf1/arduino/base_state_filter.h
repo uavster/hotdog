@@ -16,9 +16,6 @@
 #define kNumObservationVars 6   // odom_x, odom_y, odom_x',odom_y', cos(odom_yaw), sin(odom_yaw)
 #define kNumCommandVars 4   // imu_x'', imu_y'', cos(imu_yaw), sin(imu_yaw)
 
-// The base state is a first order model.
-using BaseState = State<BaseStateVars, /*order=*/1>;
-
 class BaseStateFilter {
   public:
     BaseStateFilter();

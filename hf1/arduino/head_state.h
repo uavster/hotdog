@@ -33,6 +33,6 @@ private:
 };
 
 // Target state of the head.
-using HeadTargetState = State<HeadStateVars, 0>;
+using HeadTargetState = State<HeadStateVars, /*Order=*/0>;
 
 #endif  // HEAD_STATE_INCLUDED_

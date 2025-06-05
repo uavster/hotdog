@@ -30,9 +30,9 @@ private:
 };
 
 // Estimated state of the base.
-using BaseState = State<BaseStateVars, 1>;
+using BaseState = State<BaseStateVars, /*Order=*/1>;
 
 // Target state of the base.
-using BaseTargetState = State<BaseStateVars, 0>;
+using BaseTargetState = State<BaseStateVars, /*Order=*/0>;
 
 #endif  // BASE_STATE_INCLUDED_
