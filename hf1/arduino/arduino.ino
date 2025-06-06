@@ -37,6 +37,8 @@
 #include "console.h"
 #include "operation_mode.h"
 #include "led.h"
+#include "led_controller.h"
+#include "color_trajectory.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -50,6 +52,28 @@ LedGreen green_led;
 LedBlue blue_led;
 LedModulator led_modulator(&red_led, &green_led, &blue_led);
 LedRGB rgb_led(&red_led, &green_led, &blue_led);
+LedHSVTrajectoryController led_controller("LedController", &rgb_led);
+
+Trajectory<ColorHSVTargetState, /*Capacity=*/6> color_carrier_waypoints({
+  ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(0, 1, 1) }}),
+  ColorHSVWaypoint(3, ColorHSVTargetState{{ ColorHSV(1/6.0, 1, 1) }}),
+  ColorHSVWaypoint(6, ColorHSVTargetState{{ ColorHSV(2/6.0, 1, 1) }}),
+  ColorHSVWaypoint(9, ColorHSVTargetState{{ ColorHSV(3/6.0, 1, 1) }}),
+  ColorHSVWaypoint(12, ColorHSVTargetState{{ ColorHSV(4/6.0, 1, 1) }}),
+  ColorHSVWaypoint(15, ColorHSVTargetState{{ ColorHSV(5/6.0, 1, 1) }}),
+});
+ColorHSVTrajectoryView color_carrier(&color_carrier_waypoints);
+Trajectory<ColorHSVTargetState, /*Capacity=*/2> color_modulator_waypoints({
+  ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(0, 0, 0) }}),
+  ColorHSVWaypoint(0.5, ColorHSVTargetState{{ ColorHSV(0, 0, -1) }}),
+});
+ColorHSVTrajectoryView color_modulator(&color_modulator_waypoints);
+Trajectory<EnvelopeTargetState, /*Capacity=*/2> color_envelope_waypoints({
+  EnvelopeWaypoint(0, EnvelopeTargetState({EnvelopeStateVars(0.6f)})),
+  EnvelopeWaypoint(18, EnvelopeTargetState({EnvelopeStateVars(0.6f)})),
+});
+EnvelopeTrajectoryView color_envelope(&color_envelope_waypoints);
+ColorHSVModulatedTrajectoryView color_trajectory;
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
@@ -87,24 +111,6 @@ Console console(&Serial);
 
 Trajectory<BaseTargetState, 10> base_traj;
 BaseTrajectoryView base_traj_view(&base_traj);
-
-class LedAnimation : public PeriodicRunnable {
-public:
-  LedAnimation() : PeriodicRunnable("led animation", static_cast<TimerSecondsType>(1.0/30)), level_(0) {}
-  
-  // Subclasses must override this function. It is called every given period.
-  void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override {
-    const float red = 1 - (1 + cosf(2 * M_PI * 1/4.0 * (SecondsFromNanos(now_nanos) - 5) + M_PI / 2)) / 2;
-    const float green = 1 - (1 + cosf(2 * M_PI * 1/5.0 * (SecondsFromNanos(now_nanos) - 5) + M_PI)) / 2;
-    const float blue = 1 - (1 + cosf(2 * M_PI * 1/3.0 * (SecondsFromNanos(now_nanos) - 5))) / 2;
-    rgb_led.SetRGB(1/32.0 + 0.5 * red, 1/32.0 + 0.7 * 0.5 * green, 1/32.0 + 0.5 * blue);
-  }
-
-private:
-  uint8_t level_;
-};
-
-LedAnimation led_animation;
 
 void setup() {  
   // No need to call Serial.begin() with USB port.
@@ -173,10 +179,17 @@ void setup() {
 
 // base_trajectory_controller.trajectory(&base_traj_view);
 // base_trajectory_controller.Start();
+
+  color_carrier.EnableLooping(/*after_seconds=*/3).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  color_modulator.EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  color_envelope.DisableLooping().EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  color_trajectory.carrier(&color_carrier).modulator(&color_modulator).envelope(&color_envelope);
+  led_controller.trajectory(&color_trajectory);
+  led_controller.Start();
 }
 
 void loop() {
-  led_animation.Run();
+  led_controller.Run();
 
   wheel_state_estimator.Run();
   RunRobotStateEstimator();

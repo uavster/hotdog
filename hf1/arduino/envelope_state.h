@@ -1,6 +1,8 @@
 #ifndef ENVELOPE_STATE_INCLUDED_
 #define ENVELOPE_STATE_INCLUDED_
 
+#include "state.h"
+
 class EnvelopeStateVars {
 public:
   EnvelopeStateVars() : amplitude_(1.0f) {}

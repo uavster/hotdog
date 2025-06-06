@@ -130,3 +130,12 @@ void LedRGB::SetRGB(float red, float green, float blue) {
   blue_led_.intensity(blue);
   NVIC_ENABLE_IRQ(IRQ_PIT_CH0);
 }
+
+void LedRGB::SetColor(const ColorRGB &color) {
+  SetRGB(color.red(), color.green(), color.blue());
+}
+
+void LedRGB::SetColor(const ColorHSV &color) {
+  const auto rgb = ColorRGB::From(color);
+  SetRGB(rgb.red(), rgb.green(), rgb.blue());
+}
