@@ -45,9 +45,11 @@
 
 Logger logger;
 
+LedRed red_led;
 LedGreen green_led;
-LedModulator led_modulator(&green_led);
-LedRGB rgb_led(&green_led);
+LedBlue blue_led;
+LedModulator led_modulator(&red_led, &green_led, &blue_led);
+LedRGB rgb_led(&red_led, &green_led, &blue_led);
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
@@ -92,7 +94,10 @@ public:
   
   // Subclasses must override this function. It is called every given period.
   void RunAfterPeriod(TimerNanosType now_nanos, TimerNanosType nanos_since_last_call) override {
-    rgb_led.SetRGB(0, 1/32.0 + 1 - (1 + cosf(2 * M_PI * 1 * (SecondsFromNanos(now_nanos) - 5))) / 2, 0);
+    const float red = 1 - (1 + cosf(2 * M_PI * 1/4.0 * (SecondsFromNanos(now_nanos) - 5) + M_PI / 2)) / 2;
+    const float green = 1 - (1 + cosf(2 * M_PI * 1/5.0 * (SecondsFromNanos(now_nanos) - 5) + M_PI)) / 2;
+    const float blue = 1 - (1 + cosf(2 * M_PI * 1/3.0 * (SecondsFromNanos(now_nanos) - 5))) / 2;
+    rgb_led.SetRGB(1/32.0 + 0.5 * red, 1/32.0 + 0.7 * 0.5 * green, 1/32.0 + 0.5 * blue);
   }
 
 private:

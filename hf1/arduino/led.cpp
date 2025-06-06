@@ -12,7 +12,9 @@ constexpr int kNumLedBrightnessLevels = 32;
 constexpr int kLedPWMFrequency = 60;
 constexpr int kTimerFrequency = kLedPWMFrequency * kNumLedBrightnessLevels;
 
+constexpr int kRedLedBitMask = static_cast<uint8_t>(1) << 1;
 constexpr int kGreenLedBitMask = static_cast<uint8_t>(1) << 5;
+constexpr int kBlueLedBitMask = static_cast<uint8_t>(1) << 0;
 
 
 // --- Legacy functions for the LED on the Teensy 3.2 ---
@@ -35,6 +37,18 @@ void LedShowAssert() {
 void Led::intensity(float i) { level_ = static_cast<uint8_t>(i * kNumLedBrightnessLevels); }
 float Led::intensity() const { return level_ / static_cast<float>(kNumLedBrightnessLevels); }
 
+void LedRed::Enable() const {
+  PORTE_PCR1 = PORT_PCR_MUX(1) | PORT_PCR_ODE;
+  GPIOE_PDDR |= kRedLedBitMask;
+  GPIOE_PCOR |= kRedLedBitMask;
+}
+
+void LedRed::Disable() const {
+  PORTE_PCR1 = PORT_PCR_MUX(1) | PORT_PCR_ODE;
+  GPIOE_PDDR |= kRedLedBitMask;
+  GPIOE_PSOR |= kRedLedBitMask;
+}
+
 void LedGreen::Enable() const {
   PORTA_PCR5 = PORT_PCR_MUX(1) | PORT_PCR_ODE;
   GPIOA_PDDR |= kGreenLedBitMask;
@@ -45,6 +59,18 @@ void LedGreen::Disable() const {
   PORTA_PCR5 = PORT_PCR_MUX(1) | PORT_PCR_ODE;
   GPIOA_PDDR |= kGreenLedBitMask;
   GPIOA_PSOR |= kGreenLedBitMask;
+}
+
+void LedBlue::Enable() const {
+  PORTE_PCR0 = PORT_PCR_MUX(1) | PORT_PCR_ODE;
+  GPIOE_PDDR |= kBlueLedBitMask;
+  GPIOE_PCOR |= kBlueLedBitMask;
+}
+
+void LedBlue::Disable() const {
+  PORTE_PCR0 = PORT_PCR_MUX(1) | PORT_PCR_ODE;
+  GPIOE_PDDR |= kBlueLedBitMask;
+  GPIOE_PSOR |= kBlueLedBitMask;
 }
 
 void InitLeds() {
@@ -99,6 +125,8 @@ void LedModulator::Run() {
 
 void LedRGB::SetRGB(float red, float green, float blue) {
   NVIC_DISABLE_IRQ(IRQ_PIT_CH0);
+  red_led_.intensity(red);
   green_led_.intensity(green);
+  blue_led_.intensity(blue);
   NVIC_ENABLE_IRQ(IRQ_PIT_CH0);
 }

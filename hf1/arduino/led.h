@@ -32,7 +32,19 @@ private:
   uint8_t level_;
 };
 
+class LedRed : public Led {
+protected:
+  void Enable() const override;
+  void Disable() const override;
+};
+
 class LedGreen : public Led {
+protected:
+  void Enable() const override;
+  void Disable() const override;
+};
+
+class LedBlue : public Led {
 protected:
   void Enable() const override;
   void Disable() const override;
@@ -80,12 +92,14 @@ private:
 class LedRGB {
 public:
   // Does not take ownership of the pointees, which must outlive this object.
-  LedRGB(LedGreen *green_led) : green_led_(*ASSERT_NOT_NULL(green_led)) {}
+  LedRGB(LedRed *red_led, LedGreen *green_led, LedBlue *blue_led) : red_led_(*ASSERT_NOT_NULL(red_led)), green_led_(*ASSERT_NOT_NULL(green_led)), blue_led_(*ASSERT_NOT_NULL(blue_led)) {}
 
   void SetRGB(float red, float green, float blue);
 
 private:
+  LedRed &red_led_;
   LedGreen &green_led_;
+  LedBlue &blue_led_;
 };
 
 #endif  // LED_INCLUDED_
