@@ -4,21 +4,25 @@
 #include <algorithm>
 
 // Servo configuration.
-#define kServoPWMFrequencyHz 50.0f
-#define kServoMsPer180Degrees 2.0f
-#define kServoZeroDegreePulseMs 1.5f
+constexpr float kServoPWMFrequencyHz = 50.0f;
+constexpr float kServoMsPer180Degrees = 2.0f;
+constexpr float kServoZeroDegreePulseMs = 1.5f;
 
-#define kTimerTicksPerSecond (16000000 / 512) // 16MHz external crystal / 512 prescaler (FRDIV = 0b100).
-#define kPWMPeriodTicks (kTimerTicksPerSecond / kServoPWMFrequencyHz)
+constexpr float kTimerTicksPerSecond = (16000000 / 512); // 16MHz external crystal / 512 prescaler (FRDIV = 0b100).
+constexpr float kPWMPeriodTicks = (kTimerTicksPerSecond / kServoPWMFrequencyHz);
 
-#define kOffsetPitchDegrees 0.0f
-#define kOffsetRollDegrees 0.0f
+constexpr float kOffsetYawDegrees = 0.0f;
+constexpr float kOffsetPitchDegrees = 0.0f;
+constexpr float kOffsetRollDegrees = 0.0f;
 
-#define kMinPitchDegrees -60.0f
-#define kMaxPitchDegrees 60.0f
+constexpr float kMinYawDegrees = -90.0f;
+constexpr float kMaxYawDegrees = 90.0f;
 
-#define kMinRollDegrees -45.0f
-#define kMaxRollDegrees 45.0f
+constexpr float kMinPitchDegrees = -60.0f;
+constexpr float kMaxPitchDegrees = 60.0f;
+
+constexpr float kMinRollDegrees = -45.0f;
+constexpr float kMaxRollDegrees = 45.0f;
 
 void InitServos() {
   FTM0_SC = 0;
@@ -31,23 +35,30 @@ void InitServos() {
   FTM0_SC = FTM_SC_CLKS(2) | FTM_SC_PS(0);  // CPWMS=0, CLKS=Fixed-frequency clock, PS=0 (divide clock by 1).
   // Set edge-aligned PWM.
   // CH1IE = 0 (interrupt disabled), MS1B:MS0A = 2 and ELS1B:ELS1A = 2 (high-true pulses)
-  FTM0_C2SC = FTM_CSC_MSB | FTM_CSC_ELSB;
-  FTM0_C3SC = FTM_CSC_MSB | FTM_CSC_ELSB;
+  FTM0_C2SC = FTM_CSC_MSB | FTM_CSC_ELSB; // pitch.
+  FTM0_C3SC = FTM_CSC_MSB | FTM_CSC_ELSB; // roll.
+  FTM0_C4SC = FTM_CSC_MSB | FTM_CSC_ELSB; // yaw.
 
   // Set FTM0_CHx function for pins.
-  PORTC_PCR3 = PORT_PCR_MUX(4) | PORT_PCR_DSE | PORT_PCR_SRE;
-  PORTC_PCR4 = PORT_PCR_MUX(4) | PORT_PCR_DSE | PORT_PCR_SRE;
+  PORTC_PCR3 = PORT_PCR_MUX(4) | PORT_PCR_DSE | PORT_PCR_SRE; // pitch.
+  PORTC_PCR4 = PORT_PCR_MUX(4) | PORT_PCR_DSE | PORT_PCR_SRE; // roll.
+  PORTD_PCR4 = PORT_PCR_MUX(4) | PORT_PCR_DSE | PORT_PCR_SRE; // yaw.
 
+  SetHeadYawDegrees(0);
   SetHeadPitchDegrees(0);
   SetHeadRollDegrees(0);
 }
 
 static float SaturateRoll(float angle_degrees) {
-  return std::min(kMaxRollDegrees, std::max(kMinRollDegrees, angle_degrees));
+  return std::clamp(angle_degrees, kMinRollDegrees, kMaxRollDegrees);
 }
 
 static float SaturatePitch(float angle_degrees) {
-  return std::min(kMaxPitchDegrees, std::max(kMinPitchDegrees, angle_degrees));
+  return std::clamp(angle_degrees, kMinPitchDegrees, kMaxPitchDegrees);
+}
+
+static float SaturateYaw(float angle_degrees) {
+  return std::clamp(angle_degrees, kMinYawDegrees, kMaxYawDegrees);
 }
 
 void SetHeadPitchDegrees(float angle_degrees) {
@@ -58,4 +69,9 @@ void SetHeadPitchDegrees(float angle_degrees) {
 void SetHeadRollDegrees(float angle_degrees) {
   float pulse_width_ms = ((SaturateRoll(angle_degrees) + kOffsetRollDegrees) * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
   FTM0_C3V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
+}
+
+void SetHeadYawDegrees(float angle_degrees) {
+  float pulse_width_ms = ((SaturateYaw(angle_degrees) + kOffsetYawDegrees) * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
+  FTM0_C4V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
 }

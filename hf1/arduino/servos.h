@@ -6,6 +6,13 @@ Uses timer 0 channels to produce servo commands.
 
 void InitServos();
 
+// Sets the yaw of the stereo pair in degrees.
+// `angle_degrees` can vary between -90 and 90:
+// 0: the head looks forward.
+// -90: the head turns to the robot's right.
+// 90: the head turns to the robot's right.
+void SetHeadYawDegrees(float angle_degrees);
+
 // Sets the pitch of the stereo pair in degrees.
 // `angle_degrees` can vary between -90 and 90:
 // 0: the robot eyes are looking forward.
