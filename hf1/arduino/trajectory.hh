@@ -14,7 +14,9 @@ Trajectory<TState, Capacity>::Trajectory(int num_waypoints, const Waypoint<TStat
 
 template<typename TState, int Capacity>
 template<int Size> Trajectory<TState, Capacity>::Trajectory(const Waypoint<TState> (&waypoints)[Size]) 
-  : Trajectory(Size, waypoints) {}
+  : Trajectory(Size, waypoints) {
+  static_assert(Size <= Capacity);
+}
 
 template<typename TState, int Capacity>
 const Waypoint<TState> &Trajectory<TState, Capacity>::operator[](int i) const {
