@@ -83,6 +83,7 @@ typedef struct {
 
 // --- Set head pose ---
 typedef struct {
+    float yaw_radians;
     float pitch_radians;
     float roll_radians;
 } P2PSetHeadPoseRequest;
@@ -149,6 +150,7 @@ typedef struct {
 
 // --- Create head trajectory ---
 typedef struct {
+  float yaw_radians;
   float pitch_radians;
   float roll_radians;
 } P2PHeadStateVars;
