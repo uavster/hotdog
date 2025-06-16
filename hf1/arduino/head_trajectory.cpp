@@ -9,6 +9,7 @@ HeadWaypoint HeadModulatedTrajectoryView::GetWaypoint(float seconds) const {
     /*seconds=*/seconds, 
     HeadTargetState({
       HeadStateVars(
+        carrier_angle.yaw() + angle_modulator.yaw(),
         carrier_angle.pitch() + angle_modulator.pitch(),
         carrier_angle.roll() + angle_modulator.roll()
       )
