@@ -54,26 +54,26 @@ LedModulator led_modulator(&red_led, &green_led, &blue_led);
 LedRGB rgb_led(&red_led, &green_led, &blue_led);
 LedHSVTrajectoryController led_controller("LedController", &rgb_led);
 
-Trajectory<ColorHSVTargetState, /*Capacity=*/6> color_carrier_waypoints({
-  ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(0, 1, 1) }}),
-  ColorHSVWaypoint(3, ColorHSVTargetState{{ ColorHSV(1/6.0, 1, 1) }}),
-  ColorHSVWaypoint(6, ColorHSVTargetState{{ ColorHSV(2/6.0, 1, 1) }}),
-  ColorHSVWaypoint(9, ColorHSVTargetState{{ ColorHSV(3/6.0, 1, 1) }}),
-  ColorHSVWaypoint(12, ColorHSVTargetState{{ ColorHSV(4/6.0, 1, 1) }}),
-  ColorHSVWaypoint(15, ColorHSVTargetState{{ ColorHSV(5/6.0, 1, 1) }}),
-});
-ColorHSVTrajectoryView color_carrier(&color_carrier_waypoints);
-Trajectory<ColorHSVTargetState, /*Capacity=*/2> color_modulator_waypoints({
-  ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(0, 0, 0) }}),
-  ColorHSVWaypoint(0.5, ColorHSVTargetState{{ ColorHSV(0, 0, -1) }}),
-});
-ColorHSVTrajectoryView color_modulator(&color_modulator_waypoints);
-Trajectory<EnvelopeTargetState, /*Capacity=*/2> color_envelope_waypoints({
-  EnvelopeWaypoint(0, EnvelopeTargetState({EnvelopeStateVars(0.6f)})),
-  EnvelopeWaypoint(18, EnvelopeTargetState({EnvelopeStateVars(0.6f)})),
-});
-EnvelopeTrajectoryView color_envelope(&color_envelope_waypoints);
-ColorHSVModulatedTrajectoryView color_trajectory;
+// Trajectory<ColorHSVTargetState, /*Capacity=*/6> color_carrier_waypoints({
+//   ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(0, 1, 1) }}),
+//   ColorHSVWaypoint(3, ColorHSVTargetState{{ ColorHSV(1/6.0, 1, 1) }}),
+//   ColorHSVWaypoint(6, ColorHSVTargetState{{ ColorHSV(2/6.0, 1, 1) }}),
+//   ColorHSVWaypoint(9, ColorHSVTargetState{{ ColorHSV(3/6.0, 1, 1) }}),
+//   ColorHSVWaypoint(12, ColorHSVTargetState{{ ColorHSV(4/6.0, 1, 1) }}),
+//   ColorHSVWaypoint(15, ColorHSVTargetState{{ ColorHSV(5/6.0, 1, 1) }}),
+// });
+// ColorHSVTrajectoryView color_carrier(&color_carrier_waypoints);
+// Trajectory<ColorHSVTargetState, /*Capacity=*/2> color_modulator_waypoints({
+//   ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(0, 0, 0) }}),
+//   ColorHSVWaypoint(0.5, ColorHSVTargetState{{ ColorHSV(0, 0, -1) }}),
+// });
+// ColorHSVTrajectoryView color_modulator(&color_modulator_waypoints);
+// Trajectory<EnvelopeTargetState, /*Capacity=*/2> color_envelope_waypoints({
+//   EnvelopeWaypoint(0, EnvelopeTargetState({EnvelopeStateVars(0.6f)})),
+//   EnvelopeWaypoint(18, EnvelopeTargetState({EnvelopeStateVars(0.6f)})),
+// });
+// EnvelopeTrajectoryView color_envelope(&color_envelope_waypoints);
+// ColorHSVModulatedTrajectoryView color_trajectory;
 
 P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
@@ -112,6 +112,27 @@ Console console(&Serial);
 Trajectory<BaseTargetState, 10> base_traj;
 BaseTrajectoryView base_traj_view(&base_traj);
 
+void WaitForSerial() {
+  // While we wait run a test sequence on the RGB LED.
+  float intensity = 0;
+  TimerNanosType start_time = GetTimerNanoseconds();
+  TimerNanosType elapsed = 0;
+  while(elapsed < 500'000'000ULL) {
+    elapsed = GetTimerNanoseconds() - start_time;
+    intensity = 1.0f - expf(-SecondsFromNanos(elapsed) / 0.1f);
+    rgb_led.SetRGB(intensity, intensity, intensity);
+    SleepForNanos(10'000'000ULL);
+  }
+  start_time = GetTimerNanoseconds();
+  while(elapsed < 3'000'000'000ULL) {
+    elapsed = GetTimerNanoseconds() - start_time;
+    const float rb_intensity = intensity * expf(-SecondsFromNanos(elapsed) / 1.0f);
+    rgb_led.SetRGB(rb_intensity, intensity, rb_intensity);
+    SleepForNanos(10'000'000ULL);
+  }
+  rgb_led.SetRGB(0, 1, 0);
+}
+
 void setup() {  
   // No need to call Serial.begin() with USB port.
 
@@ -122,7 +143,7 @@ void setup() {
   InitTimer();
 
   // Serial starts working after some time. Wait, so we don't miss any log.
-  while(GetTimerNanoseconds() < 3'000'000'000ULL) {}
+  WaitForSerial();
 
   EnableWheelControl(true);
   EnableTrajectoryControl(true);
@@ -180,12 +201,12 @@ void setup() {
 // base_trajectory_controller.trajectory(&base_traj_view);
 // base_trajectory_controller.Start();
 
-  color_carrier.EnableLooping(/*after_seconds=*/3).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
-  color_modulator.EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
-  color_envelope.DisableLooping().EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
-  color_trajectory.carrier(&color_carrier).modulator(&color_modulator).envelope(&color_envelope);
-  led_controller.trajectory(&color_trajectory);
-  led_controller.Start();
+  // color_carrier.EnableLooping(/*after_seconds=*/3).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  // color_modulator.EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  // color_envelope.DisableLooping().EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  // color_trajectory.carrier(&color_carrier).modulator(&color_modulator).envelope(&color_envelope);
+  // led_controller.trajectory(&color_trajectory);
+  // led_controller.Start();
 }
 
 void loop() {
