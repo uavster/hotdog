@@ -24,6 +24,7 @@ bool CreateHeadTrajectoryActionHandler::Run() {
           const auto &target_state_msg = request.trajectory.waypoints[i].target_state.location;
           const HeadTargetState target_state({
             HeadStateVars{
+              NetworkToLocal<kP2PLocalEndianness>(target_state_msg.yaw_radians), 
               NetworkToLocal<kP2PLocalEndianness>(target_state_msg.pitch_radians), 
               NetworkToLocal<kP2PLocalEndianness>(target_state_msg.roll_radians)
             }
