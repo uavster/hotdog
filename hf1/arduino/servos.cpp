@@ -1,14 +1,23 @@
+// Control code for SG90 servos.
+
 #include "kinetis.h"
 #include "servos.h"
 #include "Arduino.h"
 #include <algorithm>
 
 // Servo configuration.
-constexpr float kServoPWMFrequencyHz = 50.0f;
+
+// Frequency of the servo command pulses. 
+// The higher it is, the more time resolution in trajectories.
+// SG90 servos documentation states nominal frequency is 50 Hz, but most (if not all) servos handle 100 Hz ok, 
+// which gives us more time resolution.
+constexpr float kServoPWMFrequencyHz = 100.0f;
+
 constexpr float kServoMsPer180Degrees = 2.0f;
 constexpr float kServoZeroDegreePulseMs = 1.5f;
 
-constexpr float kTimerTicksPerSecond = (16000000 / 512); // 16MHz external crystal / 512 prescaler (FRDIV = 0b100).
+// At 96MHz, the bus frequency is 48MHz, and we get 3000 clock ticks for the total 2ms range of pulse width, i.e. 180/3000 = 0.06 degrees resolution.
+constexpr float kTimerTicksPerSecond = (F_BUS / 32); // System clock (bus clock for FTM) / 32 prescaler (PS = 0b100).
 constexpr float kPWMPeriodTicks = (kTimerTicksPerSecond / kServoPWMFrequencyHz);
 
 constexpr float kOffsetYawDegrees = 0.0f;
@@ -32,7 +41,7 @@ void InitServos() {
   FTM0_MOD = kPWMPeriodTicks - 1;
   FTM0_CNTIN = 0;
   FTM0_CNT = 0;
-  FTM0_SC = FTM_SC_CLKS(2) | FTM_SC_PS(0);  // CPWMS=0, CLKS=Fixed-frequency clock, PS=0 (divide clock by 1).
+  FTM0_SC = FTM_SC_CLKS(1) | FTM_SC_PS(0b101);  // CPWMS=0, CLKS=System clock, PS=0b111 (divide clock by 32).
   // Set edge-aligned PWM.
   // CH1IE = 0 (interrupt disabled), MS1B:MS0A = 2 and ELS1B:ELS1A = 2 (high-true pulses)
   FTM0_C2SC = FTM_CSC_MSB | FTM_CSC_ELSB; // pitch.

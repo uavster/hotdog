@@ -1,7 +1,9 @@
 #include "head_controller.h"
 #include "servos.h"
 
-#define kHeadTrajeactoryControllerLoopPeriodSeconds 0.03
+// Time between calls to the head trajectory controller.
+// Times shorter than the servo command update rate have no effect.
+#define kHeadTrajeactoryControllerLoopPeriodSeconds 0.01
 
 HeadTrajectoryController::HeadTrajectoryController(const char *name) 
   : TrajectoryController<HeadTargetState>(name, kHeadTrajeactoryControllerLoopPeriodSeconds) {}
