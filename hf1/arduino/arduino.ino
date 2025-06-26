@@ -113,24 +113,8 @@ Trajectory<BaseTargetState, 10> base_traj;
 BaseTrajectoryView base_traj_view(&base_traj);
 
 void WaitForSerial() {
-  // While we wait run a test sequence on the RGB LED.
-  float intensity = 0;
   TimerNanosType start_time = GetTimerNanoseconds();
-  TimerNanosType elapsed = 0;
-  while(elapsed < 500'000'000ULL) {
-    elapsed = GetTimerNanoseconds() - start_time;
-    intensity = 1.0f - expf(-SecondsFromNanos(elapsed) / 0.1f);
-    rgb_led.SetRGB(intensity, intensity, intensity);
-    SleepForNanos(10'000'000ULL);
-  }
-  start_time = GetTimerNanoseconds();
-  while(elapsed < 3'000'000'000ULL) {
-    elapsed = GetTimerNanoseconds() - start_time;
-    const float rb_intensity = intensity * expf(-SecondsFromNanos(elapsed) / 1.0f);
-    rgb_led.SetRGB(rb_intensity, intensity, rb_intensity);
-    SleepForNanos(10'000'000ULL);
-  }
-  rgb_led.SetRGB(0, 1, 0);
+  while(GetTimerNanoseconds() - start_time < 3'500'000'000ULL) {}
 }
 
 void setup() {  
@@ -143,7 +127,10 @@ void setup() {
   InitTimer();
 
   // Serial starts working after some time. Wait, so we don't miss any log.
+  // While we wait, light all three LED colors to make sure they works.
+  rgb_led.SetRGB(1, 1, 1);
   WaitForSerial();
+  rgb_led.SetRGB(0, 1, 0);
 
   EnableWheelControl(true);
   EnableTrajectoryControl(true);
