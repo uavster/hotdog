@@ -1,10 +1,12 @@
 #ifndef PERIODIC_RUNNABLE_
 #define PERIODIC_RUNNABLE_
 
+#include "timer.h"
+
 #define kEnableStats 0
 
-#define kPeriodicRunnableMaxNameLength 32
-#define kPeriodicRunnableInfinitePeriod -1ULL
+constexpr int kPeriodicRunnableMaxNameLength = 32;
+constexpr TimerNanosType kPeriodicRunnableInfinitePeriod = -1;
 
 #include "timer.h"
 
