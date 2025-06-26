@@ -1,6 +1,7 @@
 #include "set_base_velocity_action_handler.h"
 #include <algorithm>
 #include "motors.h"
+#include "operation_mode.h"
 
 bool SetBaseVelocityActionHandler::Run() {
   const P2PSetBaseVelocityRequest &request = GetRequest();
@@ -22,6 +23,7 @@ bool SetBaseVelocityActionHandler::Run() {
   float right_duty = right_angular;
   right_duty = std::clamp(right_duty, -1.0f, 1.0f);
 
+  EnableWheelControl(false);
   SetLeftMotorDutyCycle(left_duty);
   SetRightMotorDutyCycle(right_duty);
   // base_speed_controller_.left_wheel_speed_controller().SetAngularSpeed(linear_speed - angular_speed);
