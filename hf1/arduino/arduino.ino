@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "p2p_byte_stream_arduino.h"
 #include "p2p_packet_stream.h"
+#include "base_imu.h"
 #include "motors.h"
 #include "servos.h"
 #include "timer.h"
@@ -39,6 +40,7 @@
 #include "led.h"
 #include "led_controller.h"
 #include "color_trajectory.h"
+#include "eeprom_offsets.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -79,6 +81,8 @@ P2PByteStreamArduino byte_stream(&Serial1);
 TimerArduino timer;
 GUIDFactory guid_factory;
 P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
+
+BaseIMU base_imu(kEEPROMOffsetBaseIMUCalibration);
 
 WheelStateEstimator wheel_state_estimator("WheelStateEstimator");
 WheelSpeedController left_wheel("LeftWheelSpeedController", &wheel_state_estimator.left_wheel_state_filter(), &SetLeftMotorDutyCycle);

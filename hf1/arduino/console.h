@@ -672,9 +672,17 @@ private:
   CalibrateBaseIMUCommandHandler calibrate_base_imu_handler_;
 };
 
+class CalibrateServosCommandHandler : public CommandHandler {
+public:
+  CalibrateServosCommandHandler() : CommandHandler("servos") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class CalibrateCommandHandler : public CategoryHandler {
 public:
-  CalibrateCommandHandler() : CategoryHandler("calibrate", { &calibrate_base_handler_ }) {}
+  CalibrateCommandHandler() : CategoryHandler("calibrate", { &calibrate_base_handler_, &calibrate_servos_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Calibrates different subsystems on the robot.");    
@@ -682,6 +690,7 @@ public:
 
 private:
   CalibrateBaseCommandHandler calibrate_base_handler_;
+  CalibrateServosCommandHandler calibrate_servos_handler_;
 };
 
 class ResetMCUCommandHandler : public CommandHandler {

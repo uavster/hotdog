@@ -26,3 +26,6 @@ void SetHeadPitchDegrees(float angle_degrees);
 // -90: the robot tilts its head clockwise, with its eyes perpendicular to the floor.
 // 90: the robot tilts its head counterclockwise, with its eyes perpendicular to the floor.
 void SetHeadRollDegrees(float angle_degrees);
+
+// Saves the current servo angles as the origin.
+void SaveServoAnglesAsOrigin();

@@ -3,12 +3,9 @@
 #include "timer.h"
 #include <EEPROM.h>
 
-constexpr int kCalibrationDataEEPROMOffset = 0;
 constexpr uint8_t kDeviceAddress = 0x28;
 
-BaseIMU base_imu;
-
-BaseIMU::BaseIMU() : bno055_(kDeviceAddress) {}
+BaseIMU::BaseIMU(int calibration_data_offset) : bno055_(kDeviceAddress), calibration_data_offset_(calibration_data_offset) {}
 
 void BaseIMU::Init() {
   ASSERT(bno055_.begin(BNO055_OPERATION_MODE_CONFIG));
@@ -64,18 +61,18 @@ void BaseIMU::StopCalibration() {
 
 bool BaseIMU::LoadCalibrationData() {
   uint8_t calibration_data_size = 0;
-  if (EEPROM.get(kCalibrationDataEEPROMOffset, calibration_data_size) != sizeof(CalibrationData)) {
+  if (EEPROM.get(calibration_data_offset_, calibration_data_size) != sizeof(CalibrationData)) {
     return false;
   }
   CalibrationData calibration_data;
-  EEPROM.get(kCalibrationDataEEPROMOffset + sizeof(kCalibrationDataEEPROMOffset), calibration_data);
+  EEPROM.get(calibration_data_offset_ + 1, calibration_data);
   bno055_.SetCalibrationData(calibration_data);
   return true;
 }
 
 bool BaseIMU::SaveCalibrationData() {
-  EEPROM.update(kCalibrationDataEEPROMOffset, static_cast<uint8_t>(sizeof(CalibrationData)));
-  EEPROM.put(kCalibrationDataEEPROMOffset + sizeof(kCalibrationDataEEPROMOffset), bno055_.GetCalibrationData());
+  EEPROM.update(calibration_data_offset_, static_cast<uint8_t>(sizeof(CalibrationData)));
+  EEPROM.put(calibration_data_offset_ + 1, bno055_.GetCalibrationData());
   return true;
 }
 

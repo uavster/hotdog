@@ -668,6 +668,16 @@ void CalibrateBaseIMUCommandHandler::Describe(Stream &stream, const CommandLine 
   stream.println("Runs the calibration routine of the base IMU.");
 }
 
+void CalibrateServosCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.println("Saving current servo positions as the origin on EEPROM.");
+  SaveServoAnglesAsOrigin();
+  stream.println("OK.");
+}
+
+void CalibrateServosCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Stores the current position of the servos as the origin.");
+}
+
 void ResetMCUCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   if (!CheckMCU(null_stream)) {
     stream.println("Cannot reset an unsupported MCU.");

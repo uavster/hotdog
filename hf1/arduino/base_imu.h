@@ -1,3 +1,6 @@
+#ifndef BASE_IMU_INCLUDED_
+#define BASE_IMU_INCLUDED_
+
 #include <status_or.h>
 #include "bno055.h"
 #include "vector.h"
@@ -5,7 +8,9 @@
 
 class BaseIMU {
 public:
-  BaseIMU();
+  // `calibration_data_offset` indicates where in the EEPROM the calibration data should be placed
+  // by SaveCalibrationData().
+  explicit BaseIMU(int calibration_data_offset);
 
   void Init();
   void Run();
@@ -53,6 +58,9 @@ public:
   using CalibrationStatus = BNO055::CalibrationStatus;
   CalibrationStatus GetCalibrationStatus();
   using CalibrationData = BNO055::CalibrationData;
+
+  static constexpr int kCalibrationDataSizeOnEEPROM = sizeof(CalibrationData) + 1;
+
   CalibrationData GetCalibrationData();
   bool SaveCalibrationData();
   bool LoadCalibrationData();
@@ -62,6 +70,9 @@ public:
 private:
   BNO055 bno055_;
   Vector<3> CanonicalizeEulerVector(const Vector<3> &vector);
+  int calibration_data_offset_;
 };
 
 extern BaseIMU base_imu;
+
+#endif  // BASE_IMU_INCLUDED_
