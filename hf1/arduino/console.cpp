@@ -520,25 +520,32 @@ void WriteWheelsLinearSpeedCommandHandler::Describe(Stream &stream, const Comman
 }
 
 void WriteServosCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  if (command_line.num_params < 2) {
-    stream.println("Two parameters are required: pitch and roll, in radians. Use 'help write servos' for details.");
+  if (command_line.num_params < 3) {
+    stream.println("Three parameters are required: yaw, pitch and roll, in radians. Use 'help write servos' for details.");
     return;
   }
 
-  char number_str[max(command_line.params[0].Length(), command_line.params[1].Length()) + 1];
+  char number_str[max(command_line.params[0].Length(), max(command_line.params[1].Length(), command_line.params[2].Length())) + 1];
   command_line.params[0].ToCString(number_str);
+  float yaw_radians;
+  if (sscanf(number_str, "%f", &yaw_radians) != 1) {
+    stream.printf("Wrong yaw radians '%s'.\n", number_str);
+    return;
+  }
+  command_line.params[1].ToCString(number_str);
   float pitch_radians;
   if (sscanf(number_str, "%f", &pitch_radians) != 1) {
     stream.printf("Wrong pitch radians '%s'.\n", number_str);
     return;
   }
-  command_line.params[1].ToCString(number_str);
+  command_line.params[2].ToCString(number_str);
   float roll_radians;
   if (sscanf(number_str, "%f", &roll_radians) != 1) {
     stream.printf("Wrong roll radians '%s'.\n", number_str);
     return;
   }
 
+  SetHeadYawDegrees(DegreesFromRadians(yaw_radians));
   SetHeadPitchDegrees(DegreesFromRadians(pitch_radians));
   SetHeadRollDegrees(DegreesFromRadians(roll_radians));
 }
