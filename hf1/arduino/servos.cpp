@@ -35,6 +35,9 @@ constexpr float kServoZeroDegreePulseMs = 1.5f;
 constexpr float kTimerTicksPerSecond = (F_BUS / 32); // System clock (bus clock for FTM) / 32 prescaler (PS = 0b100).
 constexpr float kPWMPeriodTicks = (kTimerTicksPerSecond / kServoPWMFrequencyHz);
 
+constexpr float kMinServoDegrees = -90.0f;
+constexpr float kMaxServoDegrees = 90.0f;
+
 constexpr float kMinYawDegrees = -90.0f;
 constexpr float kMaxYawDegrees = 90.0f;
 
@@ -86,24 +89,28 @@ static float SaturateYaw(float angle_degrees) {
   return std::clamp(angle_degrees, kMinYawDegrees, kMaxYawDegrees);
 }
 
+static float SaturateServoMaxAngle(float angle_degrees) {
+  return std::clamp(angle_degrees, kMinServoDegrees, kMaxServoDegrees);
+}
+
 void SetHeadPitchDegrees(float angle_degrees) {
-  const float corrected_angle = SaturatePitch(angle_degrees + servo_calibration_data.offsets.pitch);
+  const float corrected_angle = SaturatePitch(angle_degrees) + servo_calibration_data.offsets.pitch;
   servo_degrees.pitch = corrected_angle;
-  float pulse_width_ms = (-corrected_angle * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
+  float pulse_width_ms = (SaturateServoMaxAngle(-corrected_angle) * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
   FTM0_C2V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
 }
 
 void SetHeadRollDegrees(float angle_degrees) {
-  const float corrected_angle = SaturateRoll(angle_degrees + servo_calibration_data.offsets.roll);
+  const float corrected_angle = SaturateRoll(angle_degrees) + servo_calibration_data.offsets.roll;
   servo_degrees.roll = corrected_angle;
-  float pulse_width_ms = (corrected_angle * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
+  float pulse_width_ms = (SaturateServoMaxAngle(corrected_angle) * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
   FTM0_C3V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
 }
 
 void SetHeadYawDegrees(float angle_degrees) {
-  const float corrected_angle = SaturateYaw(angle_degrees + servo_calibration_data.offsets.yaw);
+  const float corrected_angle = SaturateYaw(angle_degrees) + servo_calibration_data.offsets.yaw;
   servo_degrees.yaw = corrected_angle;
-  float pulse_width_ms = (corrected_angle * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
+  float pulse_width_ms = (SaturateServoMaxAngle(corrected_angle) * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
   FTM0_C4V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
 }
 
