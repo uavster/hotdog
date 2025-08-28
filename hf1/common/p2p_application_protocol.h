@@ -165,12 +165,12 @@ typedef struct {
 } P2PHeadWaypoint;
 
 typedef struct {
-  int num_waypoints;
+  uint32_t num_waypoints;
   P2PHeadWaypoint waypoints[kP2PMaxNumWaypointsPerHeadTrajectory];
 } P2PHeadTrajectory;
 
 typedef struct {
-  int id;
+  uint8_t id;
   P2PHeadTrajectory trajectory;
 } P2PCreateHeadTrajectoryRequest;
 
@@ -193,12 +193,12 @@ typedef struct {
 } P2PEnvelopeWaypoint;
 
 typedef struct {
-  int num_waypoints;
+  uint32_t num_waypoints;
   P2PEnvelopeWaypoint waypoints[kP2PMaxNumWaypointsPerEnvelopeTrajectory];
 } P2PEnvelopeTrajectory;
 
 typedef struct {
-  int id;
+  uint8_t id;
   P2PEnvelopeTrajectory trajectory;
 } P2PCreateEnvelopeTrajectoryRequest;
 
