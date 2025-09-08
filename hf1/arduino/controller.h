@@ -11,7 +11,7 @@
 // Controllers must subclass it and update controls in their overridden Update() function.
 class Controller : public PeriodicRunnable {
 public:
-  explicit Controller(const char *name, float run_period_seconds);
+  Controller(const char *name, float run_period_seconds);
   virtual void Start();
   virtual void Stop();
 

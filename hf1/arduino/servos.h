@@ -29,3 +29,6 @@ void SetHeadRollDegrees(float angle_degrees);
 
 // Saves the current servo angles as the origin.
 void SaveServoAnglesAsOrigin();
+
+float GetPitchServoMaxDegrees();
+float GetPitchServoMinDegrees();

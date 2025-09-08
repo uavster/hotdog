@@ -89,6 +89,8 @@ WheelSpeedController left_wheel("LeftWheelSpeedController", &wheel_state_estimat
 WheelSpeedController right_wheel("RightWheelSpeedController", &wheel_state_estimator.right_wheel_state_filter(), &SetRightMotorDutyCycle);
 BaseSpeedController base_speed_controller(&left_wheel, &right_wheel);
 BaseTrajectoryController base_trajectory_controller("BaseTrajectoryController", &base_speed_controller);
+
+HeadPositionController head_position_controller("HeadPositionController");
 HeadTrajectoryController head_trajectory_controller("HeadTrajectoryController");
 
 TrajectoryStore trajectory_store;
@@ -179,6 +181,11 @@ void setup() {
 
   left_wheel.Start();
   right_wheel.Start();
+  head_position_controller.SetJointFeedbackLimits(
+    /*yaw=*/{.min_adc_reading=0, .max_adc_reading=255}, 
+    /*pitch=*/{.min_adc_reading=180, .max_adc_reading=812},
+    /*roll=*/{.min_adc_reading=0, .max_adc_reading=255});
+  head_position_controller.Start();
 
   LOG_INFO("Ready.");
 
@@ -202,20 +209,22 @@ void setup() {
 
 void loop() {
   led_controller.Run();
-
+  
   wheel_state_estimator.Run();
   RunRobotStateEstimator();
 
-  if (IsTrajectoryControlEnabled()) {
-    head_trajectory_controller.Run();
-    base_trajectory_controller.Run();    
-    NotifyLeftMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
-    NotifyRightMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
-  }
-  if (IsWheelControlEnabled()) {
-    left_wheel.Run();
-    right_wheel.Run();
-  }
+  head_position_controller.Run();
+
+  // if (IsTrajectoryControlEnabled()) {
+  //   head_trajectory_controller.Run();
+  //   base_trajectory_controller.Run();    
+  //   NotifyLeftMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
+  //   NotifyRightMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
+  // }
+  // if (IsWheelControlEnabled()) {
+  //   left_wheel.Run();
+  //   right_wheel.Run();
+  // }
 
   bool process_comms = true;
   const auto process_comms_start_time_ns = timer.GetLocalNanoseconds();

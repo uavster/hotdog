@@ -13,6 +13,7 @@
 #include "operation_mode.h"
 #include "base_controller.h"
 #include "robot_state_estimator.h"
+#include "head_controller.h"
 
 extern TimerArduino timer;
 extern WheelSpeedController left_wheel;
@@ -519,6 +520,8 @@ void WriteWheelsLinearSpeedCommandHandler::Describe(Stream &stream, const Comman
   stream.println("Sets the linear speed of the left and right wheels in m/s.");
 }
 
+extern HeadPositionController head_position_controller;
+
 void WriteServosCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   if (command_line.num_params < 3) {
     stream.println("Three parameters are required: yaw, pitch and roll, in radians. Use 'help write servos' for details.");
@@ -545,9 +548,7 @@ void WriteServosCommandHandler::Run(Stream &stream, const CommandLine &command_l
     return;
   }
 
-  SetHeadYawDegrees(DegreesFromRadians(yaw_radians));
-  SetHeadPitchDegrees(DegreesFromRadians(pitch_radians));
-  SetHeadRollDegrees(DegreesFromRadians(roll_radians));
+  head_position_controller.SetTarget(yaw_radians, pitch_radians, roll_radians);
 }
 
 void WriteServosCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {

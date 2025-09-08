@@ -49,6 +49,14 @@ constexpr float kMaxRollDegrees = 45.0f;
 
 void LoadServoCalibration();
 
+float GetPitchServoMaxDegrees() {
+  return kMaxPitchDegrees;
+}
+
+float GetPitchServoMinDegrees() {
+  return kMinPitchDegrees;
+}
+
 void InitServos() {
   FTM0_SC = 0;
   // Enable with QUADEN=0, DECAPEN=0, COMBINE=0, CPWMS=0, MSnB=1
