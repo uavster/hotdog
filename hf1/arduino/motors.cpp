@@ -26,19 +26,19 @@ void InitMotors() {
   SetRightMotorDutyCycle(0);
 }
 
-void SetLeftMotorDutyCycle(float s) {
+void SetRightMotorDutyCycle(float s) {
   if (s > 0) {
-    pinMode(4, OUTPUT);
-    digitalWrite(4, 0);
-    // Period=MOD-CNTIN+1 ticks, duty_cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
-    PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
-  } else if (s < 0) {
     pinMode(17, OUTPUT);
     digitalWrite(17, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
     PORTA_PCR13 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
+  } else if (s < 0) {
+    pinMode(4, OUTPUT);
+    digitalWrite(4, 0);
+    // Period=MOD-CNTIN+1 ticks, duty_cycle=(CnV-CNTIN)*100/period_ticks
+    FTM1_C1V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
+    PORTB_PCR1 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
   } else {
     FTM1_C1V = 0;
     pinMode(17, OUTPUT);
@@ -48,19 +48,19 @@ void SetLeftMotorDutyCycle(float s) {
   }
 }
 
-void SetRightMotorDutyCycle(float s) {
+void SetLeftMotorDutyCycle(float s) {
   if (s > 0) {
-    pinMode(16, OUTPUT);
-    digitalWrite(16, 0);
-    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
-    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
-    PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
-  } else if (s < 0) {
     pinMode(3, OUTPUT);
     digitalWrite(3, 0);
     // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
     FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * -s)) >> 16;
     PORTB_PCR0 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
+  } else if (s < 0) {
+    pinMode(16, OUTPUT);
+    digitalWrite(16, 0);
+    // Period=MOD-CNTIN+1 ticks, duty cycle=(CnV-CNTIN)*100/period_ticks
+    FTM1_C0V = (int)((kPWMPeriodTicks - 1) * (65535 * s)) >> 16;
+    PORTA_PCR12 = PORT_PCR_MUX(3) | PORT_PCR_DSE | PORT_PCR_SRE;
   } else {
     FTM1_C0V = 0;
     pinMode(3, OUTPUT);
