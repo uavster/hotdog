@@ -30,4 +30,11 @@ void SetHeadRollDegrees(float angle_degrees);
 // Saves the current servo angles as the origin.
 void SaveServoAnglesAsOrigin();
 
+// Returns the yaw of the robot's head as measured by the servo feedback.
 float GetHeadYawDegrees();
+
+// Returns the pitch of the robot's head as measured by the servo feedback.
+float GetHeadPitchDegrees();
+
+// Returns the roll of the robot's head as measured by the servo feedback.
+float GetHeadRollDegrees();

@@ -118,12 +118,32 @@ void SetHeadYawDegrees(float angle_degrees) {
   FTM0_C4V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
 }
 
+float ServoOrientationDegreesFromFeedbackADCValue(int adc_value) {
+  return 180.0f * (adc_value - kMinus90DegreesFeedbackADCValue) / (kPlus90DegreesFeedbackADCValue - kMinus90DegreesFeedbackADCValue) - 90.0;
+}
+
 float GetHeadYawRawDegrees() {
-  return 180.0f * (analogRead(A1) - kMinus90DegreesFeedbackADCValue) / (kPlus90DegreesFeedbackADCValue - kMinus90DegreesFeedbackADCValue) - 90.0;
+  return ServoOrientationDegreesFromFeedbackADCValue(analogRead(A1));
 }
 
 float GetHeadYawDegrees() {
   return GetHeadYawRawDegrees() + servo_calibration_data.feedback_offsets.yaw;
+}
+
+float GetHeadPitchRawDegrees() {
+  return ServoOrientationDegreesFromFeedbackADCValue(analogRead(A8));
+}
+
+float GetHeadPitchDegrees() {
+  return -(GetHeadPitchRawDegrees() + servo_calibration_data.feedback_offsets.pitch);
+}
+
+float GetHeadRollRawDegrees() {
+  return ServoOrientationDegreesFromFeedbackADCValue(analogRead(A9));
+}
+
+float GetHeadRollDegrees() {
+  return GetHeadRollRawDegrees() + servo_calibration_data.feedback_offsets.roll;
 }
 
 void LoadServoCalibration() {
@@ -138,6 +158,8 @@ void LoadServoCalibration() {
 void SaveServoAnglesAsOrigin() {
   servo_calibration_data.command_offsets = command_degrees;
   servo_calibration_data.feedback_offsets.yaw = -GetHeadYawRawDegrees();
+  servo_calibration_data.feedback_offsets.pitch = -GetHeadPitchRawDegrees();
+  servo_calibration_data.feedback_offsets.roll = -GetHeadRollRawDegrees();
   EEPROM.update(kEEPROMOffsetServoCalibration, static_cast<uint8_t>(sizeof(ServoCalibrationData)));
   EEPROM.put(kEEPROMOffsetServoCalibration + 1, servo_calibration_data);
 }
