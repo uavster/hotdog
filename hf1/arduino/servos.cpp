@@ -16,11 +16,12 @@ typedef struct {
 } ServoAngles;
 
 typedef struct {
-  ServoAngles offsets;
+  ServoAngles command_offsets;
+  ServoAngles feedback_offsets;
 } ServoCalibrationData;
 
 ServoCalibrationData servo_calibration_data;
-ServoAngles servo_degrees;
+ServoAngles command_degrees;
 
 // Frequency of the servo command pulses. 
 // The higher it is, the more time resolution in trajectories.
@@ -46,6 +47,9 @@ constexpr float kMaxPitchDegrees = 60.0f;
 
 constexpr float kMinRollDegrees = -45.0f;
 constexpr float kMaxRollDegrees = 45.0f;
+
+constexpr int32_t kMinus90DegreesFeedbackADCValue = static_cast<uint32_t>((1024 * 0.6f) / 3.3f);
+constexpr int32_t kPlus90DegreesFeedbackADCValue = static_cast<uint32_t>((1024 * 2.45f) / 3.3f);
 
 void LoadServoCalibration();
 
@@ -94,37 +98,46 @@ static float SaturateServoMaxAngle(float angle_degrees) {
 }
 
 void SetHeadPitchDegrees(float angle_degrees) {
-  const float corrected_angle = SaturatePitch(angle_degrees) + servo_calibration_data.offsets.pitch;
-  servo_degrees.pitch = corrected_angle;
+  const float corrected_angle = SaturatePitch(angle_degrees) + servo_calibration_data.command_offsets.pitch;
+  command_degrees.pitch = corrected_angle;
   float pulse_width_ms = (SaturateServoMaxAngle(-corrected_angle) * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
   FTM0_C2V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
 }
 
 void SetHeadRollDegrees(float angle_degrees) {
-  const float corrected_angle = SaturateRoll(angle_degrees) + servo_calibration_data.offsets.roll;
-  servo_degrees.roll = corrected_angle;
+  const float corrected_angle = SaturateRoll(angle_degrees) + servo_calibration_data.command_offsets.roll;
+  command_degrees.roll = corrected_angle;
   float pulse_width_ms = (SaturateServoMaxAngle(corrected_angle) * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
   FTM0_C3V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
 }
 
 void SetHeadYawDegrees(float angle_degrees) {
-  const float corrected_angle = SaturateYaw(angle_degrees) + servo_calibration_data.offsets.yaw;
-  servo_degrees.yaw = corrected_angle;
+  const float corrected_angle = SaturateYaw(angle_degrees) + servo_calibration_data.command_offsets.yaw;
+  command_degrees.yaw = corrected_angle;
   float pulse_width_ms = (SaturateServoMaxAngle(corrected_angle) * kServoMsPer180Degrees) / 180 + kServoZeroDegreePulseMs;
   FTM0_C4V = (pulse_width_ms * kTimerTicksPerSecond) / 1000;
+}
+
+float GetHeadYawRawDegrees() {
+  return 180.0f * (analogRead(A1) - kMinus90DegreesFeedbackADCValue) / (kPlus90DegreesFeedbackADCValue - kMinus90DegreesFeedbackADCValue) - 90.0;
+}
+
+float GetHeadYawDegrees() {
+  return GetHeadYawRawDegrees() + servo_calibration_data.feedback_offsets.yaw;
 }
 
 void LoadServoCalibration() {
   if (EEPROM.read(kEEPROMOffsetServoCalibration) != sizeof(ServoCalibrationData)) {
     LOG_WARNING("Unable to load servo calibration data. Please recalibrate!");
-    servo_calibration_data.offsets = { 0, 0, 0 };
+    servo_calibration_data.command_offsets = { 0, 0, 0 };
     return;
   }
   EEPROM.get(kEEPROMOffsetServoCalibration + 1, servo_calibration_data);
 }
 
 void SaveServoAnglesAsOrigin() {
-  servo_calibration_data.offsets = servo_degrees;
+  servo_calibration_data.command_offsets = command_degrees;
+  servo_calibration_data.feedback_offsets.yaw = -GetHeadYawRawDegrees();
   EEPROM.update(kEEPROMOffsetServoCalibration, static_cast<uint8_t>(sizeof(ServoCalibrationData)));
   EEPROM.put(kEEPROMOffsetServoCalibration + 1, servo_calibration_data);
 }
