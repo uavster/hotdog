@@ -12,7 +12,7 @@
 #include "robot_model.h"
 #include "base_imu.h"
 #include "operation_mode.h"
-#include <EEPROM.h>
+#include "persistance.h"
 
 constexpr float kMinBatteryVoltage = 7.0f;
 constexpr float kDefaultWaitInputTimeoutSeconds = 8.0f;
@@ -100,27 +100,64 @@ bool CheckSRAM(Stream &stream) {
 }
 
 bool CheckEEPROM(Stream &stream) {
-  stream.printf("Checking %d bytes of EEPROM...\n", EEPROM.length());
+  constexpr float kReportPeriodFraction = 0.05f;
+  const int kReportPeriodBytes = kReportPeriodFraction * persistent_storage.capacity();
+  stream.printf("Checking %d bytes of EEPROM... Press ENTER to abort.\n", persistent_storage.capacity());
+  stream.println("0%");
   int first_error_index = -1;
   int num_errors = 0;
-  for (int i = EEPROM.begin(); i < EEPROM.end(); ++i) {
-    uint8_t value = EEPROM.read(i);
-    const uint8_t test_value = value + 0x52;
-    EEPROM.write(i, test_value);
-    if (EEPROM.read(i) != test_value) {
+  int next_report_bytes = kReportPeriodBytes;
+  for (int i = persistent_storage.first_address(); i < persistent_storage.last_address(); ++i) {
+    const auto maybe_original_value = persistent_storage.get<uint8_t>(i);
+    if (!maybe_original_value.ok()) {
+      stream.printf("ERROR: Unable to read original value from address 0x%x.\n", i);
+      return false;
+    }
+    const uint8_t test_value = *maybe_original_value + 0x52;
+    if (persistent_storage.put(i, test_value) != Status::kSuccess) {
+      stream.printf("ERROR: Unable to write test value to address 0x%x.\n", i);
+      return false;
+    }
+    const auto maybe_read_test_value = persistent_storage.get<uint8_t>(i);
+    if (!maybe_read_test_value.ok()) {
+      stream.printf("ERROR: Unable to check written value at address 0x%x.\n", i);
+      return false;
+    }
+    if (*maybe_read_test_value != test_value) {
       if (first_error_index < 0) {
         first_error_index = i;
       }
       ++num_errors;
     }
-    EEPROM.write(i, value);
+    if (persistent_storage.put(i, *maybe_original_value) != Status::kSuccess) {
+      stream.printf("ERROR: Unable to write original value to address 0x%x.\n", i);
+      return false;
+    }
+    if (i == next_report_bytes) {
+      stream.printf("%.0f%%\n", (i * 100.0f) / persistent_storage.capacity());
+      next_report_bytes += kReportPeriodBytes;
+    }
+    if (stream.available()) {
+      // Abort when enter is pressed.
+      // By breaking here, we ensure tested address are left in their original state (no corruption).
+      break;
+    }
   }
+
+  // If enter was pressed to end, consume all keys.
+  while (stream.available()) {
+    stream.read();
+    stream.println("WARNING: Test aborted by user.");
+    return false;    
+  }
+
   if (num_errors > 0) {
     stream.printf("ERROR: EEPROM has %d damaged positions, starting at 0x%x.\n", num_errors, first_error_index);
     return false;
   }
 
   stream.println("OK.");
+
   return true;
 }
 

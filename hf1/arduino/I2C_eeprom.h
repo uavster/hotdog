@@ -147,7 +147,7 @@ public:
 
 
   //  Meta data functions
-  uint32_t getDeviceSize();
+  uint32_t getDeviceSize() const;
   uint8_t  getPageSize();
   uint8_t  calculatePageSize(uint32_t deviceSize);
   [[deprecated("Use calculatePageSize(deviceSize) instead.")]]

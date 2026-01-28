@@ -25,6 +25,10 @@ public:
   // Writes an object of type `ObjectT` from `address`.
   template<typename ObjectT> Status put(int address, const ObjectT &object);
 
+  int capacity() const { return eeprom_.getDeviceSize(); }
+  int first_address() const { return 0; }
+  int last_address() const { return capacity() - 1; }
+
 private:
   I2C_eeprom eeprom_;
 };

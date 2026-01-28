@@ -445,7 +445,7 @@ uint32_t I2C_eeprom::determineSizeNoWrite()
 }
 
 
-uint32_t I2C_eeprom::getDeviceSize()
+uint32_t I2C_eeprom::getDeviceSize() const
 {
   return _deviceSize;
 }
