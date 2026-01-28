@@ -4,8 +4,8 @@
 #include "servos.h"
 #include "Arduino.h"
 #include <algorithm>
-#include <EEPROM.h>
-#include "eeprom_offsets.h"
+#include "persistance_offsets.h"
+#include "persistance.h"
 
 // Servo configuration.
 
@@ -147,12 +147,16 @@ float GetHeadRollDegrees() {
 }
 
 void LoadServoCalibration() {
-  if (EEPROM.read(kEEPROMOffsetServoCalibration) != sizeof(ServoCalibrationData)) {
+  const auto data_size = persistent_storage.get<uint8_t>(kPersistanceOffsetServoCalibration);
+  ASSERT(data_size.ok());
+  if (*data_size != sizeof(ServoCalibrationData)) {
     LOG_WARNING("Unable to load servo calibration data. Please recalibrate!");
     servo_calibration_data.command_offsets = { 0, 0, 0 };
     return;
   }
-  EEPROM.get(kEEPROMOffsetServoCalibration + 1, servo_calibration_data);
+  const auto calibration = persistent_storage.get<ServoCalibrationData>(kPersistanceOffsetServoCalibration + 1);
+  ASSERT(calibration.ok());
+  servo_calibration_data = *calibration;
 }
 
 void SaveServoAnglesAsOrigin() {
@@ -160,6 +164,6 @@ void SaveServoAnglesAsOrigin() {
   servo_calibration_data.feedback_offsets.yaw = -GetHeadYawRawDegrees();
   servo_calibration_data.feedback_offsets.pitch = -GetHeadPitchRawDegrees();
   servo_calibration_data.feedback_offsets.roll = -GetHeadRollRawDegrees();
-  EEPROM.update(kEEPROMOffsetServoCalibration, static_cast<uint8_t>(sizeof(ServoCalibrationData)));
-  EEPROM.put(kEEPROMOffsetServoCalibration + 1, servo_calibration_data);
+  ASSERT(persistent_storage.put(kPersistanceOffsetServoCalibration, static_cast<uint8_t>(sizeof(ServoCalibrationData))) == Status::kSuccess);
+  ASSERT(persistent_storage.put(kPersistanceOffsetServoCalibration + 1, servo_calibration_data) == Status::kSuccess);
 }

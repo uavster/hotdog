@@ -8,7 +8,7 @@
 
 class BaseIMU {
 public:
-  // `calibration_data_offset` indicates where in the EEPROM the calibration data should be placed
+  // `calibration_data_offset` indicates where in the persistent storage the calibration data should be placed
   // by SaveCalibrationData().
   explicit BaseIMU(int calibration_data_offset);
 
@@ -59,7 +59,7 @@ public:
   CalibrationStatus GetCalibrationStatus();
   using CalibrationData = BNO055::CalibrationData;
 
-  static constexpr int kCalibrationDataSizeOnEEPROM = sizeof(CalibrationData) + 1;
+  static constexpr int kCalibrationDataSizeOnStorage = sizeof(CalibrationData) + 1;
 
   CalibrationData GetCalibrationData();
   bool SaveCalibrationData();

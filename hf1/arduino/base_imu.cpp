@@ -1,7 +1,7 @@
 #include "logger_interface.h"
 #include "base_imu.h"
 #include "timer.h"
-#include <EEPROM.h>
+#include "persistance.h"
 
 constexpr uint8_t kDeviceAddress = 0x28;
 
@@ -10,10 +10,10 @@ BaseIMU::BaseIMU(int calibration_data_offset) : bno055_(kDeviceAddress), calibra
 void BaseIMU::Init() {
   ASSERT(bno055_.begin(BNO055_OPERATION_MODE_CONFIG));
   if (LoadCalibrationData()) {
-    LOG_INFO("Base IMU calibration data loaded from EEPROM.");
+    LOG_INFO("Base IMU calibration data loaded from persistent storage.");
   } else {
     LOG_WARNING("Unable to load base IMU calibration data. Please recalibrate!");
-    // Fallback calibration in case EEPROM copy fails. Causes: faulty EEPROM, corrupted data, new CalibrationData size.
+    // Fallback calibration in case loading fails. Causes: faulty I2C or EEPROM, corrupted data, new CalibrationData size.
     const static uint8_t calibration_data[] = { 
       0xe8, 0xff, 0xd8, 0xff, 0xd7, 0xff, 0xe, 0x1, 0x42, 0xf8, 0xbf, 
       0x0, 0x0, 0x0, 0xff, 0xff, 0x1, 0x0, 0xe8, 0x3, 0x33, 0x2 
@@ -60,20 +60,23 @@ void BaseIMU::StopCalibration() {
 }
 
 bool BaseIMU::LoadCalibrationData() {
-  uint8_t calibration_data_size = 0;
-  if (EEPROM.get(calibration_data_offset_, calibration_data_size) != sizeof(CalibrationData)) {
+  const auto calibration_data_size = persistent_storage.get<uint8_t>(calibration_data_offset_);
+  if (!calibration_data_size.ok() || *calibration_data_size != sizeof(CalibrationData)) {
     return false;
   }
-  CalibrationData calibration_data;
-  EEPROM.get(calibration_data_offset_ + 1, calibration_data);
-  bno055_.SetCalibrationData(calibration_data);
+  const auto calibration_data = persistent_storage.get<CalibrationData>(calibration_data_offset_ + 1);
+  if (!calibration_data.ok()) {
+    return false;
+  }
+  bno055_.SetCalibrationData(*calibration_data);
   return true;
 }
 
 bool BaseIMU::SaveCalibrationData() {
-  EEPROM.update(calibration_data_offset_, static_cast<uint8_t>(sizeof(CalibrationData)));
-  EEPROM.put(calibration_data_offset_ + 1, bno055_.GetCalibrationData());
-  return true;
+  if (persistent_storage.put(calibration_data_offset_, static_cast<uint8_t>(sizeof(CalibrationData))) != Status::kSuccess) {
+    return false;
+  }
+  return persistent_storage.put(calibration_data_offset_ + 1, bno055_.GetCalibrationData()) == Status::kSuccess;
 }
 
 Status BaseIMU::AsyncRequestYawPitchRoll() {

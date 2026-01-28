@@ -34,7 +34,9 @@ public:
   BNO055(uint8_t device_address);
 
   // Initializes the IMU or dies if there's any error.
-  // Before reinitializing it, it wait until any pending asynchronous transfers finish.
+  // Must be called before any other member function.
+  // Before reinitializing it, it waits until any pending asynchronous transfers finish.
+  // Precondition: the I2C bus must be initialized before calling this function.
   bool begin(BNO055OperationMode op_mode);
 
   // Sets the operating mode of the IMU or dies if there's any error.

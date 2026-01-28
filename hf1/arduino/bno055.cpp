@@ -44,7 +44,7 @@ static void ReadFromI2C(uint8_t device_address, uint8_t register_address, void *
 		*(bytes++) = Wire.read();
     --length;
 	}
-  ASSERTM(length == 0, "ReadFromI2C ERROR: device responded by the timeout expired reading data.");
+  ASSERTM(length == 0, "ReadFromI2C ERROR: device responded, but the timeout expired reading data.");
 }
 
 static void WriteToI2C(uint8_t device_address, uint8_t register_address, const void *data, uint8_t length) {
@@ -123,10 +123,6 @@ bool BNO055::begin(BNO055OperationMode op_mode) {
   pinMode(27, INPUT);
   SleepForNanos(650'000'000);  // Typical POR time is 650 ms.
 
-  Wire.begin();
-  Wire.setDefaultTimeout(100'000/* us */);
-  SleepForNanos(1'000'000);
-  
   // Wait for the chip to start up and check that we have the right model.
   SleepForNanos(400'000'000); // Typical start-up time is 400 ms.
   int timeout_ms = 200;  

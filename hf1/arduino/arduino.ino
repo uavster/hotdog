@@ -40,7 +40,8 @@
 #include "led.h"
 #include "led_controller.h"
 #include "color_trajectory.h"
-#include "eeprom_offsets.h"
+#include "persistance_offsets.h"
+#include "persistance.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -48,6 +49,8 @@
 #define kMaxRxTxLoopBlockingDurationNs 5'000'000
 
 Logger logger;
+
+PersistentStorage persistent_storage(&Wire);
 
 LedRed red_led;
 LedGreen green_led;
@@ -82,7 +85,7 @@ TimerArduino timer;
 GUIDFactory guid_factory;
 P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
 
-BaseIMU base_imu(kEEPROMOffsetBaseIMUCalibration);
+BaseIMU base_imu(kPersistanceOffsetBaseIMUCalibration);
 
 WheelStateEstimator wheel_state_estimator("WheelStateEstimator");
 WheelSpeedController left_wheel("LeftWheelSpeedController", &wheel_state_estimator.left_wheel_state_filter(), &SetLeftMotorDutyCycle);
@@ -118,10 +121,10 @@ BaseTrajectoryView base_traj_view(&base_traj);
 
 void WaitForSerial() {
   TimerNanosType start_time = GetTimerNanoseconds();
-  while(GetTimerNanoseconds() - start_time < 3'500'000'000ULL) {}
+  while (GetTimerNanoseconds() - start_time < 3'500'000'000ULL) {}
 }
 
-void setup() {  
+void setup() {
   // No need to call Serial.begin() with USB port.
 
   // Configure logger.
@@ -141,9 +144,16 @@ void setup() {
 
   LOG_INFO("Initialized debugging serial port and timing modules.");
 
+  LOG_INFO("Initializing I2C bus 0.");
+  Wire.begin();
+  Wire.setDefaultTimeout(100'000/* us */);
+
+  LOG_INFO("Initializing persistent storage.");
+  persistent_storage.Init();
+
   LOG_INFO("Initializing encoders.");
   InitEncoders();
-  
+
   LOG_INFO("Initializing wheel speed estimator.");
   WheelStateEstimator::Init();
 
@@ -182,15 +192,15 @@ void setup() {
 
   LOG_INFO("Ready.");
 
-// --- Square ---
-// base_traj.Insert(BaseWaypoint(1.62, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
-// base_traj.Insert(BaseWaypoint(2*1.62, BaseTargetState({ BaseStateVars(Point(1, 0), 0) })));
-// base_traj.Insert(BaseWaypoint(3*1.62, BaseTargetState({ BaseStateVars(Point(1, -1), 0) })));
-// base_traj.Insert(BaseWaypoint(4*1.62, BaseTargetState({ BaseStateVars(Point(0, -1), 0) })));
-// base_traj_view.EnableLooping(/*after_seconds=*/1.62).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
+  // --- Square ---
+  // base_traj.Insert(BaseWaypoint(1.62, BaseTargetState({ BaseStateVars(Point(0, 0), 0) })));
+  // base_traj.Insert(BaseWaypoint(2*1.62, BaseTargetState({ BaseStateVars(Point(1, 0), 0) })));
+  // base_traj.Insert(BaseWaypoint(3*1.62, BaseTargetState({ BaseStateVars(Point(1, -1), 0) })));
+  // base_traj.Insert(BaseWaypoint(4*1.62, BaseTargetState({ BaseStateVars(Point(0, -1), 0) })));
+  // base_traj_view.EnableLooping(/*after_seconds=*/1.62).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
 
-// base_trajectory_controller.trajectory(&base_traj_view);
-// base_trajectory_controller.Start();
+  // base_trajectory_controller.trajectory(&base_traj_view);
+  // base_trajectory_controller.Start();
 
   // color_carrier.EnableLooping(/*after_seconds=*/3).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
   // color_modulator.EnableLooping(/*after_seconds=*/0.5).EnableInterpolation(InterpolationConfig{ .type = InterpolationType::kLinear });
@@ -208,7 +218,7 @@ void loop() {
 
   if (IsTrajectoryControlEnabled()) {
     head_trajectory_controller.Run();
-    base_trajectory_controller.Run();    
+    base_trajectory_controller.Run();
     NotifyLeftMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().left_wheel_speed_controller().is_turning_forward());
     NotifyRightMotorDirection(GetTimerTicks(), !base_trajectory_controller.base_speed_controller().right_wheel_speed_controller().is_turning_forward());
   }
@@ -219,7 +229,7 @@ void loop() {
 
   bool process_comms = true;
   const auto process_comms_start_time_ns = timer.GetLocalNanoseconds();
-  while(process_comms) {
+  while (process_comms) {
     // Keep processing communications while there are bytes read
     // or ready to send.
     process_comms = p2p_stream.input().Run() > 0;
