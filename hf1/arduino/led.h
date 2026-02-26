@@ -5,11 +5,6 @@
 #include "logger_interface.h"
 #include "color.h"
 
-// --- Legacy functions for the LED on the Teensy 3.2 ---
-void LedToggle();
-void LedShowAssert();
-// ------------------------------------------------------
-
 void InitLeds();
 
 class Led {
@@ -98,6 +93,9 @@ public:
   void SetRGB(float red, float green, float blue);
   void SetColor(const ColorRGB &color);
   void SetColor(const ColorHSV &color);
+
+  ColorRGB GetColorRGB() const;
+  ColorHSV GetColorHSV() const;
 
 private:
   LedRed &red_led_;

@@ -72,6 +72,10 @@ typedef void (*TimerISR)(void);
 // Adds a custom ISR, up to a maximum of kTimerMaxIsrs. Asserts if no space for new ISRs.
 void AddTimerIsr(TimerISR custom_isr);
 
+// Adds a custom ISR, up to a maximum of kTimerMaxIsrs, or does nothing if the ISR had already
+// been added. Asserts if no space for new ISRs.
+void AddTimerIsrWithoutDuplicating(TimerISR custom_isr);
+
 // Removes a custom ISR. Asserts if it was not previously added.
 void RemoveTimerIsr(TimerISR custom_isr);
 

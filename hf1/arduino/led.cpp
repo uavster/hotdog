@@ -16,24 +16,6 @@ constexpr int kRedLedBitMask = static_cast<uint8_t>(1) << 1;
 constexpr int kGreenLedBitMask = static_cast<uint8_t>(1) << 5;
 constexpr int kBlueLedBitMask = static_cast<uint8_t>(1) << 0;
 
-
-// --- Legacy functions for the LED on the Teensy 3.2 ---
-void LedToggle() {
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-}
-
-static void LedAssertTimerIsr() {
-  if (DidTimerCountReachZero()) {
-    LedToggle();
-  }
-}
-
-void LedShowAssert() {
-  AddTimerIsr(&LedAssertTimerIsr);
-}
-// ------------------------------------------------------
-
 void Led::intensity(float i) { level_ = static_cast<uint8_t>(i * kNumLedBrightnessLevels); }
 float Led::intensity() const { return level_ / static_cast<float>(kNumLedBrightnessLevels); }
 
@@ -139,3 +121,12 @@ void LedRGB::SetColor(const ColorHSV &color) {
   const auto rgb = ColorRGB::From(color);
   SetRGB(rgb.red(), rgb.green(), rgb.blue());
 }
+  
+ColorRGB LedRGB::GetColorRGB() const {
+  return ColorRGB(red_led_.intensity(), green_led_.intensity(), blue_led_.intensity());
+}
+
+ColorHSV LedRGB::GetColorHSV() const {
+  return ColorHSV::From(GetColorRGB());
+}
+

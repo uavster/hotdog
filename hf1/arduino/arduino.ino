@@ -48,8 +48,6 @@
 // This should be the minium period of all control loops.
 #define kMaxRxTxLoopBlockingDurationNs 5'000'000
 
-Logger logger;
-
 PersistentStorage persistent_storage(&Wire);
 
 LedRed red_led;
@@ -58,6 +56,8 @@ LedBlue blue_led;
 LedModulator led_modulator(&red_led, &green_led, &blue_led);
 LedRGB rgb_led(&red_led, &green_led, &blue_led);
 LedHSVTrajectoryController led_controller("LedController", &rgb_led);
+
+Logger logger(&rgb_led);
 
 // Trajectory<ColorHSVTargetState, /*Capacity=*/6> color_carrier_waypoints({
 //   ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(0, 1, 1) }}),
@@ -127,17 +127,17 @@ void WaitForSerial() {
 void setup() {
   // No need to call Serial.begin() with USB port.
 
-  // Configure logger.
+  // Add logger instance to front of logger list.
   *logger.base_logger() = SetLogger(&logger);
 
   InitLeds();
   InitTimer();
 
-  // Serial starts working after some time. Wait, so we don't miss any log.
-  // While we wait, light all three LED colors to make sure they works.
+  // Light all three LED colors to make sure they work.
   rgb_led.SetRGB(1, 1, 1);
+
+  // Serial starts working after some time. Wait, so we don't miss any log.
   WaitForSerial();
-  rgb_led.SetRGB(0, 1, 0);
 
   EnableWheelControl(true);
   EnableTrajectoryControl(true);
@@ -189,6 +189,8 @@ void setup() {
 
   left_wheel.Start();
   right_wheel.Start();
+
+  rgb_led.SetRGB(0, 1, 0);
 
   LOG_INFO("Ready.");
 

@@ -141,11 +141,22 @@ void AddTimerIsr(TimerISR custom_isr) {
   }
 }
 
+void AddTimerIsrWithoutDuplicating(TimerISR custom_isr) {
+  ASSERT(timer_initialized);
+  NO_TIMER_IRQ {
+    int slot_index = FindIsr(custom_isr);
+    if (slot_index >= 0) {
+      isr[slot_index] = NULL;
+    }
+    AddTimerIsr(custom_isr);
+  }
+}
+
 void RemoveTimerIsr(TimerISR custom_isr) {
   ASSERT(timer_initialized);
   NO_TIMER_IRQ {
     int slot_index = FindIsr(custom_isr);
-    ASSERTM(false, "ISR not found.");
+    ASSERTM(slot_index < 0, "ISR not found.");
     isr[slot_index] = NULL;
   }
 }
