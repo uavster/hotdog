@@ -6,6 +6,7 @@
 #include "motors.h"
 #include "checks.h"
 #include "servos.h"
+#include "power.h"
 
 #include "timer_arduino.h"
 #include "wheel_controller.h"
@@ -694,6 +695,18 @@ void ResetMCUCommandHandler::Run(Stream &stream, const CommandLine &command_line
 
 void ResetMCUCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Resets the MCU, including the peripherals.");
+}
+
+void ShutdownCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.println("Shutting down the robot...");
+  PowerOff();
+  stream.println("If you see this message, the MCU is powered over USB.");
+  stream.println("The shutdown command only affected the Jetson and motors.");
+  stream.println("The MCU will be switched off as soon as you disconnect the USB cable.");
+}
+
+void ShutdownCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Shuts down the robot. It is equivalent to long-pressing the power button.");
 }
 
 void Console::ProcessCommandLine() {

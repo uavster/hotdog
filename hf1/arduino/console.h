@@ -713,6 +713,14 @@ private:
   ResetMCUCommandHandler reset_mcu_handler_;
 };
 
+class ShutdownCommandHandler : public CommandHandler {
+public:
+  ShutdownCommandHandler() : CommandHandler("shutdown") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class Console {
 public:
   Console(Stream *input_stream)
@@ -727,6 +735,7 @@ public:
                      &check_command_handler_,
                      &calibrate_command_handler_,
                      &reset_command_handler_,
+                     &shutdown_command_handler_,
                      &every_command_handler_ }) {
   }
   void Run();
@@ -748,6 +757,7 @@ private:
   CheckCommandHandler check_command_handler_;
   CalibrateCommandHandler calibrate_command_handler_;
   ResetCommandHandler reset_command_handler_;
+  ShutdownCommandHandler shutdown_command_handler_;
   EveryCommandHandler every_command_handler_;
 
   CommandInterpreter interpreter_;
