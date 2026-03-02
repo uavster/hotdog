@@ -226,8 +226,33 @@ void CategoryHandler::Help(Stream &stream, const CommandLine &command_line) {
 }
 
 void ReadPowerCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  stream.printf("robot: %.1fV %.4fA %.4fW\n", GetPowerVolts(), GetPowerAmps(), GetPowerWatts());
-  stream.printf("  motors: %.1fV %.4fA %.4fW\n", GetMotorsVolts(), GetMotorsAmps(), GetMotorsWatts());
+  const PowerInfo power_info = GetPowerInfo();
+  stream.printf("Source: ");
+  switch(power_info.source) {
+    case PowerSource::kUnknown: stream.println("unknown"); break;
+    case PowerSource::kUSB: stream.println("USB"); break;
+    case PowerSource::kInternalBatteries: stream.println("internal batteries"); break;
+    case PowerSource::kExternalConnector: stream.println("external connector"); break;
+    default: ASSERT(false);
+  }
+  stream.print("Total: ");
+  if (!power_info.total.has_value()) {
+    stream.println("unavailable.");
+  } else {
+    stream.printf("%.1fV %.4fA %.4fW\n", power_info.total->volts, power_info.total->amps, power_info.total->watts);
+  }
+  stream.print("  motors: ");
+  if (!power_info.motors.has_value()) {
+    stream.println("unavailable.");
+  } else {
+    stream.printf("%.1fV %.4fA %.4fW\n", power_info.motors->volts, power_info.motors->amps, power_info.motors->watts);
+  }
+  stream.print("  servos: ");
+  if (!power_info.motors.has_value()) {
+    stream.println("unavailable.");
+  } else {
+    stream.printf("%.1fV %.4fA %.4fW\n", power_info.servos->volts, power_info.servos->amps, power_info.servos->watts);
+  }
 }
 
 void ReadPowerCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {

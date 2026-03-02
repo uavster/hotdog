@@ -27,23 +27,41 @@
 #ifndef POWER_INCLUDED_
 #define POWER_INCLUDED_
 
+#include <optional>
+
 // Cuts power to the control board from the internal batteries or external power source.
 // Calling this function is equivalent to pressing the power button until hardware shutdown. 
 void PowerOff();
 
-// Returns the voltage of the internal batteries or external power source 
-float GetPowerVolts();
+enum PowerSource {
+  kUnknown,
+  kUSB,
+  kInternalBatteries,
+  kExternalConnector
+};
 
-// Returns the instantaneous current taken from the internal batteries or external power source, in amps.
-// This is the current consumed by the robot's board, the motors, the servos and the Jetson Nano.
-// If the robot carries a Jetson Orin Nano, its current is not included in the measure as it goes straight
-// into the Jetson bypassing the current measure resistor.
-float GetPowerAmps();
+struct PowerMeasurement {
+  float volts;
+  float amps;
+  float watts;
+};
 
-// Returns the instantaneous power taken from the internal batteries or external power source, in watts.
-// This is the power consumed by the robot's board, the motors, the servos and the Jetson Nano.
-// If the robot carries a Jetson Orin Nano, its power is not included in the measure as it goes straight
-// into the Jetson bypassing the current measure resistor.
-float GetPowerWatts();
+struct PowerInfo {
+  PowerSource source;
+  std::optional<PowerMeasurement> total;
+  std::optional<PowerMeasurement> motors;
+  std::optional<PowerMeasurement> servos;
+};
+
+// Returns the main source of power for the robot.
+PowerSource GetPowerSource();
+
+// Returns information about the power source and instantaneous consumption of the robot.
+// It does not include the power drawn by the on/off circuit and the 7.2V regulator.
+// This is the power consumed by the robot's compute, motors and servos.
+// The total power includes that of the Jetson Nano, if carried by the robot.
+// If the robot carries a Jetson Orin Nano, its power is not included in the total,
+// as current goes straight into the Jetson, bypassing the current measure resistor.
+PowerInfo GetPowerInfo();
 
 #endif  // POWER_INCLUDED_

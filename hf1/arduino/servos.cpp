@@ -167,3 +167,4 @@ void SaveServoAnglesAsOrigin() {
   ASSERT(persistent_storage.put(kPersistanceOffsetServoCalibration, static_cast<uint8_t>(sizeof(ServoCalibrationData))) == Status::kSuccess);
   ASSERT(persistent_storage.put(kPersistanceOffsetServoCalibration + 1, servo_calibration_data) == Status::kSuccess);
 }
+

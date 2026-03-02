@@ -14,7 +14,7 @@
 #include "operation_mode.h"
 #include "persistance.h"
 
-constexpr float kMinPowerVoltage = 7.0f;
+constexpr float kMinPowerVoltage = 6.8f;
 constexpr float kDefaultWaitInputTimeoutSeconds = 8.0f;
 
 // Returns true if enter was pressed, or false if the timeout expired.
@@ -162,9 +162,24 @@ bool CheckEEPROM(Stream &stream) {
 }
 
 bool CheckPower(Stream &stream) {
-  const float voltage = GetPowerVolts();
-  const bool ok = voltage >= kMinPowerVoltage;
-  stream.printf("Power is at %.1fV. The minimum allowed level is %.1fV.\n", voltage, kMinPowerVoltage);
+  bool ok = true;
+  const PowerInfo power_info = GetPowerInfo();
+  if (!power_info.total.has_value()) {
+    stream.println("ERROR: No power for Jetson or motors. Did you forget to install internal batteries or plug an external power source?");
+    ok = false;
+  } else {
+    if (power_info.total->volts < kMinPowerVoltage) {
+      stream.printf("ERROR: Power is at %.1fV. The minimum allowed level is %.1fV.\n", power_info.total->volts, kMinPowerVoltage);
+      ok = false;
+    }
+  }
+  if (!power_info.motors.has_value()) {
+    stream.println("ERROR: No power for motors. Did you forget to install internal batteries or plug an external power source?");
+    // TODO: check motor voltage level.
+  }
+  if (!power_info.servos.has_value()) {
+    stream.println("ERROR: No power for servos. Did you forget to install internal batteries or plug an external power source?");
+  }
   if (ok) {
     stream.print("OK.");
   } else {
