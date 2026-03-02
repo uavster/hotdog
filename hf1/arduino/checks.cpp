@@ -4,7 +4,7 @@
 #include "checks.h"
 #include "p2p_packet_stream_arduino.h"
 #include "mcu_id.h"
-#include "battery.h"
+#include "power.h"
 #include "motors.h"
 #include "timer.h"
 #include <util/atomic.h>
@@ -14,7 +14,7 @@
 #include "operation_mode.h"
 #include "persistance.h"
 
-constexpr float kMinBatteryVoltage = 7.0f;
+constexpr float kMinPowerVoltage = 7.0f;
 constexpr float kDefaultWaitInputTimeoutSeconds = 8.0f;
 
 // Returns true if enter was pressed, or false if the timeout expired.
@@ -161,14 +161,14 @@ bool CheckEEPROM(Stream &stream) {
   return true;
 }
 
-bool CheckBattery(Stream &stream) {
-  const float voltage = GetBatteryVoltage();
-  const bool ok = voltage >= kMinBatteryVoltage;
-  stream.printf("Battery is at %.1fV. The minimum allowed level is %.1fV.\n", voltage, kMinBatteryVoltage);
+bool CheckPower(Stream &stream) {
+  const float voltage = GetPowerVolts();
+  const bool ok = voltage >= kMinPowerVoltage;
+  stream.printf("Power is at %.1fV. The minimum allowed level is %.1fV.\n", voltage, kMinPowerVoltage);
   if (ok) {
     stream.print("OK.");
   } else {
-    stream.print("ERROR: Battery voltage is too low.");
+    stream.print("ERROR: Power voltage is too low.");
   }
   stream.println();
   return ok;
@@ -206,8 +206,8 @@ bool CheckMotors(Stream &stream, bool check_preconditions) {
       stream.println("ERROR: The MCU timer is not working as expected.");
       return false;
     }
-    if (!CheckBattery()) {
-      stream.println("ERROR: Battery voltage is to low to run this test.");
+    if (!CheckPower()) {
+      stream.println("ERROR: Power check failed.");
       return false;
     }  
   }
@@ -626,8 +626,8 @@ bool CheckBaseMotion(Stream &stream, bool check_preconditions) {
       stream.println("ERROR: The MCU timer is not working as expected.");
       return false;
     }
-    if (!CheckBattery()) {
-      stream.println("ERROR: Battery voltage is to low to run this test.");
+    if (!CheckPower()) {
+      stream.println("ERROR: Power check failed.");
       return false;
     }
   }

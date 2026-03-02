@@ -151,10 +151,10 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
-class ReadBatteryCommandHandler : public CommandHandler {
+class ReadPowerCommandHandler : public CommandHandler {
 public:
-  ReadBatteryCommandHandler()
-    : CommandHandler("battery") {}
+  ReadPowerCommandHandler()
+    : CommandHandler("power") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;
@@ -431,7 +431,7 @@ private:
 class ReadCommandHandler : public CategoryHandler {
 public:
   ReadCommandHandler()
-    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_current_handler_, &read_base_handler_, &read_encoders_handler_ }) {}
+    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_power_handler_, &read_base_handler_, &read_encoders_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from an information source on the robot.");    
@@ -440,8 +440,7 @@ public:
 private:
   ReadTimerCommandHandler read_timer_handler_;
   ReadGlobalTimerCommandHandler read_global_timer_handler_;
-  ReadBatteryCommandHandler read_battery_handler_;
-  ReadCurrentCommandHandler read_current_handler_;
+  ReadPowerCommandHandler read_power_handler_;
   ReadBaseCommandHandler read_base_handler_;
   ReadEncodersCommandHandler read_encoders_handler_;
 };
@@ -577,9 +576,9 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
-class CheckBatteryCommandHandler : public CommandHandler {
+class CheckPowerCommandHandler : public CommandHandler {
 public:
-  CheckBatteryCommandHandler() : CommandHandler("battery") {}
+  CheckPowerCommandHandler() : CommandHandler("power") {}
 
   void Run(Stream &stream, const CommandLine &command_line) override;
   void Describe(Stream &stream, const CommandLine &command_line) override;
@@ -644,7 +643,7 @@ class CheckCommandHandler : public CategoryHandler {
 public:
   CheckCommandHandler()
     : CategoryHandler("check", { 
-      &check_mcu_handler_, &check_sram_handler_, &check_eeprom_handler_, &check_timer_handler_, &check_battery_handler_, 
+      &check_mcu_handler_, &check_sram_handler_, &check_eeprom_handler_, &check_timer_handler_, &check_power_handler_, 
       &check_motors_handler_, &check_encoders_handler_, &check_base_command_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
@@ -656,7 +655,7 @@ private:
   CheckSRAMCommandHandler check_sram_handler_;
   CheckEEPROMCommandHandler check_eeprom_handler_;
   CheckTimerCommandHandler check_timer_handler_;
-  CheckBatteryCommandHandler check_battery_handler_;
+  CheckPowerCommandHandler check_power_handler_;
   CheckMotorsCommandHandler check_motors_handler_;
   CheckEncodersCommandHandler check_encoders_handler_;
   CheckBaseCommandHandler check_base_command_handler_;

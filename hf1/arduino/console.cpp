@@ -1,6 +1,5 @@
 #include "kinetis.h"
 #include "console.h"
-#include "battery.h"
 #include "status_or.h"
 #include "base_imu.h"
 #include "motors.h"
@@ -226,20 +225,12 @@ void CategoryHandler::Help(Stream &stream, const CommandLine &command_line) {
   interpreter_.PrintCommandDescriptions(stream, command_line);
 }
 
-void ReadBatteryCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  stream.printf("%.1fV\n", GetBatteryVoltage());
+void ReadPowerCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.printf("robot: %.1fV %.4fA %.4fW\n", GetPowerVolts(), GetPowerAmps(), GetPowerWatts());
 }
 
-void ReadBatteryCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Prints the battery voltage.");
-}
-
-void ReadCurrentCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  stream.printf("%.4fA\n", GetCurrentAmps());
-}
-
-void ReadCurrentCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
-  stream.println("Prints the current consumed from the internal battery or external power source.");
+void ReadPowerCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Prints power measurements.");
 }
 
 void ReadBaseIMUOrientationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
@@ -591,11 +582,11 @@ void CheckEEPROMCommandHandler::Describe(Stream &stream, const CommandLine &comm
   stream.println("Checks the integrity of the EEPROM memory.");
 }
 
-void CheckBatteryCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
-  CheckBattery(stream);
+void CheckPowerCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  CheckPower(stream);
 }
 
-void CheckBatteryCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+void CheckPowerCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
   stream.println("Checks the battery has an appropriate voltage.");
 }
 
