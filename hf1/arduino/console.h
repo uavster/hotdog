@@ -160,6 +160,15 @@ public:
   void Describe(Stream &stream, const CommandLine &command_line) override;
 };
 
+class ReadCurrentCommandHandler : public CommandHandler {
+public:
+  ReadCurrentCommandHandler()
+    : CommandHandler("current") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class ReadBaseIMUOrientationCommandHandler : public CommandHandler {
 public:
   ReadBaseIMUOrientationCommandHandler() : CommandHandler("orientation") {}
@@ -422,7 +431,7 @@ private:
 class ReadCommandHandler : public CategoryHandler {
 public:
   ReadCommandHandler()
-    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_base_handler_, &read_encoders_handler_ }) {}
+    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_battery_handler_, &read_current_handler_, &read_base_handler_, &read_encoders_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from an information source on the robot.");    
@@ -432,6 +441,7 @@ private:
   ReadTimerCommandHandler read_timer_handler_;
   ReadGlobalTimerCommandHandler read_global_timer_handler_;
   ReadBatteryCommandHandler read_battery_handler_;
+  ReadCurrentCommandHandler read_current_handler_;
   ReadBaseCommandHandler read_base_handler_;
   ReadEncodersCommandHandler read_encoders_handler_;
 };

@@ -234,6 +234,14 @@ void ReadBatteryCommandHandler::Describe(Stream &stream, const CommandLine &comm
   stream.println("Prints the battery voltage.");
 }
 
+void ReadCurrentCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.printf("%.4fA\n", GetCurrentAmps());
+}
+
+void ReadCurrentCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Prints the current consumed from the internal battery or external power source.");
+}
+
 void ReadBaseIMUOrientationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   const auto ypr = base_imu.GetYawPitchRoll();
   stream.printf("yaw:%f, pitch:%f, roll:%f [radians]\n", ypr.z(), ypr.y(), ypr.x());
