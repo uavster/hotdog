@@ -227,6 +227,7 @@ void CategoryHandler::Help(Stream &stream, const CommandLine &command_line) {
 
 void ReadPowerCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   stream.printf("robot: %.1fV %.4fA %.4fW\n", GetPowerVolts(), GetPowerAmps(), GetPowerWatts());
+  stream.printf("  motors: %.1fV %.4fA %.4fW\n", GetMotorsVolts(), GetMotorsAmps(), GetMotorsWatts());
 }
 
 void ReadPowerCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {

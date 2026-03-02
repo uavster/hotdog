@@ -1,5 +1,11 @@
 #include "motors.h"
 #include "Arduino.h"
+#include "power.h"
+
+constexpr float kCurrentMeasureMaxADCVolts = 3.3f;
+constexpr float kCurrentMeasureMaxADCCount = 1023.0f;
+constexpr float kCurrentMeasureAmplifierGain = 50.0f;
+constexpr float kCurrentMeasureResistorOhms = 0.015f;
 
 // The lower the frequency, the more torque at low speeds, but the less spatial resolution of motor control. 
 // The higher the frequency, the lower the duty cycle resolution. 
@@ -69,3 +75,23 @@ void SetLeftMotorDutyCycle(float s) {
     digitalWrite(16, 0);
   }
 }
+
+static float GetCurrentResistorVolts() {
+  return (static_cast<uint32_t>(analogRead(A7)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
+}
+
+float GetMotorsVolts() {
+  return GetPowerVolts() - GetCurrentResistorVolts();
+}
+
+float GetMotorsAmps() {
+  return GetCurrentResistorVolts() / kCurrentMeasureResistorOhms;
+}
+
+float GetMotorsWatts() {
+  return GetMotorsVolts() * GetMotorsAmps();
+}
+
+
+
+
