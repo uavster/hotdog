@@ -227,32 +227,44 @@ void CategoryHandler::Help(Stream &stream, const CommandLine &command_line) {
 
 void ReadPowerCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   const PowerInfo power_info = GetPowerInfo();
-  stream.printf("Source: ");
+  stream.print("Source: ");
+  constexpr char kUnavailableStr[] = "unavailable";
+  constexpr char kSeparatorStr[] = "; ";
   switch(power_info.source) {
-    case PowerSource::kUnknown: stream.println("unknown"); break;
-    case PowerSource::kUSB: stream.println("USB"); break;
-    case PowerSource::kInternalBatteries: stream.println("internal batteries"); break;
-    case PowerSource::kExternalConnector: stream.println("external connector"); break;
+    case PowerSource::kUnknown: stream.print("unknown"); break;
+    case PowerSource::kUSB: stream.print("USB"); break;
+    case PowerSource::kInternalBatteries: stream.print("internal batteries"); break;
+    case PowerSource::kExternalConnector: stream.printf("external connector (%.1fV)", GetJackConnectorVolts()); break;
     default: ASSERT(false);
   }
-  stream.print("Total: ");
+  stream.print(kSeparatorStr);
+  stream.print("total: ");
   if (!power_info.total.has_value()) {
-    stream.println("unavailable.");
+    stream.print(kUnavailableStr);
   } else {
-    stream.printf("%.1fV %.4fA %.4fW\n", power_info.total->volts, power_info.total->amps, power_info.total->watts);
+    stream.printf("%.3fW (%.1fV %.4fA)", power_info.total->watts, power_info.total->volts, power_info.total->amps);
   }
-  stream.print("  motors: ");
+  stream.print(" => [compute: ");
+  if (!power_info.total.has_value() || !power_info.motors.has_value() || !power_info.servos.has_value()) {
+    stream.print(kUnavailableStr);
+  } else {
+    stream.printf("%.3fW", power_info.total->watts - power_info.motors->watts - power_info.servos->watts);
+  }
+  stream.print(kSeparatorStr);
+  stream.print("motors: ");
   if (!power_info.motors.has_value()) {
-    stream.println("unavailable.");
+    stream.print(kUnavailableStr);
   } else {
-    stream.printf("%.1fV %.4fA %.4fW\n", power_info.motors->volts, power_info.motors->amps, power_info.motors->watts);
+    stream.printf("%.3fW (%.1fV %.4fA)", power_info.motors->watts, power_info.motors->volts, power_info.motors->amps);
   }
-  stream.print("  servos: ");
-  if (!power_info.motors.has_value()) {
-    stream.println("unavailable.");
+  stream.print(kSeparatorStr);
+  stream.print("servos: ");
+  if (!power_info.servos.has_value()) {
+    stream.print(kUnavailableStr);
   } else {
-    stream.printf("%.1fV %.4fA %.4fW\n", power_info.servos->volts, power_info.servos->amps, power_info.servos->watts);
+    stream.printf("%.3fW (%.1fV %.4fA)", power_info.servos->watts, power_info.servos->volts, power_info.servos->amps);
   }
+  stream.println("]");
 }
 
 void ReadPowerCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {

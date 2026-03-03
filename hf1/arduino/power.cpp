@@ -20,12 +20,17 @@ void PowerOff() {
 }
 
 static float GetPowerVolts() {
-  // ADC level.
-  const int level = analogRead(A0);
-  // Level to voltage at ADC input.
-  const float adc_voltage = (kCurrentMeasureMaxADCVolts * level) / kCurrentMeasureMaxADCCount;
+  // Voltage at ADC input.
+  const float adc_voltage = (kCurrentMeasureMaxADCVolts * analogRead(A0)) / kCurrentMeasureMaxADCCount;
   // Compensate effect of voltage divider.
   return ((100 + 470) * adc_voltage) / 100;
+}
+
+float GetJackConnectorVolts() {
+  // Voltage at ADC input.
+  const float adc_voltage = (kCurrentMeasureMaxADCVolts * analogRead(A10)) / kCurrentMeasureMaxADCCount;
+  // Compensate effect of voltage divider.
+  return ((47 + 470) * adc_voltage) / 47;
 }
 
 static float GetPowerAmps() {
@@ -34,8 +39,12 @@ static float GetPowerAmps() {
 
 static PowerSource PowerSourceFromPowerVolts(float power_volts) {
   if (power_volts > 5.0f) {
-    // TODO: disambiguate between battery and external.
-    return PowerSource::kExternalConnector;
+    // Disambiguate between battery and external.
+    if (GetJackConnectorVolts() > 7.2f) {
+      return PowerSource::kExternalConnector;
+    } else {
+      return PowerSource::kInternalBatteries;
+    }
   }
   if (Serial) { return PowerSource::kUSB; }
   return PowerSource::kUnknown;
@@ -50,8 +59,7 @@ static float GetMotorsCurrentResistorVolts() {
 }
 
 static float GetServosCurrentResistorVolts() {
-  // TODO: read from correct ADC channel.
-  return (static_cast<uint32_t>(analogRead(A7)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
+  return (static_cast<uint32_t>(analogRead(A12)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
 }
 
 // Returns a piecewise linear interpolation of the forward voltage for diode SDT5A60SA at Ta=25C.
@@ -73,10 +81,6 @@ static float ApproximateDiodeForwardVoltageFromCurrent(float current) {
   if (log_current < kLogIf2) { return (log_current - kLogIf1) * (kVf2 - kVf1) / (kLogIf2 - kLogIf1) + kVf1; }
   if (log_current < kLogIf3) { return (log_current - kLogIf2) * (kVf3 - kVf2) / (kLogIf3 - kLogIf2) + kVf2; }
   return (log_current - kLogIf3) * (kVf4 - kVf3) / (kLogIf4 - kLogIf3) + kVf3;
-}
-
-float GetServosAmps() {
-  return GetServosCurrentResistorVolts() / kServosCurrentMeasureResistorOhms;
 }
 
 PowerInfo GetPowerInfo() {

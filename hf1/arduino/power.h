@@ -64,4 +64,6 @@ PowerSource GetPowerSource();
 // as current goes straight into the Jetson, bypassing the current measure resistor.
 PowerInfo GetPowerInfo();
 
+float GetJackConnectorVolts();
+
 #endif  // POWER_INCLUDED_
