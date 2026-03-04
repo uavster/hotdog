@@ -24,7 +24,7 @@ void PowerOff() {
 static ADC power_adc;
 
 static int adc1_accumulator;
-static RingBuffer<uint16_t, 64> adc1_samples;
+static RingBuffer<uint16_t, 128> adc1_samples;
 
 static void power_adc1_isr() {
   // Box filter with a length equal to the ring buffer's capacity.
@@ -46,6 +46,7 @@ static float GetADC1Filtered() {
 void InitPower() {
   // Start continuous capture of servos current, so it's digitally filtered in the background.
   adc1_accumulator = 0;
+  // This configuration results in the ISR called at approximately 500 Hz.
   power_adc.adc1->setConversionSpeed(ADC_CONVERSION_SPEED::VERY_LOW_SPEED);
   power_adc.adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
   power_adc.adc1->setAveraging(32);
