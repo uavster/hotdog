@@ -6,6 +6,7 @@
 #include <algorithm>
 #include "persistance_offsets.h"
 #include "persistance.h"
+#include "ADC/ADC.h"
 
 // Servo configuration.
 
@@ -122,8 +123,10 @@ float ServoOrientationDegreesFromFeedbackADCValue(int adc_value) {
   return 180.0f * (adc_value - kMinus90DegreesFeedbackADCValue) / (kPlus90DegreesFeedbackADCValue - kMinus90DegreesFeedbackADCValue) - 90.0;
 }
 
+static ADC servos_feedback_adc;
+
 float GetHeadYawRawDegrees() {
-  return ServoOrientationDegreesFromFeedbackADCValue(analogRead(A1));
+  return ServoOrientationDegreesFromFeedbackADCValue(servos_feedback_adc.analogRead(A1));
 }
 
 float GetHeadYawDegrees() {
@@ -131,7 +134,7 @@ float GetHeadYawDegrees() {
 }
 
 float GetHeadPitchRawDegrees() {
-  return ServoOrientationDegreesFromFeedbackADCValue(analogRead(A8));
+  return ServoOrientationDegreesFromFeedbackADCValue(servos_feedback_adc.analogRead(A8));
 }
 
 float GetHeadPitchDegrees() {
@@ -139,7 +142,7 @@ float GetHeadPitchDegrees() {
 }
 
 float GetHeadRollRawDegrees() {
-  return ServoOrientationDegreesFromFeedbackADCValue(analogRead(A9));
+  return ServoOrientationDegreesFromFeedbackADCValue(servos_feedback_adc.analogRead(A9));
 }
 
 float GetHeadRollDegrees() {

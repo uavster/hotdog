@@ -1,7 +1,7 @@
 #include <optional>
 #include "power.h"
-#include <Arduino.h>
 #include "timer_arduino.h"
+#include "ADC/ADC.h"
 
 constexpr float kCurrentMeasureMaxADCVolts = 3.3f;
 constexpr float kCurrentMeasureMaxADCCount = 1023.0f;
@@ -19,22 +19,24 @@ void PowerOff() {
   pinMode(5, INPUT);
 }
 
+static ADC power_adc;
+
 static float GetPowerVolts() {
   // Voltage at ADC input.
-  const float adc_voltage = (kCurrentMeasureMaxADCVolts * analogRead(A0)) / kCurrentMeasureMaxADCCount;
+  const float adc_voltage = (kCurrentMeasureMaxADCVolts * power_adc.analogRead(A0)) / kCurrentMeasureMaxADCCount;
   // Compensate effect of voltage divider.
   return ((100 + 470) * adc_voltage) / 100;
 }
 
 float GetJackConnectorVolts() {
   // Voltage at ADC input.
-  const float adc_voltage = (kCurrentMeasureMaxADCVolts * analogRead(A10)) / kCurrentMeasureMaxADCCount;
+  const float adc_voltage = (kCurrentMeasureMaxADCVolts * power_adc.analogRead(A10)) / kCurrentMeasureMaxADCCount;
   // Compensate effect of voltage divider.
   return ((47 + 470) * adc_voltage) / 47;
 }
 
 static float GetPowerAmps() {
-  return (static_cast<uint32_t>(analogRead(A6)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain * kTotalCurrentMeasureResistorOhms);
+  return (static_cast<uint32_t>(power_adc.analogRead(A6)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain * kTotalCurrentMeasureResistorOhms);
 }
 
 static PowerSource PowerSourceFromPowerVolts(float power_volts) {
@@ -55,11 +57,11 @@ PowerSource GetPowerSource() {
 }
 
 static float GetMotorsCurrentResistorVolts() {
-  return (static_cast<uint32_t>(analogRead(A7)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
+  return (static_cast<uint32_t>(power_adc.analogRead(A7)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
 }
 
 static float GetServosCurrentResistorVolts() {
-  return (static_cast<uint32_t>(analogRead(A12)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
+  return (static_cast<uint32_t>(power_adc.analogRead(A12)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
 }
 
 // Returns a piecewise linear interpolation of the forward voltage for diode SDT5A60SA at Ta=25C.

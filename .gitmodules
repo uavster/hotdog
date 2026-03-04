@@ -1,0 +1,3 @@
+[submodule "hf1/arduino/ADC"]
+	path = hf1/arduino/ADC
+	url = git@github.com:pedvide/ADC.git

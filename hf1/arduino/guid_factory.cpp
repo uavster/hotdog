@@ -1,10 +1,13 @@
 #include <Arduino.h>
 #include "guid_factory.h"
+#include "ADC/ADC.h"
 
 GUIDFactory::GUIDFactory() {
   static bool is_init = false;
   if (!is_init) {
-    randomSeed(analogRead(0));
+    ADC adc;
+    // Sample an unused ADC channel.
+    randomSeed(adc.analogRead(A11));
     is_init = true;
   }
 }
