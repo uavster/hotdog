@@ -126,7 +126,7 @@ float ServoOrientationDegreesFromFeedbackADCValue(int adc_value) {
 static ADC servos_feedback_adc;
 
 float GetHeadYawRawDegrees() {
-  return ServoOrientationDegreesFromFeedbackADCValue(servos_feedback_adc.analogRead(A1));
+  return ServoOrientationDegreesFromFeedbackADCValue(static_cast<uint16_t>(servos_feedback_adc.adc0->analogRead(A1)));
 }
 
 float GetHeadYawDegrees() {
@@ -134,7 +134,7 @@ float GetHeadYawDegrees() {
 }
 
 float GetHeadPitchRawDegrees() {
-  return ServoOrientationDegreesFromFeedbackADCValue(servos_feedback_adc.analogRead(A8));
+  return ServoOrientationDegreesFromFeedbackADCValue(static_cast<uint16_t>(servos_feedback_adc.adc0->analogRead(A8)));
 }
 
 float GetHeadPitchDegrees() {
@@ -142,7 +142,7 @@ float GetHeadPitchDegrees() {
 }
 
 float GetHeadRollRawDegrees() {
-  return ServoOrientationDegreesFromFeedbackADCValue(servos_feedback_adc.analogRead(A9));
+  return ServoOrientationDegreesFromFeedbackADCValue(static_cast<uint16_t>(servos_feedback_adc.adc0->analogRead(A9)));
 }
 
 float GetHeadRollDegrees() {

@@ -1,7 +1,9 @@
+#include "settings_defines.h"
 #include <optional>
 #include "power.h"
 #include "timer_arduino.h"
 #include "ADC/ADC.h"
+#include "ring_buffer.h"
 
 constexpr float kCurrentMeasureMaxADCVolts = 3.3f;
 constexpr float kCurrentMeasureMaxADCCount = 1023.0f;
@@ -21,22 +23,52 @@ void PowerOff() {
 
 static ADC power_adc;
 
+static int adc1_accumulator;
+static RingBuffer<uint16_t, 64> adc1_samples;
+
+static void power_adc1_isr() {
+  // Box filter with a length equal to the ring buffer's capacity.
+  const auto adc1_sample = static_cast<uint16_t>(power_adc.adc1->analogReadContinuous());
+  if (adc1_samples.IsFull()) {
+    adc1_accumulator -= *adc1_samples.OldestValue();
+  }
+  adc1_accumulator += adc1_sample;
+  adc1_samples.Write(adc1_sample);
+}
+
+static float GetADC1Filtered() {
+  NVIC_DISABLE_IRQ(IRQ_NUMBER_t::IRQ_ADC1);
+  const float result = adc1_accumulator / static_cast<float>(adc1_samples.Size());
+  NVIC_ENABLE_IRQ(IRQ_NUMBER_t::IRQ_ADC1);
+  return result;
+}
+
+void InitPower() {
+  // Start continuous capture of servos current, so it's digitally filtered in the background.
+  adc1_accumulator = 0;
+  power_adc.adc1->setConversionSpeed(ADC_CONVERSION_SPEED::VERY_LOW_SPEED);
+  power_adc.adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
+  power_adc.adc1->setAveraging(32);
+  power_adc.adc1->enableInterrupts(&power_adc1_isr);
+  power_adc.adc1->startContinuous(A12);
+}
+
 static float GetPowerVolts() {
   // Voltage at ADC input.
-  const float adc_voltage = (kCurrentMeasureMaxADCVolts * power_adc.analogRead(A0)) / kCurrentMeasureMaxADCCount;
+  const float adc_voltage = (kCurrentMeasureMaxADCVolts * static_cast<uint16_t>(power_adc.adc0->analogRead(A0))) / kCurrentMeasureMaxADCCount;
   // Compensate effect of voltage divider.
   return ((100 + 470) * adc_voltage) / 100;
 }
 
 float GetJackConnectorVolts() {
   // Voltage at ADC input.
-  const float adc_voltage = (kCurrentMeasureMaxADCVolts * power_adc.analogRead(A10)) / kCurrentMeasureMaxADCCount;
+  const float adc_voltage = (kCurrentMeasureMaxADCVolts * static_cast<uint16_t>(power_adc.adc0->analogRead(A10))) / kCurrentMeasureMaxADCCount;
   // Compensate effect of voltage divider.
   return ((47 + 470) * adc_voltage) / 47;
 }
 
 static float GetPowerAmps() {
-  return (static_cast<uint32_t>(power_adc.analogRead(A6)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain * kTotalCurrentMeasureResistorOhms);
+  return (static_cast<uint32_t>(static_cast<uint16_t>(power_adc.adc0->analogRead(A6))) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain * kTotalCurrentMeasureResistorOhms);
 }
 
 static PowerSource PowerSourceFromPowerVolts(float power_volts) {
@@ -57,11 +89,11 @@ PowerSource GetPowerSource() {
 }
 
 static float GetMotorsCurrentResistorVolts() {
-  return (static_cast<uint32_t>(power_adc.analogRead(A7)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
+  return (static_cast<uint32_t>(static_cast<uint16_t>(power_adc.adc0->analogRead(A7))) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
 }
 
 static float GetServosCurrentResistorVolts() {
-  return (static_cast<uint32_t>(power_adc.analogRead(A12)) * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
+  return (GetADC1Filtered() * kCurrentMeasureMaxADCVolts) / (kCurrentMeasureMaxADCCount * kCurrentMeasureAmplifierGain);
 }
 
 // Returns a piecewise linear interpolation of the forward voltage for diode SDT5A60SA at Ta=25C.

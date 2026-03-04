@@ -42,6 +42,7 @@
 #include "color_trajectory.h"
 #include "persistance_offsets.h"
 #include "persistance.h"
+#include "power.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -138,6 +139,8 @@ void setup() {
 
   // Serial starts working after some time. Wait, so we don't miss any log.
   WaitForSerial();
+
+  InitPower();
 
   EnableWheelControl(true);
   EnableTrajectoryControl(true);

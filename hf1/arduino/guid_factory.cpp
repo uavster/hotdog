@@ -7,7 +7,7 @@ GUIDFactory::GUIDFactory() {
   if (!is_init) {
     ADC adc;
     // Sample an unused ADC channel.
-    randomSeed(adc.analogRead(A11));
+    randomSeed(static_cast<uint16_t>(adc.analogRead(A11)));
     is_init = true;
   }
 }

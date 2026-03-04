@@ -29,6 +29,8 @@
 
 #include <optional>
 
+void InitPower();
+
 // Cuts power to the control board from the internal batteries or external power source.
 // Calling this function is equivalent to pressing the power button until hardware shutdown. 
 void PowerOff();
