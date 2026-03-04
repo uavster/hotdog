@@ -21,6 +21,12 @@ void PowerOff() {
   pinMode(5, INPUT);
 }
 
+bool IsPowerButtonPressed() {
+  constexpr int kPowerButtonTeensyPinNumber = 2;
+  pinMode(kPowerButtonTeensyPinNumber, INPUT);
+  return !(digitalRead(kPowerButtonTeensyPinNumber) != 0);
+}
+
 static ADC power_adc;
 
 static int adc1_accumulator;

@@ -58,6 +58,9 @@ struct PowerInfo {
 // Returns the main source of power for the robot.
 PowerSource GetPowerSource();
 
+// Returns true if the power button is pressed, or false, otherwise.
+bool IsPowerButtonPressed();
+
 // Returns information about the power source and instantaneous consumption of the robot.
 // It does not include the power drawn by the on/off circuit and the 7.2V regulator.
 // This is the power consumed by the robot's compute, motors and servos.

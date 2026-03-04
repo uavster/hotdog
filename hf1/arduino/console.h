@@ -428,10 +428,18 @@ private:
   ReadEncodersLinearSpeedCommandHandler read_encoders_linear_speed_handler_;
 };
 
+class ReadPowerButtonCommandHandler : public CommandHandler {
+public:
+  ReadPowerButtonCommandHandler() : CommandHandler("button") {}
+
+  void Run(Stream &stream, const CommandLine &command_line) override;
+  void Describe(Stream &stream, const CommandLine &command_line) override;
+};
+
 class ReadCommandHandler : public CategoryHandler {
 public:
   ReadCommandHandler()
-    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_power_handler_, &read_base_handler_, &read_encoders_handler_ }) {}
+    : CategoryHandler("read", { &read_timer_handler_, &read_global_timer_handler_, &read_power_handler_, &read_button_handler_, &read_base_handler_, &read_encoders_handler_ }) {}
 
   void Describe(Stream &stream, const CommandLine &command_line) override {
     stream.println("Reads from an information source on the robot.");    
@@ -441,6 +449,7 @@ private:
   ReadTimerCommandHandler read_timer_handler_;
   ReadGlobalTimerCommandHandler read_global_timer_handler_;
   ReadPowerCommandHandler read_power_handler_;
+  ReadPowerButtonCommandHandler read_button_handler_;
   ReadBaseCommandHandler read_base_handler_;
   ReadEncodersCommandHandler read_encoders_handler_;
 };

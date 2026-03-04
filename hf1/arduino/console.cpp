@@ -271,6 +271,14 @@ void ReadPowerCommandHandler::Describe(Stream &stream, const CommandLine &comman
   stream.println("Prints power measurements.");
 }
 
+void ReadPowerButtonCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
+  stream.println(IsPowerButtonPressed() ? "pressed" : "not pressed");
+}
+
+void ReadPowerButtonCommandHandler::Describe(Stream &stream, const CommandLine &command_line) {
+  stream.println("Prints if the power button is pressed or not.");
+}
+
 void ReadBaseIMUOrientationCommandHandler::Run(Stream &stream, const CommandLine &command_line) {
   const auto ypr = base_imu.GetYawPitchRoll();
   stream.printf("yaw:%f, pitch:%f, roll:%f [radians]\n", ypr.z(), ypr.y(), ypr.x());
