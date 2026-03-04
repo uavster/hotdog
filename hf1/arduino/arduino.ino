@@ -140,7 +140,7 @@ void setup() {
   // Serial starts working after some time. Wait, so we don't miss any log.
   WaitForSerial();
 
-  InitPower();
+  InitPowerManager();
 
   EnableWheelControl(true);
   EnableTrajectoryControl(true);
@@ -216,6 +216,7 @@ void setup() {
 }
 
 void loop() {
+  RunPowerManager();
   led_controller.Run();
 
   wheel_state_estimator.Run();

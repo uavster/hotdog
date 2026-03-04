@@ -12,19 +12,35 @@ constexpr float kTotalCurrentMeasureResistorOhms = 0.007f;
 constexpr float kMotorsCurrentMeasureResistorOhms = 0.015f;
 constexpr float kServosCurrentMeasureResistorOhms = 0.020f;
 
+constexpr int kPowerOffTeensyPinNumber = 5;
+constexpr int kPowerButtonTeensyPinNumber = 2;
+
+constexpr TimerNanosType kPowerOffRequestButtonPressNs = 2'000'000'000ULL;
+
 void PowerOff() {
-  // Set pin 5 (PTD7) to switch off the board.
-  pinMode(5, OUTPUT);
-  digitalWrite(5, 1);
+  pinMode(kPowerOffTeensyPinNumber, OUTPUT);
+  digitalWrite(kPowerOffTeensyPinNumber, 1);
   SleepForNanos(500'000'000);
-  digitalWrite(5, 0);
-  pinMode(5, INPUT);
+  digitalWrite(kPowerOffTeensyPinNumber, 0);
+  pinMode(kPowerOffTeensyPinNumber, INPUT);
 }
 
 bool IsPowerButtonPressed() {
-  constexpr int kPowerButtonTeensyPinNumber = 2;
   pinMode(kPowerButtonTeensyPinNumber, INPUT);
   return !(digitalRead(kPowerButtonTeensyPinNumber) != 0);
+}
+
+static TimerNanosType last_time_button_pressed_ns;
+constexpr TimerNanosType kLastTimeButtonPressedInvalid = -1ULL;
+static bool is_power_off_requested;
+
+static void PowerButtonToggleISR() {
+  if (IsPowerButtonPressed()) {
+    last_time_button_pressed_ns = GetTimerNanoseconds();
+  } else {
+    last_time_button_pressed_ns = kLastTimeButtonPressedInvalid;
+  }
+  attachInterrupt(digitalPinToInterrupt(kPowerButtonTeensyPinNumber), &PowerButtonToggleISR, CHANGE);
 }
 
 static ADC power_adc;
@@ -32,7 +48,7 @@ static ADC power_adc;
 static int adc1_accumulator;
 static RingBuffer<uint16_t, 128> adc1_samples;
 
-static void power_adc1_isr() {
+static void PowerADC1ISR() {
   // Box filter with a length equal to the ring buffer's capacity.
   const auto adc1_sample = static_cast<uint16_t>(power_adc.adc1->analogReadContinuous());
   if (adc1_samples.IsFull()) {
@@ -49,15 +65,54 @@ static float GetADC1Filtered() {
   return result;
 }
 
-void InitPower() {
+enum class PowerManagerState {
+  kPowerOn,
+  kPowerOffRequested
+};
+
+static PowerManagerState power_manager_state;
+
+void InitPowerManager() {
+  is_power_off_requested = false;
+  last_time_button_pressed_ns = kLastTimeButtonPressedInvalid;
+  power_manager_state = PowerManagerState::kPowerOn;
+  // Attach ISR to power button pin, so it's called every time the button state changes.
+  attachInterrupt(digitalPinToInterrupt(kPowerButtonTeensyPinNumber), &PowerButtonToggleISR, CHANGE);
   // Start continuous capture of servos current, so it's digitally filtered in the background.
   adc1_accumulator = 0;
   // This configuration results in the ISR called at approximately 500 Hz.
   power_adc.adc1->setConversionSpeed(ADC_CONVERSION_SPEED::VERY_LOW_SPEED);
   power_adc.adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
   power_adc.adc1->setAveraging(32);
-  power_adc.adc1->enableInterrupts(&power_adc1_isr);
+  power_adc.adc1->enableInterrupts(&PowerADC1ISR);
   power_adc.adc1->startContinuous(A12);
+}
+
+static bool IsPowerOffRequested() {
+  constexpr auto button_irq = digitalPinToInterrupt(kPowerButtonTeensyPinNumber);
+  bool result = false;
+
+  detachInterrupt(button_irq);
+  if (last_time_button_pressed_ns != kLastTimeButtonPressedInvalid) {
+    result = (GetTimerNanoseconds() - last_time_button_pressed_ns) >= kPowerOffRequestButtonPressNs;
+  }
+  attachInterrupt(button_irq, &PowerButtonToggleISR, CHANGE);
+
+  return result;
+}
+
+void RunPowerManager() {
+  switch(power_manager_state) {
+    case PowerManagerState::kPowerOn: 
+      if (IsPowerOffRequested()) {
+        LOG_INFO("Shutdown requested by user.");
+        power_manager_state = PowerManagerState::kPowerOffRequested;
+      }
+      break;
+    case PowerManagerState::kPowerOffRequested:      
+      break;
+    default: ASSERT(false);
+  }
 }
 
 static float GetPowerVolts() {

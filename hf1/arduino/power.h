@@ -29,7 +29,11 @@
 
 #include <optional>
 
-void InitPower();
+// Initializes the power management module. Call before any other functions in this header.
+void InitPowerManager();
+
+// Runs the power manager. Call in the loop() function of the main script.
+void RunPowerManager();
 
 // Cuts power to the control board from the internal batteries or external power source.
 // Calling this function is equivalent to pressing the power button until hardware shutdown. 
