@@ -13,7 +13,10 @@ constexpr float kMotorsCurrentMeasureResistorOhms = 0.015f;
 constexpr float kServosCurrentMeasureResistorOhms = 0.020f;
 
 constexpr int kPowerOffTeensyPinNumber = 5;
-constexpr int kPowerButtonTeensyPinNumber = 2;
+
+// Power button information.
+constexpr int kPowerButtonTeensyPinNumber = 2;  // When changing this, set kPowerButtonIRQNumber to the corresponding IRQ number.
+constexpr IRQ_NUMBER_t kPowerButtonIRQNumber = IRQ_NUMBER_t::IRQ_PORTD; // IRQ number for kPowerButtonTeensyPinNumber. Do not use digitalPinToInterrupt(); it returns Arduino-specific interrupt numbers, which NVIC does not understand.
 
 constexpr TimerNanosType kPowerOffRequestButtonPressNs = 2'000'000'000ULL;
 
@@ -30,9 +33,10 @@ bool IsPowerButtonPressed() {
   return !(digitalRead(kPowerButtonTeensyPinNumber) != 0);
 }
 
-static TimerNanosType last_time_button_pressed_ns;
 constexpr TimerNanosType kLastTimeButtonPressedInvalid = -1ULL;
-static bool is_power_off_requested;
+// This will be accessed from in and out of an ISR. 
+// Make it volatile to ensure the compiler won't use any access optimizations that could read the memory before the IRQ is disabled.
+static volatile TimerNanosType last_time_button_pressed_ns;
 
 static void PowerButtonToggleISR() {
   if (IsPowerButtonPressed()) {
@@ -73,7 +77,6 @@ enum class PowerManagerState {
 static PowerManagerState power_manager_state;
 
 void InitPowerManager() {
-  is_power_off_requested = false;
   last_time_button_pressed_ns = kLastTimeButtonPressedInvalid;
   power_manager_state = PowerManagerState::kPowerOn;
   // Attach ISR to power button pin, so it's called every time the button state changes.
@@ -89,15 +92,12 @@ void InitPowerManager() {
 }
 
 static bool IsPowerOffRequested() {
-  constexpr auto button_irq = digitalPinToInterrupt(kPowerButtonTeensyPinNumber);
   bool result = false;
-
-  detachInterrupt(button_irq);
+  NVIC_DISABLE_IRQ(kPowerButtonIRQNumber);
   if (last_time_button_pressed_ns != kLastTimeButtonPressedInvalid) {
     result = (GetTimerNanoseconds() - last_time_button_pressed_ns) >= kPowerOffRequestButtonPressNs;
   }
-  attachInterrupt(button_irq, &PowerButtonToggleISR, CHANGE);
-
+  NVIC_ENABLE_IRQ(kPowerButtonIRQNumber);
   return result;
 }
 
