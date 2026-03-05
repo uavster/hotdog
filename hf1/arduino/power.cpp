@@ -1,4 +1,3 @@
-#include "settings_defines.h"
 #include <optional>
 #include "power.h"
 #include "timer_arduino.h"
@@ -29,8 +28,7 @@ void PowerOff() {
 }
 
 bool IsPowerButtonPressed() {
-  pinMode(kPowerButtonTeensyPinNumber, INPUT);
-  return !(digitalRead(kPowerButtonTeensyPinNumber) != 0);
+  return digitalRead(kPowerButtonTeensyPinNumber) == 0;
 }
 
 constexpr TimerNanosType kLastTimeButtonPressedInvalid = -1ULL;
@@ -38,18 +36,13 @@ constexpr TimerNanosType kLastTimeButtonPressedInvalid = -1ULL;
 // Make it volatile to ensure the compiler won't use any access optimizations that could read the memory before the IRQ is disabled.
 static volatile TimerNanosType last_time_button_pressed_ns;
 
-static void PowerButtonToggleISR() {
-  if (IsPowerButtonPressed()) {
-    last_time_button_pressed_ns = GetTimerNanoseconds();
-  } else {
-    last_time_button_pressed_ns = kLastTimeButtonPressedInvalid;
-  }
-  attachInterrupt(digitalPinToInterrupt(kPowerButtonTeensyPinNumber), &PowerButtonToggleISR, CHANGE);
+static void PowerButtonPressISR() {
+  last_time_button_pressed_ns = GetTimerNanoseconds();
 }
 
 static ADC power_adc;
 
-static int adc1_accumulator;
+static volatile int adc1_accumulator;
 static RingBuffer<uint16_t, 128> adc1_samples;
 
 static void PowerADC1ISR() {
@@ -79,8 +72,9 @@ static PowerManagerState power_manager_state;
 void InitPowerManager() {
   last_time_button_pressed_ns = kLastTimeButtonPressedInvalid;
   power_manager_state = PowerManagerState::kPowerOn;
-  // Attach ISR to power button pin, so it's called every time the button state changes.
-  attachInterrupt(digitalPinToInterrupt(kPowerButtonTeensyPinNumber), &PowerButtonToggleISR, CHANGE);
+  pinMode(kPowerButtonTeensyPinNumber, INPUT);
+  // Attach ISR to power button pin, so it's called every time the button is pressed.
+  attachInterrupt(digitalPinToInterrupt(kPowerButtonTeensyPinNumber), &PowerButtonPressISR, FALLING);
   // Start continuous capture of servos current, so it's digitally filtered in the background.
   adc1_accumulator = 0;
   // This configuration results in the ISR called at approximately 500 Hz.
@@ -94,9 +88,8 @@ void InitPowerManager() {
 static bool IsPowerOffRequested() {
   bool result = false;
   NVIC_DISABLE_IRQ(kPowerButtonIRQNumber);
-  if (last_time_button_pressed_ns != kLastTimeButtonPressedInvalid) {
-    result = (GetTimerNanoseconds() - last_time_button_pressed_ns) >= kPowerOffRequestButtonPressNs;
-  }
+  // Power off is requested if the there was a button press some time ago and the button is still pressed.
+  result = IsPowerButtonPressed() && last_time_button_pressed_ns != kLastTimeButtonPressedInvalid && (GetTimerNanoseconds() - last_time_button_pressed_ns) >= kPowerOffRequestButtonPressNs;
   NVIC_ENABLE_IRQ(kPowerButtonIRQNumber);
   return result;
 }
