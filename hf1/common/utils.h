@@ -45,7 +45,7 @@ private:
 
 #endif
 
-void Uint64ToString(uint64_t number, char *str);
+char *Uint64ToString(uint64_t number, char *str);
 
 // Maps `radians` to [-pi, pi).
 float NormalizeRadians(float radians);
