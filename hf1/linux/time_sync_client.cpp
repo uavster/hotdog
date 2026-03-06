@@ -13,20 +13,24 @@
 // It ensures that the GPIO library has finished initializing everything we need.
 #define kWarmupDurationNs 100'000'000ULL
 
-// Maximum time between setting the signal in the output pin and capturing the time of the rising edge in the loopback pin.
+// Maximum time allowed between setting the signal in the output pin and capturing the time of the rising edge in the loopback pin.
 // The client will repeat the synchronization signal until this constraint is met. The lower the resulting time difference,
 // the less uncertainty in the actual time at which the rising edge happened, but the more tries the process might take until
 // getting a valid value. If this constraint is too low, the system might not be able to achieve it, and the client will keep
-// trying ad infinitum.
-#define kMaxSetDetectDurationNs 40'000ULL
+// trying up to kMaxNumSyncEdgeRetriesBeforeFailure times.
+#define kMaxEchoDetectionDurationNs 400'000ULL
 
-// Minimum time interval between consecutive sync signals. Consecutive signals will be generated while trying to meet
-// the kMaxSetDetectDurationNs constraint. 
+// Minimum time interval between consecutive sync signals. Consecutive signals are generated until one meets the 
+// kMaxEchoDetectionDurationNs constraint. Before each new attempt, we check if the late signal arrived at all. 
+// If so, the signal will still be discarded, but the goal is to gather information about the problem. If the signals are received late, 
+// the platform migh just be too slow; if the time is ample and some signals were never received, the problem might be closer to the 
+// hardware then. Therefore, kMinTimeBetweenSyncEdgesNs must be ample enough to ensure late signals will still be counted.
 #define kMinTimeBetweenSyncEdgesNs 1'000'000ULL
 
-// Maximum number of attempts at detecting the sync signal in the loopback pin before declaring
-// failure.
-#define kMaxNumSyncEdgeRetriesBeforFailure 50
+// Maximum number of attempts at detecting the sync signal in the loopback pin before declaring failure. 
+// The minimum total time of the signal detection stage is:
+// kMaxNumSyncEdgeRetriesBeforeFailure * (kMaxEchoDetectionDurationNs + kMinTimeBetweenSyncEdgesNs)
+#define kMaxNumSyncEdgeRetriesBeforeFailure 50
 
 // Maximum time to wait for a slot to be available to send the sync request packet. If the wait times
 // out, we assume the buffer is saturated because something went wrong and fail.
@@ -37,6 +41,8 @@
 #define kMaxTimeSyncReplyDelayNs 250'000'000ULL
 
 static void *time_sync_client_singleton;
+
+static_assert(kMaxNumSyncEdgeRetriesBeforeFailure > 0);
 
 TimeSyncClient::TimeSyncClient(SyncTimeActionClientHandler *sync_action_handler, TimerInterface *system_timer)
     : sync_action_handler_(*ASSERT_NOT_NULL(sync_action_handler)), 
@@ -80,6 +86,14 @@ std::optional<P2PSyncTimeReply> TimeSyncClient::reply() {
     return reply_;
 }
 
+void TimeSyncClient::ResetEchoDetection() {
+    num_sync_attempts_ = 0;
+    echo_delay_sum_ = 0;
+    echo_delay_min_ = -1ULL;
+    echo_delay_max_ = 0;            
+    num_late_echoes_ = 0;
+}
+
 void TimeSyncClient::Run() {
     switch(state_) {
         case kWarmup:
@@ -91,7 +105,7 @@ void TimeSyncClient::Run() {
         case kIdle: {
             // Start synchronization if requested.
             if (sync_requested_) {
-                num_sync_attempts_ = 0;
+                ResetEchoDetection();
                 state_ = kGenerateSyncEdgeAndWaitForLoopback;
                 last_sync_status_ = SyncStatus::kInProgress;
             }
@@ -102,12 +116,21 @@ void TimeSyncClient::Run() {
             // Reset request signal.
             GPIO::output(kTimeSyncRequestPinNumber, GPIO::LOW);
 
-            if ((++num_sync_attempts_) > kMaxNumSyncEdgeRetriesBeforFailure) {
+            if ((++num_sync_attempts_) > kMaxNumSyncEdgeRetriesBeforeFailure) {
               // Too many times: declare failure.
               sync_requested_ = false;
               state_ = kIdle;
               last_sync_status_ = SyncStatus::kError;
-              LOG_ERROR("Too many failed synchronization attempts.");
+              std::ostringstream oss;
+              oss << "Too many failed attempts measuring the latency of the synchronization signal's echo. Out of the " << \
+                  kMaxNumSyncEdgeRetriesBeforeFailure << " attempts, " << (kMaxNumSyncEdgeRetriesBeforeFailure - num_late_echoes_) <<  \
+                  " failed due to undetected echo, and " << num_late_echoes_ << " failed due to late detection";
+              if (num_late_echoes_ > 0) {
+                oss << "(latency (ns): min=" << echo_delay_min_ << ", avg=" << \
+                    echo_delay_sum_ / num_late_echoes_ << ", max=" << echo_delay_max_ << "; acceptable latency <= " << kMaxEchoDetectionDurationNs << " ns)";
+              }
+              oss << ".";
+              LOG_ERROR(oss.str().c_str());
               break;
             }
 
@@ -125,7 +148,7 @@ void TimeSyncClient::Run() {
             last_edge_detect_local_timestamp_ns_copy_ = -1ULL;
             do {
               // Do we still have time to detect the edge soon enough?
-              if (system_timer_.GetLocalNanoseconds() - last_edge_set_local_timestamp_ns_ > kMaxSetDetectDurationNs) {
+              if (system_timer_.GetLocalNanoseconds() - last_edge_set_local_timestamp_ns_ > kMaxEchoDetectionDurationNs) {
                   // Too late for a quality edge: retry.
                   last_edge_attempt_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
                   state_ = kWaitToRegenerateSyncEdge;
@@ -150,6 +173,20 @@ void TimeSyncClient::Run() {
 
         case kWaitToRegenerateSyncEdge:
             if (system_timer_.GetLocalNanoseconds() - last_edge_attempt_timestamp_ns_ < kMinTimeBetweenSyncEdgesNs) { break; }
+
+            uint64_t last_edge_detect_local_timestamp_ns;
+            {
+              std::lock_guard<std::mutex> guard(mutex_);
+              last_edge_detect_local_timestamp_ns = last_edge_detect_local_timestamp_ns_;
+            }
+            if (last_edge_detect_local_timestamp_ns != -1ULL) {
+              // Although late, the edge was detected. Update the stats.
+              const auto latency = last_edge_detect_local_timestamp_ns - last_edge_set_local_timestamp_ns_;
+              echo_delay_sum_ += latency;
+              echo_delay_min_ = std::min(echo_delay_min_, latency);
+              echo_delay_max_ = std::max(echo_delay_max_, latency);
+              ++num_late_echoes_;
+            }
 
             state_ = kGenerateSyncEdgeAndWaitForLoopback;
             break;
@@ -199,7 +236,9 @@ void TimeSyncClient::Run() {
         case kWaitForTimeSyncReply: {
             if (system_timer_.GetLocalNanoseconds() - request_sent_timestamp_ns_ > kMaxTimeSyncReplyDelayNs) { 
                 // The other end must have missed the sync signal (e.g. it started after this end): start over.                
+                ResetEchoDetection();
                 state_ = kGenerateSyncEdgeAndWaitForLoopback;
+                LOG_ERROR("The other end did not reply to the synchronization request.");
                 // Cancel the action before retrying.
                 const Status result = sync_action_handler_.Cancel();
                 switch(result) {

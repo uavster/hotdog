@@ -52,6 +52,8 @@ protected:
     std::optional<P2PSyncTimeReply> reply();
 
 private:
+    void ResetEchoDetection();
+
     SyncTimeActionClientHandler &sync_action_handler_;
     TimerInterface &system_timer_;
     uint64_t creation_time_;
@@ -61,6 +63,10 @@ private:
     uint64_t last_edge_set_local_timestamp_ns_;
     uint64_t last_edge_detect_local_timestamp_ns_;
     uint64_t last_edge_detect_local_timestamp_ns_copy_;
+    uint64_t echo_delay_sum_;
+    uint64_t echo_delay_min_;
+    uint64_t echo_delay_max_;
+    int num_late_echoes_;
     int num_sync_attempts_;
     uint64_t last_edge_estimated_local_timestamp_ns_;
     uint64_t last_edge_attempt_timestamp_ns_;
