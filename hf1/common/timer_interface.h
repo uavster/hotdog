@@ -5,6 +5,10 @@
 
 // Interface offering timer services.
 // Must be implemented on each platform.
+// Specific platform subclasses are meant to abstract access to the platform's time for dependency injection.
+// Classes to be called from unit tests should take a TimerInterface object during initialization
+// to access time, and refrain from calling the system functions directly. In this way, test suites
+// can instantiate them with a mock timer.
 class TimerInterface {
 public:
   // Returns the nanoseconds elapsed since the program started in this computer.

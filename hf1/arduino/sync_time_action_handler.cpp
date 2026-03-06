@@ -2,7 +2,8 @@
 #include <kinetis.h>
 #include <Arduino.h>
 
-#define kTimeSyncServerInputPin 8 
+constexpr int kTimeSyncServerInputPin = 8;  // When changing this, set kTimerSyncServerInputPinIRQNumber to the corresponding IRQ number.
+constexpr IRQ_NUMBER_t kTimerSyncServerInputPinIRQNumber = IRQ_NUMBER_t::IRQ_PORTD; // IRQ number for kTimeSyncServerInputPin. Do not use digitalPinToInterrupt(); it returns Arduino-specific interrupt numbers, which NVIC does not understand.
 
 void *time_sync_server_singleton = nullptr;
 
@@ -29,13 +30,13 @@ void SyncTimeActionHandler::NotifyEdgeDetected() {
 bool SyncTimeActionHandler::OnRequest() {
   // Disable the IRQ, as we should not get any other edge on the pin until after
   // sending the reply. This should filter any spurious edges.
-  NVIC_DISABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
+  NVIC_DISABLE_IRQ(kTimerSyncServerInputPinIRQNumber);
   
   // By the time we get the request packet, we should have detected the sync signal.
   // Otherwise, we might have started after the other end generated it. In that case,
   // do not reply; the other end will time out and retry.
   if (last_edge_detect_local_timestamp_ns_ == -1ULL) {
-    NVIC_ENABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
+    NVIC_ENABLE_IRQ(kTimerSyncServerInputPinIRQNumber);
     return false;
   }
 
@@ -46,7 +47,7 @@ bool SyncTimeActionHandler::OnRequest() {
   if (maybe_request_packet->reception_local_time_ns() < last_edge_detect_local_timestamp_ns_) {
     // The packet was received before the sync signal was detected; must be a previous
     // sync attempt from the client: reject.
-    NVIC_ENABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
+    NVIC_ENABLE_IRQ(kTimerSyncServerInputPinIRQNumber);
     return false;
   }
 
@@ -86,7 +87,7 @@ bool SyncTimeActionHandler::Run() {
   // ready to detect a new edge.
   uint32_t isfr = PORTD_ISFR;
   PORTD_ISFR = isfr;
-  NVIC_ENABLE_IRQ(digitalPinToInterrupt(kTimeSyncServerInputPin));
+  NVIC_ENABLE_IRQ(kTimerSyncServerInputPinIRQNumber);
 
   // Synchronization done.
   return false;
