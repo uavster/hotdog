@@ -1,7 +1,7 @@
 #include "time_sync_client.h"
 #include <p2p_application_protocol.h>
 #include <network.h>
-#include <JetsonGPIO.h>
+#include <jetgpio.h>
 #include "logger_interface.h"
 #include <sstream>
 #include <iostream>
@@ -40,7 +40,7 @@
 // sync signal and we generate it again.
 #define kMaxTimeSyncReplyDelayNs 250'000'000ULL
 
-static void *time_sync_client_singleton;
+static std::atomic<TimeSyncClient *> time_sync_client_singleton{ nullptr };
 
 static_assert(kMaxNumSyncEdgeRetriesBeforeFailure > 0);
 
@@ -50,25 +50,39 @@ TimeSyncClient::TimeSyncClient(SyncTimeActionClientHandler *sync_action_handler,
       state_(kWarmup), sync_requested_(false), 
       last_sync_status_(SyncStatus::kNotAttempted), 
       last_sync_offset_ns_(0) {
-    
-    ASSERT(time_sync_client_singleton == nullptr);
-    time_sync_client_singleton = this;
-    GPIO::setmode(GPIO::BOARD);
-    GPIO::setup(kTimeSyncRequestPinNumber, GPIO::OUT, GPIO::LOW);
-    GPIO::setup(kTimeSyncLoopbackPinNumber, GPIO::IN);
-    GPIO::add_event_detect(kTimeSyncLoopbackPinNumber, GPIO::Edge::RISING, EdgeLoopbackCallback);
+
+    // Ensure only one instance of the class is created.
+    if (time_sync_client_singleton.exchange(this, std::memory_order_acq_rel)) {
+      LOG_ERROR("An instance of time sync client already exists.");
+      ASSERT(false);
+    }
+
+    // There's only one instance of this class from this point on.
+    int result = gpioInitialise();
+    if (result < 0) {
+      std::ostringstream oss;
+      oss << "Jetgpio initialisation failed. Error code: " << result << std::endl;
+      LOG_ERROR(oss.str().c_str());
+      ASSERT(false);
+    }
+
+    ASSERT(gpioSetMode(kTimeSyncRequestPinNumber, JET_OUTPUT) >= 0);
+    gpioWrite(kTimeSyncRequestPinNumber, 0);
+    ASSERT(gpioSetMode(kTimeSyncLoopbackPinNumber, JET_INPUT) >= 0);
+    static unsigned long timestamp;
+    ASSERT(gpioSetISRFunc(kTimeSyncLoopbackPinNumber, RISING_EDGE, 0, &timestamp, EdgeLoopbackCallback) >= 0);
     creation_time_ = system_timer->GetLocalNanoseconds();
 }
 
 void TimeSyncClient::EdgeLoopbackCallback() {
-    auto *time_sync_client = reinterpret_cast<TimeSyncClient *>(time_sync_client_singleton);
+    TimeSyncClient *time_sync_client = time_sync_client_singleton;
     std::lock_guard<std::mutex> guard(time_sync_client->mutex_);
     time_sync_client->last_edge_detect_local_timestamp_ns_ = time_sync_client->system_timer_.GetLocalNanoseconds();
 }
 
 TimeSyncClient::~TimeSyncClient() {
-    GPIO::remove_event_detect(kTimeSyncLoopbackPinNumber);
-    GPIO::cleanup({ kTimeSyncRequestPinNumber, kTimeSyncLoopbackPinNumber});    
+    gpioTerminate();
+    time_sync_client_singleton.store(nullptr, std::memory_order_release);
 }
 
 void TimeSyncClient::ResetReply() {
@@ -114,7 +128,7 @@ void TimeSyncClient::Run() {
 
         case kGenerateSyncEdgeAndWaitForLoopback: {
             // Reset request signal.
-            GPIO::output(kTimeSyncRequestPinNumber, GPIO::LOW);
+            gpioWrite(kTimeSyncRequestPinNumber, 0);
 
             if ((++num_sync_attempts_) > kMaxNumSyncEdgeRetriesBeforeFailure) {
               // Too many times: declare failure.
@@ -141,7 +155,7 @@ void TimeSyncClient::Run() {
             }
             // Create a rising edge in the time sync signal.
             last_edge_set_local_timestamp_ns_ = system_timer_.GetLocalNanoseconds();
-            GPIO::output(kTimeSyncRequestPinNumber, GPIO::HIGH);
+            gpioWrite(kTimeSyncRequestPinNumber, 1);
 
             // Wait for the local edge to be detected locally in the loopback pin.
             // We want low latency, so don't yield time to the caller yet.
@@ -167,7 +181,7 @@ void TimeSyncClient::Run() {
             // The rising edge has been detected soon enough for good synchronization.
             state_ = kSendTimeSyncRequest;
             // Reset request pin.
-            GPIO::output(kTimeSyncRequestPinNumber, GPIO::LOW);
+            gpioWrite(kTimeSyncRequestPinNumber, 0);
             break;
         }
 

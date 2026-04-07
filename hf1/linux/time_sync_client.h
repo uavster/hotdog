@@ -21,6 +21,12 @@ public:
     TimeSyncClient(SyncTimeActionClientHandler *sync_action_handler, TimerInterface *system_timer);
     virtual ~TimeSyncClient();
 
+    // Prevent accidental duplication.
+    TimeSyncClient(const TimeSyncClient&) = delete;
+    TimeSyncClient& operator=(const TimeSyncClient&) = delete;
+    TimeSyncClient(TimeSyncClient&&) = delete;
+    TimeSyncClient& operator=(TimeSyncClient&&) = delete;
+
     // Runs the client logic.
     void Run();
 
