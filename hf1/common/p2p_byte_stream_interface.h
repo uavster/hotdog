@@ -20,8 +20,9 @@ public:
 
   // Creates a byte transfer object with the platform-specific handler.
   // The handler must have been initialized with the proper configuration before this call.
-  // The callback is called whenever there is a physical I/O error.
-  P2PByteStreamInterface(Handler handler, std::function<void()> &&physical_io_error_callback) : handler_(handler), physical_io_error_callback_(std::move(physical_io_error_callback)) {}
+  // The callback is called whenever there is a physical I/O error. The callback returns the
+  // handler for the caller to update, in case it changed.
+  P2PByteStreamInterface(Handler handler, std::function<Handler()> &&physical_io_error_callback) : handler_(handler), physical_io_error_callback_(std::move(physical_io_error_callback)) {}
 
   // Attempts to send a maximum of `length` bytes in the buffer through the link, and returns the 
   // number of bytes actually sent. This call never blocks.
@@ -59,11 +60,12 @@ public:
 
 protected:
   const Handler &handler() const { return handler_; }
-  const std::function<void()>&physical_io_error_callback() { return physical_io_error_callback_; }
+  void handler(const Handler &handler) { handler_ = handler; }
+  const std::function<Handler()>&physical_io_error_callback() { return physical_io_error_callback_; }
 
 private:
   Handler handler_;
-  std::function<void()> physical_io_error_callback_;
+  std::function<Handler()> physical_io_error_callback_;
 };
 
 #endif  // P2P_BYTE_STREAM_INTERFACE__
