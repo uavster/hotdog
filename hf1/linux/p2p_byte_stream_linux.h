@@ -3,7 +3,7 @@
 class P2PByteStreamLinux : public P2PByteStreamInterface<kLittleEndian> {
 public:
   // Does not take ownership of the file descriptor, which must outlive this object.
-  P2PByteStreamLinux(int fd, std::function<void()> &&physical_io_error_callback) 
+  P2PByteStreamLinux(int fd, std::function<Handler()> &&physical_io_error_callback) 
     : P2PByteStreamInterface<kLittleEndian>(Handler{ .fd = fd}, std::move(physical_io_error_callback)) {}
 
   virtual int Write(const void *buffer, int length);
