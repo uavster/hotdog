@@ -11,12 +11,27 @@
 #define kSerialPath "/dev/ttyTHS1"
 #define kBaudRate B1000000
 
-Uart::Uart() {
+Uart::Uart() : fd_(-1) {
+}
+
+Uart::~Uart() {    
+  Close();
+}
+
+Status Uart::Open() {
+  Close();
+
 	fd_ = open(kSerialPath, O_RDWR | O_NONBLOCK);
-	ASSERTM(fd_ >= 0, "Error opening serial port");
+  if (fd_ < 0) {
+    return Status::kUnavailableError;
+  }
 
 	// Lock device file.
-	ASSERTM(flock(fd_, LOCK_EX | LOCK_NB) >= 0, "Error failed to lock device file");
+  if (flock(fd_, LOCK_EX | LOCK_NB) < 0) {
+    close(fd_);
+    fd_ = -1;
+    return Status::kInUseError;
+  }
 
 	struct termios newtio;
 	bzero(&newtio, sizeof(newtio));
@@ -38,12 +53,12 @@ Uart::Uart() {
 	tcsetattr(fd_, TCSANOW, &newtio);
 }
 
-Uart::~Uart() {    
-    if (fd_ >= 0) {
-        flock(fd_, LOCK_UN);
-        close(fd_);
-        fd_ = -1;
-    }
+void Uart::Close() {
+  if (fd_ >= 0) {
+      flock(fd_, LOCK_UN);
+      close(fd_);
+      fd_ = -1;
+  }
 }
 
 Uart::PollResult Uart::CanReadOrWrite(int timeout_ms) {
