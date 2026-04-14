@@ -72,6 +72,13 @@ typedef struct {
 // --- Void action ---
 typedef struct {} P2PVoid;
 
+// --- Ping ---
+typedef struct  {
+} P2PPingRequest;
+
+typedef struct {
+} P2PPingReply;
+
 // --- Time synchronization ---
 typedef struct {
     uint64_t sync_edge_local_timestamp_ns;
