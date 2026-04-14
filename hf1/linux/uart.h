@@ -1,12 +1,22 @@
 #ifndef UART_INCLUDED__
 #define UART_INCLUDED__
 
+#include "status_or.h"
+
 class Uart {
 public:
     enum Timeout { kInfinite = -1 };
 
     Uart();
     virtual ~Uart();
+
+    // Opens the serial port.
+    // Returns Status::kSuccess if ok, or the following errors otherwise:
+    //  Status::kUnavailableError - the port cannot be opened
+    //  Status::kInUseError - the port cannot be locked
+    Status Open();
+    // Closes the serial port.
+    void Close();
 
     struct PollResult {
         bool can_receive;
