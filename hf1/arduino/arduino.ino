@@ -18,11 +18,13 @@
 #include "head_controller.h"
 #include "p2p_packet_stream_arduino.h"
 #include "p2p_action_server.h"
+#include "p2p_action_client_status.h"
 #include "sync_time_action_handler.h"
 #include "set_head_pose_action_handler.h"
 #include "set_base_velocity_action_handler.h"
 #include "monitor_base_state_action_handler.h"
 #include "trajectory_store.h"
+#include "ping_action_handler.h"
 #include "create_base_trajectory_action_handler.h"
 #include "create_head_trajectory_action_handler.h"
 #include "create_envelope_trajectory_action_handler.h"
@@ -88,6 +90,7 @@ P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
 
 BaseIMU base_imu(kPersistanceOffsetBaseIMUCalibration);
 
+P2PActionClientStatus p2p_action_client_status("P2PActionClientStatus");
 WheelStateEstimator wheel_state_estimator("WheelStateEstimator");
 WheelSpeedController left_wheel("LeftWheelSpeedController", &wheel_state_estimator.left_wheel_state_filter(), &SetLeftMotorDutyCycle);
 WheelSpeedController right_wheel("RightWheelSpeedController", &wheel_state_estimator.right_wheel_state_filter(), &SetRightMotorDutyCycle);
@@ -98,6 +101,10 @@ HeadTrajectoryController head_trajectory_controller("HeadTrajectoryController");
 TrajectoryStore trajectory_store;
 
 P2PActionServer p2p_action_server(&p2p_stream);
+static void ping_received_callback() {
+  p2p_action_client_status.NotifyPingReceived();
+}
+PingActionHandler ping_action_handler(&p2p_stream, ping_received_callback);
 SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
 SetBaseVelocityActionHandler set_base_velocity_action_handler(&p2p_stream, &base_speed_controller);
 SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
@@ -173,6 +180,7 @@ void setup() {
   InitServos();
 
   LOG_INFO("Registering actions in action server.");
+  p2p_action_server.Register(&ping_action_handler);
   p2p_action_server.Register(&sync_time_action_handler);
   p2p_action_server.Register(&set_head_pose_action_handler);
   p2p_action_server.Register(&set_base_velocity_action_handler);
@@ -216,6 +224,8 @@ void setup() {
 }
 
 void loop() {
+  p2p_action_client_status.Run();
+
   RunPowerManager();
   led_controller.Run();
 
