@@ -595,7 +595,7 @@ bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::Schedule
   output_.Commit(ack_priority, /*guaranteed_delivery=*/false, /*seq_number=*/packet.sequence_number());
   return true;
 }
-#include <sstream>
+
 template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness>
 bool P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::ShouldCommitInputPacket(const P2PPacket &last_rx_packet, void *self_ptr) {
   P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> &self = *reinterpret_cast<P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness> *>(self_ptr);
