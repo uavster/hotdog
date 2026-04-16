@@ -1,6 +1,7 @@
 #include "set_head_pose_action_handler.h"
 #include "servos.h"
 #include "operation_mode.h"
+#include <cstdio>
 
 bool SetHeadPoseActionHandler::Run() {
   const P2PSetHeadPoseRequest &request = GetRequest();

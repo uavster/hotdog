@@ -1,5 +1,6 @@
 #include "create_base_modulated_trajectory_view_action_handler.h"
 #include "trajectory_store.h"
+#include <cstdio>
 
 bool CreateBaseModulatedTrajectoryViewActionHandler::Run() {
   switch(state_) {

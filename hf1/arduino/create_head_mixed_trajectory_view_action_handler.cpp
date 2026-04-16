@@ -1,6 +1,7 @@
 #include "create_head_mixed_trajectory_view_action_handler.h"
 #include "trajectory_store.h"
-#include <Arduino.h>
+#include <cstdio>
+
 bool CreateHeadMixedTrajectoryViewActionHandler::Run() {
   switch(state_) {
     case kProcessingRequest: {

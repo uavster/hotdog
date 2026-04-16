@@ -3,6 +3,7 @@
 #include "timer.h"
 #include "logger_interface.h"
 #include "operation_mode.h"
+#include <cstdio>
 
 // Throttling rate in maximum number of packets per second.
 // This is important to let other packets be sent when IMU polling

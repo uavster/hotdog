@@ -2,6 +2,7 @@
 #include "robot_state_estimator.h"
 #include "timer.h"
 #include "logger_interface.h"
+#include <cstdio>
 
 // Throttling rate in maximum number of packets per second.
 // This is important to let other packets be sent when IMU polling

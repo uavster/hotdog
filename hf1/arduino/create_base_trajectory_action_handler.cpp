@@ -1,5 +1,6 @@
 #include "create_base_trajectory_action_handler.h"
 #include "trajectory_store.h"
+#include <cstdio>
 
 bool CreateBaseTrajectoryActionHandler::Run() {
   switch(state_) {

@@ -1,5 +1,6 @@
 #include "create_base_mixed_trajectory_view_action_handler.h"
 #include "trajectory_store.h"
+#include <cstdio>
 
 bool CreateBaseMixedTrajectoryViewActionHandler::Run() {
   switch(state_) {

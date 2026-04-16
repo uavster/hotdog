@@ -1,5 +1,6 @@
 #include "create_envelope_trajectory_action_handler.h"
 #include "trajectory_store.h"
+#include <cstdio>
 
 bool CreateEnvelopeTrajectoryActionHandler::Run() {
   switch(state_) {
