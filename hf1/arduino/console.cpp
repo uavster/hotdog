@@ -494,7 +494,7 @@ void WriteMotorsLinearSpeedCommandHandler::Run(Stream &stream, const CommandLine
     stream.println("Trajectory control has been disabled.");
   }
   if (!EnableWheelControl(true)) {
-    stream.println("Wheel speed control had been enabled.");
+    stream.println("Wheel speed control has been enabled.");
   }
 }
 
@@ -526,7 +526,7 @@ void WriteWheelsAngularSpeedCommandHandler::Run(Stream &stream, const CommandLin
     stream.println("Trajectory control has been disabled.");
   }
   if (!EnableWheelControl(true)) {
-    stream.println("Wheel speed control had been enabled.");
+    stream.println("Wheel speed control has been enabled.");
   }
 }
 
