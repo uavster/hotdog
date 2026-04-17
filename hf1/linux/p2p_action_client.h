@@ -14,6 +14,7 @@ public:
   // The client has protected access to the action handlers.
   friend class P2PActionClient;
 
+  // Does not take ownership of the pointees, which must outlive this object.
   P2PActionClientHandlerBase(P2PAction action, P2PPriority default_priority, bool default_guarantee_delivery, P2PPacketStreamLinux *p2p_stream, std::mutex *p2p_mutex, bool allows_concurrent_requests = false)
     : action_(action), 
       priority_(default_priority),
@@ -48,10 +49,19 @@ public:
   virtual void OnReply(int payload_length, const void *payload);
   virtual void OnProgress(int payload_length, const void *payload);
   virtual void OnOtherEndStarted();
+  // Called when the action could not be completed.
+  // For instance, because the other end was restarted.
+  virtual void OnAbort();
 
 protected:
+  using State = enum { kIdle, kWaitingForResponse, kCancelling };
+
   // Must be called with p2p_mutex_ locked.
   P2PActionRequestID current_request_id() const { return current_request_id_; }
+  State state() const { return state_; }
+  // Manages the lifecycle of the action. 
+  // Must be called from the action client after locking p2p_mutex_.
+  void Run();
 
 private:
   P2PAction action_;
@@ -62,8 +72,8 @@ private:
   std::mutex &p2p_mutex_;
   const bool allows_concurrent_requests_;
 
-  using State = enum { kIdle, kWaitingForResponse };
-  // Since the state is atomic, we can read it without locking.
+  // Since the state is atomic, we can read it without locking for single-read decisions, like in_progress().
+  // For writing or multiple-read decisions, lock p2p_mutex_ first.
   std::atomic<State> state_;
 };
 
@@ -75,15 +85,15 @@ public:
 
   using OnReplyCallback = std::function<void(const TRequest &, const TReply &)>;
   using OnProgressCallback = std::function<void(const TRequest &, const TProgress &)>;
-  using OnOtherEndStartedCallback = std::function<void(const TRequest &)>;
+  using OnAbortCallback = std::function<void(const TRequest &)>;
 
   // Takes ownsership of the callbacks.
   // See the base class' function for more details.
-  Status Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, OnOtherEndStartedCallback &&other_end_started_callback = [](const TRequest &r){}, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
+  Status Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, OnAbortCallback &&abort_callback = [](const TRequest &){}, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
     last_request_ = request;
     reply_callback_ = reply_callback;
     progress_callback_ = progress_callback;
-    other_end_started_callback_ = other_end_started_callback;
+    abort_callback_ = abort_callback;
     return P2PActionClientHandlerBase::Request(sizeof(TRequest), &request, priority, guarantee_delivery);
   }
 
@@ -98,22 +108,22 @@ protected:
     P2PActionClientHandlerBase::OnProgress(payload_length, payload);
     progress_callback_(last_request_, *reinterpret_cast<const TProgress *>(payload));
   }
-  virtual void OnOtherEndStarted() override {
-    P2PActionClientHandlerBase::OnOtherEndStarted();
-    other_end_started_callback_(last_request_);
+  virtual void OnAbort() override {
+    P2PActionClientHandlerBase::OnAbort();
+    abort_callback_(last_request_);
   }
 
 private:
   TRequest last_request_;   // Action requests cannot overlap.
   OnReplyCallback reply_callback_ = [](const TRequest &, const TReply &){};
   OnProgressCallback progress_callback_ = [](const TRequest &, const TProgress &){};
-  OnOtherEndStartedCallback other_end_started_callback_ = [](const TRequest &){};
+  OnAbortCallback abort_callback_ = [](const TRequest &){};
 };
 
 class P2PActionClient {
 public:
   // Does not take ownership of the pointees, which must outlive this object.
-  P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer);
+  P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer, std::mutex *p2p_mutex);
 
   // Does not take ownsership of the pointee, which must outlive this object.
   void Register(P2PActionClientHandlerBase *handler);
@@ -135,6 +145,7 @@ private:
 
   P2PPacketStreamLinux &p2p_stream_;
   const TimerInterface &system_timer_;
+  std::mutex &p2p_mutex_;
   P2PActionClientHandlerBase *handlers_[P2PAction::kCount];
 };
 
