@@ -88,7 +88,7 @@ void P2PActionClientHandlerBase::OnOtherEndStarted() {
   }
 }
 
-void P2PActionClientHandlerBase::OnAbort() {
+void P2PActionClientHandlerBase::OnAbort(int payload_length, const void *payload) {
 }
 
 void P2PActionClientHandlerBase::Run() {
@@ -112,7 +112,7 @@ void P2PActionClientHandlerBase::Run() {
 
   state_ = kIdle;
 
-  OnAbort();
+  OnAbort(0, nullptr);
 }
 
 P2PActionClient::P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer)
