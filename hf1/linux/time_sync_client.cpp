@@ -226,8 +226,13 @@ void TimeSyncClient::Run() {
               case Status::kUnavailableError:
                 LOG_ERROR("P2P output queue is saturated.");
                 break;
+              case Status::kOverflowError:
+                LOG_ERROR("Encoded request packet is too long.");
+                ASSERT(false);
+                break;
               default:
                 LOG_ERROR("Unknown error.");
+                ASSERT(false);
                 break;
             }
             if (result == Status::kSuccess) {
