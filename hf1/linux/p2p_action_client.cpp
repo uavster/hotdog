@@ -23,7 +23,9 @@ Status P2PActionClientHandlerBase::Request(int payload_length, const void *paylo
   header->stage = P2PActionStage::kRequest;
   header->request_id = ++current_request_id_;
   memcpy(maybe_new_packet->content() + sizeof(P2PApplicationPacketHeader), payload, payload_length);
-  p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery.has_value() ? *guarantee_delivery : guarantee_delivery_);
+  if (!p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery.has_value() ? *guarantee_delivery : guarantee_delivery_)) {
+    return Status::kOverflowError;
+  }
 
   state_ = allows_concurrent_requests_ ? kIdle : kWaitingForResponse;
   return Status::kSuccess;
@@ -54,7 +56,8 @@ Status P2PActionClientHandlerBase::Cancel(std::optional<P2PPriority> priority, s
   header->action = action_;
   header->stage = P2PActionStage::kCancel;
   header->request_id = current_request_id_;
-  p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery.has_value() ? *guarantee_delivery : guarantee_delivery_);
+  // A cancellation packet should never overflow.
+  ASSERT(p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery.has_value() ? *guarantee_delivery : guarantee_delivery_));
 
   state_ = kIdle;
   return Status::kSuccess;
