@@ -5,6 +5,7 @@
 #include "logger_interface.h"
 #include <sstream>
 #include <iostream>
+#include "status_or.h"
 
 #define kTimeSyncRequestPinNumber 33
 #define kTimeSyncLoopbackPinNumber 31
@@ -215,7 +216,8 @@ void TimeSyncClient::Run() {
               [this](const P2PSyncTimeRequest &request, const P2PSyncTimeReply &reply) {
                 this->OnReply(reply);
               }, 
-              [](const P2PSyncTimeRequest &request, const P2PVoid &progress) {}
+              [](const P2PSyncTimeRequest &request, const P2PVoid &progress) {},
+              /*abort_callback=*/[](const P2PSyncTimeRequest &request, const StatusOr<P2PSyncTimeReply> &reply) {}
             );
             switch(result) {
               case Status::kSuccess:

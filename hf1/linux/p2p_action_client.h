@@ -49,6 +49,7 @@ public:
   // True if the action is being executed; false, otherwise.
   bool in_progress() const;
 
+protected:
   // Called when a reply is received.
   // Overrides must call the parent. Called with p2p_mutex locked.
   virtual void OnReply(int payload_length, const void *payload);
@@ -62,11 +63,11 @@ public:
   virtual void OnOtherEndStarted();
 
   // Called when the action could not be completed.
-  // For instance, because the other end was restarted.
+  // Takes the cancellation packet from the server as `payload`.
+  // If the server was restarted, `payload` is nulptr.
   // Overrides must call the parent. Called with p2p_mutex locked.
-  virtual void OnAbort();
+  virtual void OnAbort(int payload_length, const void *payload);
 
-protected:
   using State = enum { kIdle, kWaitingForResponse, kCancelling };
 
   // Must be called with p2p_mutex_ locked.
@@ -98,11 +99,11 @@ public:
 
   using OnReplyCallback = std::function<void(const TRequest &, const TReply &)>;
   using OnProgressCallback = std::function<void(const TRequest &, const TProgress &)>;
-  using OnAbortCallback = std::function<void(const TRequest &)>;
+  using OnAbortCallback = std::function<void(const TRequest &, const StatusOr<TReply> &)>;
 
   // Takes ownsership of the callbacks.
   // See the base class' function for more details.
-  Status Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, OnAbortCallback &&abort_callback = [](const TRequest &){}, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
+  Status Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, OnAbortCallback &&abort_callback, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
     last_request_ = request;
     reply_callback_ = reply_callback;
     progress_callback_ = progress_callback;
@@ -121,16 +122,23 @@ protected:
     P2PActionClientHandlerBase::OnProgress(payload_length, payload);
     progress_callback_(last_request_, *reinterpret_cast<const TProgress *>(payload));
   }
-  virtual void OnAbort() override {
-    P2PActionClientHandlerBase::OnAbort();
-    abort_callback_(last_request_);
+
+  virtual void OnAbort(int payload_length, const void *payload) override {
+    if (payload == nullptr) {
+      // No payload means that aborting was triggered in the client (e.g. because the server was restarted).
+      abort_callback_(last_request_, Status::kRestartedError);
+      return;
+    }
+    ASSERT(payload_length == sizeof(TReply));
+    P2PActionClientHandlerBase::OnAbort(payload_length, payload);
+    abort_callback_(last_request_, *reinterpret_cast<const TReply *>(payload));
   }
 
 private:
   TRequest last_request_;   // Action requests cannot overlap.
   OnReplyCallback reply_callback_ = [](const TRequest &, const TReply &){};
   OnProgressCallback progress_callback_ = [](const TRequest &, const TProgress &){};
-  OnAbortCallback abort_callback_ = [](const TRequest &){};
+  OnAbortCallback abort_callback_ = [](const TRequest &, const StatusOr<TReply> &){};
 };
 
 class P2PActionClient {
