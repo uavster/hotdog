@@ -45,12 +45,21 @@ public:
   // True if the action is being executed; false, otherwise.
   bool in_progress() const;
 
-  // Overrides must call the parent.
+  // Called when a reply is received.
+  // Overrides must call the parent. Called with p2p_mutex locked.
   virtual void OnReply(int payload_length, const void *payload);
+
+  // Called when a progress packet is received.
+  // Overrides must call the parent. Called with p2p_mutex locked.
   virtual void OnProgress(int payload_length, const void *payload);
+
+  // Called right after the other end starts.
+  // Overrides must call the parent. Called with p2p_mutex locked.
   virtual void OnOtherEndStarted();
+
   // Called when the action could not be completed.
   // For instance, because the other end was restarted.
+  // Overrides must call the parent. Called with p2p_mutex locked.
   virtual void OnAbort();
 
 protected:
@@ -123,7 +132,7 @@ private:
 class P2PActionClient {
 public:
   // Does not take ownership of the pointees, which must outlive this object.
-  P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer, std::mutex *p2p_mutex);
+  P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer);
 
   // Does not take ownsership of the pointee, which must outlive this object.
   void Register(P2PActionClientHandlerBase *handler);
@@ -145,7 +154,6 @@ private:
 
   P2PPacketStreamLinux &p2p_stream_;
   const TimerInterface &system_timer_;
-  std::mutex &p2p_mutex_;
   P2PActionClientHandlerBase *handlers_[P2PAction::kCount];
 };
 

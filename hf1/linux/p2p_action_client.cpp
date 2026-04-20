@@ -23,7 +23,6 @@ Status P2PActionClientHandlerBase::Request(int payload_length, const void *paylo
   header->stage = P2PActionStage::kRequest;
   header->request_id = ++current_request_id_;
   memcpy(maybe_new_packet->content() + sizeof(P2PApplicationPacketHeader), payload, payload_length);
-  if (action_ == 5) { std::cout << "eoeoeoeo" << std::endl; };
   p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery.has_value() ? *guarantee_delivery : guarantee_delivery_);
 
   state_ = allows_concurrent_requests_ ? kIdle : kWaitingForResponse;
@@ -105,15 +104,16 @@ void P2PActionClientHandlerBase::Run() {
   header->action = action_;
   header->stage = P2PActionStage::kCancel;
   header->request_id = current_request_id_;
-  p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery_);
+  // There should be enough space in the output buffer to hold the cancellation packet.
+  ASSERT(p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery_));
 
   state_ = kIdle;
 
   OnAbort();
 }
 
-P2PActionClient::P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer, std::mutex *p2p_mutex)
-  : p2p_stream_(*ASSERT_NOT_NULL(p2p_stream)), system_timer_(*ASSERT_NOT_NULL(system_timer)), p2p_mutex_(*ASSERT_NOT_NULL(p2p_mutex)) {
+P2PActionClient::P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer)
+  : p2p_stream_(*ASSERT_NOT_NULL(p2p_stream)), system_timer_(*ASSERT_NOT_NULL(system_timer)) {
   p2p_stream_.other_end_started_callback(P2POtherEndStartedCallback(&P2PActionClient::OnOtherEndStarted, this));
   for (int i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
     handlers_[i] = nullptr;
@@ -192,10 +192,10 @@ void P2PActionClient::Run() {
 }
 
 void P2PActionClient::OnOtherEndStarted(void *p_self) {
+  // This is called as a callback from the p2p packet stream, so p2p_mutex_ is locked.
   ASSERT_NOT_NULL(p_self);
   P2PActionClient &self = *reinterpret_cast<P2PActionClient *>(p_self);
-  // Lock the mutex, so callbacks can alter the handlers' state.
-  // std::lock_guard<std::mutex> guard(self.p2p_mutex_);
+  // p2p_mutex_ is locked, so callbacks can alter the handlers' state without racing.
   for (int i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
     if (self.handlers_[i] != nullptr) {
       self.handlers_[i]->OnOtherEndStarted();
