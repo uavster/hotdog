@@ -33,8 +33,16 @@ Status P2PActionClientHandlerBase::Cancel(std::optional<P2PPriority> priority, s
   // Protect with a mutex as this will be called from a different thread than Run().
   std::lock_guard<std::mutex> guard(p2p_mutex_);
 
-  if (!allows_concurrent_requests_ && state_ != kWaitingForResponse) {
-    return Status::kDoesNotExistError;
+  if (!allows_concurrent_requests_) {
+    if (state_ == kIdle) {
+      return Status::kDoesNotExistError;
+    } else {
+      if (state_ == kCancelling) {
+        // If we're already trying to cancel the action, tell the caller that they can move on,
+        // as the client will no longer be routing replies or progress to anybody.
+        return Status::kSuccess;
+      }
+    }
   }
 
   auto maybe_new_packet = p2p_stream_.output().NewPacket(priority.has_value() ? *priority : priority_);
@@ -58,19 +66,50 @@ bool P2PActionClientHandlerBase::in_progress() const {
 }
 
 void P2PActionClientHandlerBase::OnReply(int payload_length, const void *payload) {
-  // It is possible to get a reply after cancelling the action, if the cancellation arrives
-  // at the other end after it has sent the reply packet.
   // It is fine to modify state_ because this function is called only from Run(), which the caller calls with p2p_mutex_ locked.
   state_ = kIdle;  
 }
 
 void P2PActionClientHandlerBase::OnProgress(int payload_length, const void *payload) {
-  // It is possible to get a progress packet after cancelling the action, if the 
-  // cancellation arrives at the other end after it has sent the progress packet.
 }
 
 void P2PActionClientHandlerBase::OnOtherEndStarted() {
+  // If the other has restarted, the action might be gone and we might never get a reply. 
+  // However, if the action request was in the output buffer, the other end might get it
+  // after sending the handshake packet that triggered this callback, so we need to ensure
+  // that a cancellation is sent before marking it as cancelled locally. We the state as
+  // kCancelling, so Run() ensures that a cancellation packet is sent, after which the 
+  // action will be marked as kIdle, ready to be used again.
+  if (state_ == kWaitingForResponse) {
+    state_ = kCancelling;
+  }
+}
+
+void P2PActionClientHandlerBase::OnAbort() {
+}
+
+void P2PActionClientHandlerBase::Run() {
+  // This is called from the action client's Run(), so p2p_mutex_ is locked.
+
+  if (state_ != kCancelling) { return; }
+
+  // The action is being cancelled locally. Try to send the cancellation packet.
+  auto maybe_new_packet = p2p_stream_.output().NewPacket(priority_);
+  if (!maybe_new_packet.ok()) {
+    return;    
+  }
+
+  maybe_new_packet->length() = sizeof(P2PApplicationPacketHeader);
+  P2PApplicationPacketHeader *header = reinterpret_cast<P2PApplicationPacketHeader *>(maybe_new_packet->content());
+  header->action = action_;
+  header->stage = P2PActionStage::kCancel;
+  header->request_id = current_request_id_;
+  // There should be enough space in the output buffer to hold the cancellation packet.
+  ASSERT(p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery_));
+
   state_ = kIdle;
+
+  OnAbort();
 }
 
 P2PActionClient::P2PActionClient(P2PPacketStreamLinux *p2p_stream, const TimerInterface *system_timer)
@@ -89,6 +128,14 @@ void P2PActionClient::Register(P2PActionClientHandlerBase *handler) {
 
 void P2PActionClient::Run() {
   // The caller is responsible for locking p2p_mutex_ before calling this function.
+
+  // Manage lifecycle of all actions by calling Run() on all handlers.
+  for (int i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
+    if (handlers_[i] != nullptr) {
+      handlers_[i]->Run();
+    }
+  }
+
   // Process new packets.
   const auto &maybe_packet = p2p_stream_.input().OldestPacket();
   if (!maybe_packet.ok()) {
@@ -119,6 +166,13 @@ void P2PActionClient::Run() {
     return;
   }
 
+  if (handler->state() != P2PActionClientHandlerBase::State::kWaitingForResponse) {
+    // The action is not waiting for a response because it was either not started 
+    // or it's being cancelled due to the other end having restarted.
+    p2p_stream_.input().Consume(maybe_packet->priority());
+    return;
+  }
+
   const uint8_t *payload = maybe_packet->content() + sizeof(P2PApplicationPacketHeader);
   switch(header->stage) {
     case P2PActionStage::kReply:
@@ -138,8 +192,10 @@ void P2PActionClient::Run() {
 }
 
 void P2PActionClient::OnOtherEndStarted(void *p_self) {
+  // This is called as a callback from the p2p packet stream, so p2p_mutex_ is locked.
   ASSERT_NOT_NULL(p_self);
   P2PActionClient &self = *reinterpret_cast<P2PActionClient *>(p_self);
+  // p2p_mutex_ is locked, so callbacks can alter the handlers' state without racing.
   for (int i = 0; i < sizeof(handlers_) / sizeof(handlers_[0]); ++i) {
     if (self.handlers_[i] != nullptr) {
       self.handlers_[i]->OnOtherEndStarted();
