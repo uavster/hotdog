@@ -4,7 +4,7 @@
 #include "logger_interface.h"
 
 enum Status {
-  kSuccess, kUnavailableError, kMalformedError, kExistsError, kDoesNotExistError, kInProgressError, kInUseError
+  kSuccess, kUnavailableError, kMalformedError, kExistsError, kDoesNotExistError, kInProgressError, kInUseError, kOverflowError
 };
 
 template<typename ValueType> class StatusOr {

@@ -28,17 +28,21 @@ public:
   // Sends an action request message with the given `payload`.
   // If `priority` and `guarantee_delivery` are passed, they override the default
   // configuration passed in the constructor.
-  // If successful, it resturn Status::kSuccess.
-  // If the action is already in progress, it returns Status::kExistsError.
-  // If no P2P packet slots are available to send the message, it returns Status::kUnavailableError.
+  // It can return the following error codes:
+  //  Status::kSuccess - the request was placed in the P2P output queue.
+  //  Status::kUnavailableError - no P2P packet slots are available to send the message.
+  //  Status::kExistsError - the action was already in progress.
+  //  Status::kOverflowError - the P2P-encoded request packet does not fit in a slot of the output queue. 
+  //    Encoded packets may be longer due to double-byte encoding of special characters.
   Status Request(int payload_length, const void *payload, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt);
 
   // Sends an action cancellation message.
   // If `priority` and `guarantee_delivery` are passed, they override the default
   // configuration passed in the constructor.
-  // If successful, it resturn Status::kSuccess.
-  // If the action was not in progress, it returns Status::kDoesNotExistsError.
-  // If no P2P packet slots are available to send the message, it returns Status::kUnavailableError.
+  // It can return the following error codes:
+  //  Status::kSuccess - the cancellation packet was placed in the P2P output queue.
+  //  Status::kUnavailableError - no P2P packet slots are available to send the message.
+  //  Status::kExistsError - the action was not in progress.
   Status Cancel(std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt);
 
   P2PAction action() const { return action_; }
