@@ -182,7 +182,10 @@ void P2PActionClient::Run() {
       handler->OnReply(maybe_packet->length() - sizeof(P2PApplicationPacketHeader), payload);
       break;
     case P2PActionStage::kProgress:
-      handler->OnProgress(maybe_packet->length() - sizeof(P2PApplicationPacketHeader), payload);
+      handler->OnProgress(maybe_packet->length() - sizeof(P2PApplicationPacketHeader), payload);      
+      break;
+    case P2PActionStage::kCancel:
+      handler->OnAbort(maybe_packet->length() - sizeof(P2PApplicationPacketHeader), payload);
       break;
     default: {
       std::ostringstream oss;
