@@ -102,11 +102,14 @@ public:
   // but it should not be cached across callbacks as it might change over time.
   const TRequest &GetRequest() const;
 
-  // Creates a TReply in a new output stream packet or returns an error status.
+  // Allocates an output stream packet and creates a reply, or returns an error status.
   StatusOr<P2PActionPacketAdapter<TReply>> NewReply();
 
-  // Creates a TProgress in a new output packet or returns an error status.
+  // Allocates an output stream packet and creates a progress update, or returns an error status.
   StatusOr<P2PActionPacketAdapter<TProgress>> NewProgress();
+
+  // Allocates an output stream packet and creates an abort notification, or returns an error status.
+  StatusOr<P2PActionPacketAdapter<TReply>> NewAbort();
 
   int GetExpectedRequestSize() const override {
     return sizeof(TRequest);
