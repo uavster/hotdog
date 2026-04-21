@@ -12,21 +12,31 @@ public:
   ExecuteBaseTrajectoryViewActionHandler(P2PPacketStreamArduino *p2p_stream, TrajectoryStore *trajectory_store, BaseTrajectoryController *base_trajectory_controller)
     : P2PActionHandler<P2PExecuteBaseTrajectoryViewRequest, P2PExecuteBaseTrajectoryViewReply, P2PExecuteBaseTrajectoryViewProgress>(P2PAction::kExecuteBaseTrajectoryView, p2p_stream), 
       trajectory_store_(*ASSERT_NOT_NULL(trajectory_store)),
-      base_trajectory_controller_(*ASSERT_NOT_NULL(base_trajectory_controller)) {}
+      base_trajectory_controller_(*ASSERT_NOT_NULL(base_trajectory_controller)), 
+      is_enabled_(true) {}
 
   bool Run() override;
+  void Abort() override;
+
   bool OnRequest() override;
   void OnCancel() override;
+
+  // If `ie` is true, the action handler processes requests.
+  // Otherwise, requests are rejected with an abort packet.
+  void is_enabled(bool ie) { is_enabled_ = ie; }
+  bool is_enabled() const { return is_enabled_; }
 
 private:
   bool TrySendingReply();
   bool TrySendingProgress();
+  bool TrySendingAbort();
 
   TrajectoryStore &trajectory_store_;  
   BaseTrajectoryController &base_trajectory_controller_;
+  bool is_enabled_;
   Status result_;
   uint64_t last_progress_update_ns_;
-  enum { kProcessingRequest, kSendingReply, kWaitForNextProgressUpdate, kSendingProgress } state_ = kProcessingRequest;
+  enum { kProcessingRequest, kSendingReply, kWaitForNextProgressUpdate, kSendingProgress, kSendingAbort } state_ = kProcessingRequest;
 };
 
 #endif  // EXECUTE_BASE_TRAJECTORY_VIEW_ACTION_HANDLER_

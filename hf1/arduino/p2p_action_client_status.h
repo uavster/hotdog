@@ -9,8 +9,13 @@
 class P2PActionClientStatus : public PeriodicRunnable {
 public:
   enum LinkStatus { kInactive, kActive };
+  using LinkStatusChangedCallback = void (*)(LinkStatus old_status, LinkStatus new_status);
 
-  P2PActionClientStatus(const char *name);
+  // Creates the object with a `name`.
+  // `link_status_changed_callback`, if not nulptr, is called every time the link status changes.
+  // Copies `name` to an internal buffer, so it can be discarded constructing the object.
+  // Does not take ownership of `link_status_changed_callback`, which must outlive this object.
+  P2PActionClientStatus(const char *name, LinkStatusChangedCallback link_status_changed_callback);
 
   // Must be called whenever a ping action is received.
   void NotifyPingReceived();
@@ -23,6 +28,7 @@ protected:
 private:
   LinkStatus link_status_; 
   TimerNanosType last_ping_notification_ns_;
+  LinkStatusChangedCallback link_status_changed_callback_;
 };
 
 #endif  // P2P_ACTION_CLIENT_STATUS_

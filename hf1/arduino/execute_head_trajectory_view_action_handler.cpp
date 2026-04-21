@@ -23,9 +23,16 @@ bool ExecuteHeadTrajectoryViewActionHandler::Run() {
       const auto trajectory_view_type = static_cast<P2PTrajectoryViewType>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view_id.type));
       last_progress_update_ns_ = 0;
 
-      char str[100];
-      sprintf(str, "execute_head_trajectory_view(trajectory_view_type=%d, trajectory_view_id=%d)", trajectory_view_type, trajectory_view_id);
-      LOG_INFO(str);
+      if (is_enabled_) {
+        char str[100];
+        sprintf(str, "execute_head_trajectory_view(trajectory_view_type=%d, trajectory_view_id=%d)", trajectory_view_type, trajectory_view_id);
+        LOG_INFO(str);
+      } else {
+        // The action is disabled: do not run it and send back an abort notification.
+        LOG_WARNING("execute_head_trajectory_view() rejected because it's disabled.");
+        state_ = kSendingAbort;
+        break;
+      }
 
       TrajectoryViewInterface<HeadTargetState> *trajectory_view = nullptr;
       switch(trajectory_view_type) {
@@ -111,8 +118,23 @@ bool ExecuteHeadTrajectoryViewActionHandler::Run() {
       }
       break;
     }
+
+    case kSendingAbort: {
+      if (TrySendingAbort()) {
+        state_ = kProcessingRequest;
+        return false; // Do not loop anymore.
+      }
+    }
   }
   return true;  // Keep looping.
+}
+
+void ExecuteHeadTrajectoryViewActionHandler::Abort() {
+  if (run_state() != kRunning) {
+    return;
+  }
+  head_trajectory_controller_.Stop();
+  state_ = kSendingAbort;
 }
 
 bool ExecuteHeadTrajectoryViewActionHandler::TrySendingReply() {
@@ -136,6 +158,18 @@ bool ExecuteHeadTrajectoryViewActionHandler::TrySendingProgress() {
   P2PActionPacketAdapter<P2PExecuteHeadTrajectoryViewProgress> progress = *maybe_progress;
   progress->num_completed_laps = LocalToNetwork<kP2PLocalEndianness>(head_trajectory_controller_.NumCompletedLaps());
   progress.Commit(/*guarantee_delivery=*/false);
+  return true;
+}
+
+bool ExecuteHeadTrajectoryViewActionHandler::TrySendingAbort() {
+  StatusOr<P2PActionPacketAdapter<P2PExecuteHeadTrajectoryViewReply>> maybe_reply = NewAbort();
+  if (!maybe_reply.ok()) {
+    return false;
+  }
+  last_progress_update_ns_ = GetTimerNanoseconds();
+  P2PActionPacketAdapter<P2PExecuteHeadTrajectoryViewReply> reply = *maybe_reply;
+  reply->status_code = LocalToNetwork<kP2PLocalEndianness>(Status::kAbortedError);
+  reply.Commit(/*guarantee_delivery=*/true);
   return true;
 }
 
