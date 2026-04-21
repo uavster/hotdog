@@ -75,6 +75,7 @@ bool ExecuteBaseTrajectoryViewActionHandler::Run() {
       }
 
       EnableTrajectoryControl(true);
+      EnableWheelControl(true);
       base_trajectory_controller_.trajectory(trajectory_view);
       base_trajectory_controller_.Start();
       state_ = kWaitForNextProgressUpdate;
