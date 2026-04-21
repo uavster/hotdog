@@ -23,9 +23,15 @@ bool ExecuteBaseTrajectoryViewActionHandler::Run() {
       const auto trajectory_view_type = static_cast<P2PTrajectoryViewType>(NetworkToLocal<kP2PLocalEndianness>(request.trajectory_view_id.type));
       last_progress_update_ns_ = 0;
 
-      char str[100];
-      sprintf(str, "execute_base_trajectory_view(trajectory_view_type=%d, trajectory_view_id=%d)", trajectory_view_type, trajectory_view_id);
-      LOG_INFO(str);
+      if (is_enabled_) {
+        char str[100];
+        sprintf(str, "execute_base_trajectory_view(trajectory_view_type=%d, trajectory_view_id=%d)", trajectory_view_type, trajectory_view_id);
+        LOG_INFO(str);
+      } else {
+        LOG_WARNING("execute_base_trajectory_view() rejected because it's disabled.");
+        state_ = kSendingAbort;
+        break;
+      }
 
       TrajectoryViewInterface<BaseTargetState> *trajectory_view = nullptr;
       switch(trajectory_view_type) {
@@ -111,8 +117,23 @@ bool ExecuteBaseTrajectoryViewActionHandler::Run() {
       }
       break;
     }
+
+    case kSendingAbort: {
+      if (TrySendingAbort()) {
+        state_ = kProcessingRequest;
+        return false; // Do not loop anymore.
+      }
+    }
   }
   return true;  // Keep looping.
+}
+
+void ExecuteBaseTrajectoryViewActionHandler::Abort() {
+  if (run_state() != kRunning) {
+    return;
+  }
+  base_trajectory_controller_.Stop();
+  state_ = kSendingAbort;
 }
 
 bool ExecuteBaseTrajectoryViewActionHandler::TrySendingReply() {
@@ -136,6 +157,18 @@ bool ExecuteBaseTrajectoryViewActionHandler::TrySendingProgress() {
   P2PActionPacketAdapter<P2PExecuteBaseTrajectoryViewProgress> progress = *maybe_progress;
   progress->num_completed_laps = LocalToNetwork<kP2PLocalEndianness>(base_trajectory_controller_.NumCompletedLaps());
   progress.Commit(/*guarantee_delivery=*/false);
+  return true;
+}
+
+bool ExecuteBaseTrajectoryViewActionHandler::TrySendingAbort() {
+  StatusOr<P2PActionPacketAdapter<P2PExecuteBaseTrajectoryViewReply>> maybe_reply = NewAbort();
+  if (!maybe_reply.ok()) {
+    return false;
+  }
+  last_progress_update_ns_ = GetTimerNanoseconds();
+  P2PActionPacketAdapter<P2PExecuteBaseTrajectoryViewReply> reply = *maybe_reply;
+  reply->status_code = LocalToNetwork<kP2PLocalEndianness>(Status::kAbortedError);
+  reply.Commit(/*guarantee_delivery=*/true);
   return true;
 }
 

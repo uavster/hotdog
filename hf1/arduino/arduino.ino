@@ -90,7 +90,6 @@ P2PPacketStreamArduino p2p_stream(&byte_stream, &timer, guid_factory);
 
 BaseIMU base_imu(kPersistanceOffsetBaseIMUCalibration);
 
-P2PActionClientStatus p2p_action_client_status("P2PActionClientStatus");
 WheelStateEstimator wheel_state_estimator("WheelStateEstimator");
 WheelSpeedController left_wheel("LeftWheelSpeedController", &wheel_state_estimator.left_wheel_state_filter(), &SetLeftMotorDutyCycle);
 WheelSpeedController right_wheel("RightWheelSpeedController", &wheel_state_estimator.right_wheel_state_filter(), &SetRightMotorDutyCycle);
@@ -101,10 +100,6 @@ HeadTrajectoryController head_trajectory_controller("HeadTrajectoryController");
 TrajectoryStore trajectory_store;
 
 P2PActionServer p2p_action_server(&p2p_stream);
-static void ping_received_callback() {
-  p2p_action_client_status.NotifyPingReceived();
-}
-PingActionHandler ping_action_handler(&p2p_stream, ping_received_callback);
 SetHeadPoseActionHandler set_head_pose_action_handler(&p2p_stream);
 SetBaseVelocityActionHandler set_base_velocity_action_handler(&p2p_stream, &base_speed_controller);
 SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
@@ -121,6 +116,36 @@ CreateBaseMixedTrajectoryViewActionHandler create_base_mixed_trajectory_view_act
 CreateHeadMixedTrajectoryViewActionHandler create_head_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 ExecuteBaseTrajectoryViewActionHandler execute_base_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &base_trajectory_controller);
 ExecuteHeadTrajectoryViewActionHandler execute_head_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &head_trajectory_controller);
+
+static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_status, P2PActionClientStatus::LinkStatus new_status) {
+  switch(new_status) {
+    case P2PActionClientStatus::LinkStatus::kInactive: {
+      // The action client is inactive (stopped pinging). 
+      // For safety, stop all motion, abort all trajectories beig executed, 
+      // and disable the actions to prevent any pending requests in the input queue from being processed.
+      // The guaranteed-delivery abort messages will make it to the action client as soon as it comes back.
+      base_trajectory_controller.Stop();
+      head_trajectory_controller.Stop();
+      execute_base_trajectory_view_action_handler.Abort();
+      execute_head_trajectory_view_action_handler.Abort();
+      execute_base_trajectory_view_action_handler.is_enabled(false);
+      execute_head_trajectory_view_action_handler.is_enabled(false);
+      break;
+    }
+    case P2PActionClientStatus::LinkStatus::kActive: {
+      // Re-enable the motion execution actions.
+      execute_base_trajectory_view_action_handler.is_enabled(true);
+      execute_head_trajectory_view_action_handler.is_enabled(true);
+      break;
+    }
+  }
+}
+P2PActionClientStatus p2p_action_client_status("P2PActionClientStatus", &link_status_changed_callback);
+
+static void ping_received_callback() {
+  p2p_action_client_status.NotifyPingReceived();
+}
+PingActionHandler ping_action_handler(&p2p_stream, ping_received_callback);
 
 Console console(&Serial);
 

@@ -36,7 +36,7 @@ public:
   bool is_registered() const { return is_registered_; }
   void is_registered(bool ir) { is_registered_ = ir; }
   bool is_initialized() const { return is_initialized_; }
-  void is_initialized(bool ii) { is_initialized_ = ii; }  
+  void is_initialized(bool ii) { is_initialized_ = ii; }
   P2PAction action() const { return action_; }
   RunState run_state() const { return run_state_; }
   void run_state(RunState state) { run_state_ = state; }
@@ -57,6 +57,10 @@ public:
 
   // Called once from the server's Run() before any other callbacks.
   virtual void Init() {}
+
+  // Aborts the action from the server side of the P2P link.
+  // Subclasses must override this function to stop the action and send back a abort notification.
+  virtual void Abort() {}
 
   // Called when the action request is received. Returns whether the action will be started.
   // If false, the other end receives a P2PActionStage::kCancel stage; otherwise, the other 
