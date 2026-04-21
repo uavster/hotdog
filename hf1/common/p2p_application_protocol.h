@@ -70,13 +70,17 @@ typedef struct {
 } P2PApplicationPacketHeader;
 
 // --- Void action ---
-typedef struct {} P2PVoid;
+typedef struct {
+  uint8_t reserved;
+} P2PVoid;
 
 // --- Ping ---
 typedef struct  {
+  uint8_t reserved;
 } P2PPingRequest;
 
 typedef struct {
+  uint8_t reserved;
 } P2PPingReply;
 
 // --- Time synchronization ---
