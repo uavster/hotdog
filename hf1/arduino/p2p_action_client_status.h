@@ -14,7 +14,7 @@ public:
   // Creates the object with a `name`.
   // `link_status_changed_callback`, if not nulptr, is called every time the link status changes.
   // Copies `name` to an internal buffer, so it can be discarded constructing the object.
-  // Does not take ownership of `link_status_changed_callback`, which must outlive this object.
+  // Takes ownership of `link_status_changed_callback`, which cannot be rerenced by the caller after this call.
   P2PActionClientStatus(const char *name, LinkStatusChangedCallback link_status_changed_callback);
 
   // Must be called whenever a ping action is received.
