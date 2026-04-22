@@ -138,13 +138,13 @@ protected:
   }
 
   virtual void OnAbort(int payload_length, const void *payload) override {
+    P2PActionClientHandlerBase::OnAbort(payload_length, payload);
     if (payload == nullptr) {
       // No payload means that aborting was triggered in the client (e.g. because the server was restarted).
       abort_callback_(last_request_, Status::kRestartedError);
       return;
     }
     ASSERT(payload_length == sizeof(TReply));
-    P2PActionClientHandlerBase::OnAbort(payload_length, payload);
     abort_callback_(last_request_, *reinterpret_cast<const TReply *>(payload));
   }
 
