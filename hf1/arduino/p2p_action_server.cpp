@@ -75,12 +75,9 @@ StatusOr<const P2PPacketView> P2PActionServer::GetRequestOrCancellation() const 
     return Status::kMalformedError;
   }
 
-  // TODO: fix this.
-  // if (app_header->stage == P2PActionStage::kRequest) {
-  //   ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader) + handler->GetExpectedRequestSize());
-  // } else {
-  //   ASSERT(maybe_oldest_packet_view->length() == sizeof(P2PApplicationPacketHeader));
-  // }
+  // Requests may be shorter than their max size because they hold fewer elements in array fields, so check size is under maximum.
+  // It is ok to static cast app_header->stage to the enum since we have checked that it's either kRequest or kCancellation.
+  ASSERT(maybe_oldest_packet_view->length() <= sizeof(P2PApplicationPacketHeader) + handler->GetMaximumContentSize(static_cast<P2PActionStage>(app_header->stage)));
 
   return maybe_oldest_packet_view;
 }
@@ -118,7 +115,7 @@ void P2PActionServer::Run() {
         if (handler->Run()) {
           // The action goes on. Further calls to run will operate on a copy, as the input 
           // packet must be consumed for other packets to be processed.
-          memcpy(handler->GetRequestCopyBuffer(), maybe_packet->content() + sizeof(P2PApplicationPacketHeader), handler->GetExpectedRequestSize());
+          memcpy(handler->GetRequestCopyBuffer(), maybe_packet->content() + sizeof(P2PApplicationPacketHeader), handler->GetMaximumContentSize(P2PActionStage::kRequest));
           handler->request_bytes(handler->GetRequestCopyBuffer());    
           handler->run_state(P2PActionHandlerBase::RunState::kRunning);
         }

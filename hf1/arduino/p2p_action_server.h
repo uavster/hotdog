@@ -52,8 +52,11 @@ public:
   // Returns a pointer to a buffer where to copy the request when the action takes longer than a call to Run().
   virtual uint8_t *GetRequestCopyBuffer() = 0;
 
-  // Returns the expected request size.
-  virtual int GetExpectedRequestSize() const = 0;
+  // Returns the maximum content (packet minus application header) size that can be 
+  // received for a given action stage.
+  // Packets may be shorter than their corresponding structures if they have fewer
+  // elements in arrays, e.g. waypoints.
+  virtual int GetMaximumContentSize(P2PActionStage action_stage) const = 0;
 
   // Called once from the server's Run() before any other callbacks.
   virtual void Init() {}
@@ -115,10 +118,8 @@ public:
   // Allocates an output stream packet and creates an abort notification, or returns an error status.
   StatusOr<P2PActionPacketAdapter<TReply>> NewAbort();
 
-  int GetExpectedRequestSize() const override {
-    return sizeof(TRequest);
-  }
-
+  int GetMaximumContentSize(P2PActionStage action_stage) const override;
+  
   uint8_t *GetRequestCopyBuffer() override {
     return reinterpret_cast<uint8_t *>(&request_);
   }

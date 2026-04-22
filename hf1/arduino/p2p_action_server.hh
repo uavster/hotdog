@@ -1,3 +1,15 @@
+template<typename TRequest, typename TReply, typename TProgress>
+int P2PActionHandler<TRequest, TReply, TProgress>::GetMaximumContentSize(P2PActionStage action_stage) const {
+  switch(action_stage) {
+    case P2PActionStage::kRequest: return sizeof(TRequest);
+    case P2PActionStage::kReply: return sizeof(TReply);
+    case P2PActionStage::kProgress: return sizeof(TProgress);
+    case P2PActionStage::kCancel: return 0;    
+    // The compiler should complain if not all cases are treated.
+  }
+  return 0;
+}
+
 template<typename TPacket>
 void P2PActionPacketAdapter<TPacket>::Commit(bool guarantee_delivery) {
   action_handler_->p2p_stream().output().Commit(packet_view_.priority(), guarantee_delivery);
