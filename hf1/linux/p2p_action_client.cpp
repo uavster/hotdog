@@ -80,9 +80,14 @@ void P2PActionClientHandlerBase::OnOtherEndStarted() {
   // If the other has restarted, the action might be gone and we might never get a reply. 
   // However, if the action request was in the output buffer, the other end might get it
   // after sending the handshake packet that triggered this callback, so we need to ensure
-  // that a cancellation is sent before marking it as cancelled locally. We the state as
+  // that a cancellation is sent before marking it as cancelled locally. We set the state to
   // kCancelling, so Run() ensures that a cancellation packet is sent, after which the 
   // action will be marked as kIdle, ready to be used again.
+  // We only set the state to kCancelling if the action is waiting for response because 
+  // there's no need to cancel actions sitting in idle, and it is possible that the other end 
+  // restarts multiple times before sending the cancellation, in which case the link could 
+  // handshake multiple times as well and this function would be called repeatedly, possibly 
+  // cancelling an already cancelled action.
   if (state_ == kWaitingForResponse) {
     state_ = kCancelling;
   }
