@@ -91,7 +91,20 @@ private:
   std::atomic<State> state_;
 };
 
-template<typename TRequest, typename TReply = P2PVoid, typename TProgress = P2PVoid> class P2PActionClientHandler : public P2PActionClientHandlerBase {
+template<typename TRequest> struct LiteralRequestSizeCalculator {
+  static int CalculateRequestSize(const TRequest &r) { 
+    return sizeof(TRequest); 
+  }
+};
+
+template<typename TRequest> struct CreateTrajectoryRequestSizeCalculator {
+  static int CalculateRequestSize(const TRequest &request) { 
+    return sizeof(request) - sizeof(request.trajectory.waypoints) + request.trajectory.num_waypoints * sizeof(request.trajectory.waypoints[0]);
+  }
+};
+
+template<typename TRequest, typename TReply = P2PVoid, typename TProgress = P2PVoid, typename TRequestSizeCalculator = LiteralRequestSizeCalculator<TRequest>> 
+class P2PActionClientHandler : public P2PActionClientHandlerBase {
 public:
   // Does not take ownership of the pointees, which must outlive this object.
   P2PActionClientHandler(P2PAction action, P2PPriority default_priority, bool default_guarantee_delivery, P2PPacketStreamLinux *p2p_stream, std::mutex *p2p_mutex, bool allows_concurrent_requests = false)
@@ -103,12 +116,13 @@ public:
 
   // Takes ownsership of the callbacks.
   // See the base class' function for more details.
-  Status Request(const TRequest &request, OnReplyCallback &&reply_callback, OnProgressCallback &&progress_callback, OnAbortCallback &&abort_callback, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
+  Status Request(const TRequest &request, OnReplyCallback reply_callback, OnProgressCallback progress_callback, OnAbortCallback abort_callback, std::optional<P2PPriority> priority = std::nullopt, std::optional<bool> guarantee_delivery = std::nullopt) {
     last_request_ = request;
-    reply_callback_ = reply_callback;
-    progress_callback_ = progress_callback;
-    abort_callback_ = abort_callback;
-    return P2PActionClientHandlerBase::Request(sizeof(TRequest), &request, priority, guarantee_delivery);
+    reply_callback_ = std::move(reply_callback);
+    progress_callback_ = std::move(progress_callback);
+    abort_callback_ = std::move(abort_callback);
+    return P2PActionClientHandlerBase::Request(TRequestSizeCalculator::CalculateRequestSize(request), &request, priority, guarantee_delivery);
+    return Status::kSuccess;
   }
 
 protected:
@@ -136,9 +150,9 @@ protected:
 
 private:
   TRequest last_request_;   // Action requests cannot overlap.
-  OnReplyCallback reply_callback_ = [](const TRequest &, const TReply &){};
-  OnProgressCallback progress_callback_ = [](const TRequest &, const TProgress &){};
-  OnAbortCallback abort_callback_ = [](const TRequest &, const StatusOr<TReply> &){};
+  OnReplyCallback reply_callback_;
+  OnProgressCallback progress_callback_;
+  OnAbortCallback abort_callback_;
 };
 
 class P2PActionClient {

@@ -70,13 +70,26 @@ typedef struct {
 } P2PApplicationPacketHeader;
 
 // --- Void action ---
-typedef struct {} P2PVoid;
+typedef struct {
+  // Some compilers do sizeof(empty_struct)==1 to comply with the "different objects have different pointers" standard.
+  // Some can be configured to do sizeof(empty_struct)==0. Better to inflate the struct explicitly and have the same 
+  // size across binaries that may be built with different compilers.
+  uint8_t reserved; 
+} P2PVoid;
 
 // --- Ping ---
 typedef struct  {
+  // Some compilers do sizeof(empty_struct)==1 to comply with the "different objects have different pointers" standard.
+  // Some can be configured to do sizeof(empty_struct)==0. Better to inflate the struct explicitly and have the same 
+  // size across binaries that may be built with different compilers.
+  uint8_t reserved;
 } P2PPingRequest;
 
 typedef struct {
+  // Some compilers do sizeof(empty_struct)==1 to comply with the "different objects have different pointers" standard.
+  // Some can be configured to do sizeof(empty_struct)==0. Better to inflate the struct explicitly and have the same 
+  // size across binaries that may be built with different compilers.
+  uint8_t reserved;
 } P2PPingReply;
 
 // --- Time synchronization ---
