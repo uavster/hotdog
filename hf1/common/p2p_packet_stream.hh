@@ -507,6 +507,7 @@ template<int kInputCapacity, int kOutputCapacity, Endianness LocalEndianness>
 P2PPacketStream<kInputCapacity, kOutputCapacity, LocalEndianness>::P2PPacketStream(P2PByteStreamInterface<LocalEndianness> *byte_stream, TimerInterface *timer, GUIDFactoryInterface &guid_factory)
     : input_(byte_stream, timer), output_(byte_stream, timer), 
       handshake_id_(guid_factory.CreateGUID<kSequenceNumberNumBytes, kP2PLowestToken>()), handshake_done_(false) {
+  ASSERT(handshake_id_ != -1ULL);
   for (int i = 0; i < P2PPriority::kNumLevels; ++i) {
     last_init_sequence_number_[i] = -1ULL;
   }
