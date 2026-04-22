@@ -89,6 +89,7 @@ void P2PActionClientHandlerBase::OnOtherEndStarted() {
 }
 
 void P2PActionClientHandlerBase::OnAbort(int payload_length, const void *payload) {
+  state_ = kIdle;
 }
 
 void P2PActionClientHandlerBase::Run() {
@@ -109,8 +110,6 @@ void P2PActionClientHandlerBase::Run() {
   header->request_id = current_request_id_;
   // There should be enough space in the output buffer to hold the cancellation packet.
   ASSERT(p2p_stream_.output().Commit(maybe_new_packet->priority(), guarantee_delivery_));
-
-  state_ = kIdle;
 
   OnAbort(0, nullptr);
 }
