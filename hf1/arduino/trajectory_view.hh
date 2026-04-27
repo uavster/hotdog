@@ -23,10 +23,10 @@ static Waypoint<TState> CentripetalCatmullRom(const Waypoint<TState> &p0, const 
 }
 
 template<typename TState>
-TrajectoryView<TState>::TrajectoryView(const TrajectoryInterface<TState> *trajectory)
+TrajectoryView<TState>::TrajectoryView(const TrajectoryInterface<TState> *trajectory, InterpolationConfig interpolation, TimerSecondsType loop_after_seconds)
   : trajectory_(ASSERT_NOT_NULL(trajectory)),
-    interpolation_config_(InterpolationConfig{ .type = kNone }),
-    loop_after_seconds_(-1) {}
+    interpolation_config_(interpolation),
+    loop_after_seconds_(loop_after_seconds) {}
 
 template<typename TState>
 Waypoint<TState> TrajectoryView<TState>::GetPeriodicWaypoint(int index) const {

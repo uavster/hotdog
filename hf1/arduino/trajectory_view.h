@@ -43,7 +43,8 @@ class TrajectoryView : public TrajectoryViewInterface<TState> {
 public:
   TrajectoryView() : trajectory_(nullptr), interpolation_config_(InterpolationConfig{ .type = InterpolationType::kNone }), loop_after_seconds_(-1) {}
   // Does not take ownsership of the pointee, which must outlive this object.
-  TrajectoryView(const TrajectoryInterface<TState> *trajectory);
+  // The trajectory view loops after `loop_after_seconds` or ends if `loop_after_seconds` is lower than 0. See documentation of EnableLooping() for more details.
+  TrajectoryView(const TrajectoryInterface<TState> *trajectory, InterpolationConfig interpolation = InterpolationConfig{ .type = InterpolationType::kNone }, TimerSecondsType loop_after_seconds = -1);
 
   // Returns the waypoint at the given time, after applying interpolation.
   Waypoint<TState> GetWaypoint(float seconds) const override;
