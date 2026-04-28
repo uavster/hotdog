@@ -142,6 +142,11 @@ static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_s
       execute_head_trajectory_view_action_handler.Abort();
       execute_base_trajectory_view_action_handler.is_enabled(false);
       execute_head_trajectory_view_action_handler.is_enabled(false);
+
+      // Abort ongoing LED trajectory and action, and disable the action before handing over control to the LED UI.
+      led_trajectory_controller.Stop();
+      execute_led_hsv_trajectory_view_action_handler.Abort();
+      execute_led_hsv_trajectory_view_action_handler.is_enabled(false);
       led_ui.SetStatus(LedUI::Status::kConnectingP2P);
       break;
     }
@@ -150,6 +155,8 @@ static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_s
       execute_base_trajectory_view_action_handler.is_enabled(true);
       execute_head_trajectory_view_action_handler.is_enabled(true);
       led_ui.SetStatus(LedUI::Status::kP2PConnected);
+      // Re-enable the LED trajectory execution action.
+      execute_led_hsv_trajectory_view_action_handler.is_enabled(true);
       break;
     }
   }
