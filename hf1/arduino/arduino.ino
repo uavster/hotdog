@@ -45,6 +45,7 @@
 #include "persistance_offsets.h"
 #include "persistance.h"
 #include "power.h"
+#include "led_ui.h"
 
 // Maximum time during which communication can be processed without
 // yielding time to other tasks.
@@ -56,11 +57,12 @@ PersistentStorage persistent_storage(&Wire);
 LedRed red_led;
 LedGreen green_led;
 LedBlue blue_led;
-LedModulator led_modulator(&red_led, &green_led, &blue_led);
+LedModulator led_modulator(&red_led, &green_led, &blue_led);  // Called internally from a PIT ISR.
 LedRGB rgb_led(&red_led, &green_led, &blue_led);
 LedHSVTrajectoryController led_controller("LedController", &rgb_led);
+LedUI led_ui(&led_controller, &rgb_led);
 
-Logger logger(&rgb_led);
+Logger logger(&led_ui);
 
 // Trajectory<ColorHSVTargetState, /*Capacity=*/6> color_carrier_waypoints({
 //   ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(0, 1, 1) }}),
@@ -130,12 +132,14 @@ static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_s
       execute_head_trajectory_view_action_handler.Abort();
       execute_base_trajectory_view_action_handler.is_enabled(false);
       execute_head_trajectory_view_action_handler.is_enabled(false);
+      led_ui.SetStatus(LedUI::Status::kConnectingP2P);
       break;
     }
     case P2PActionClientStatus::LinkStatus::kActive: {
       // Re-enable the motion execution actions.
       execute_base_trajectory_view_action_handler.is_enabled(true);
       execute_head_trajectory_view_action_handler.is_enabled(true);
+      led_ui.SetStatus(LedUI::Status::kP2PConnected);
       break;
     }
   }
@@ -161,13 +165,19 @@ void setup() {
   // No need to call Serial.begin() with USB port.
 
   // Add logger instance to front of logger list.
+  // This call should not call ASSERT*() or LOG_*() functions because the logger is not ready.
   *logger.base_logger() = SetLogger(&logger);
 
+  // Initialize the RGB LED before anything that calls ASSERT, as it should be ready to communicate failed assertions.
+  // This call should not call ASSERT*() or LOG_*() functions because the logger is not ready.
   InitLeds();
-  InitTimer();
+
+  // From this point on, ASSERT*() and LOG_*() may be called, as the logger and RGB LED have been initialized.
 
   // Light all three LED colors to make sure they work.
-  rgb_led.SetRGB(1, 1, 1);
+  led_ui.SetStatus(LedUI::Status::kBooting);
+
+  InitTimer();
 
   // Serial starts working after some time. Wait, so we don't miss any log.
   WaitForSerial();
@@ -226,7 +236,7 @@ void setup() {
   left_wheel.Start();
   right_wheel.Start();
 
-  rgb_led.SetRGB(0, 1, 0);
+  led_ui.SetStatus(LedUI::Status::kConnectingP2P);
 
   LOG_INFO("Ready.");
 
