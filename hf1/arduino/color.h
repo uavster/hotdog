@@ -31,7 +31,7 @@ private:
 // A color in HSV space (Hue, Saturation, Value).
 // Each component is between 0 to 1.
 // For saturation, 0 is least colorful and 1 is most colorful.
-// For value, 0 is darkest and 1 is brighter.
+// For value, 0 is darkest and 1 is brightest.
 // For hue, it's the fraction of a turn around the color circle, where 
 // red is at 0 degrees (h=0), yellow is at 60 degrees (h=1/6), green is at 120 degrees (h=1/3), 
 // cyan is at 180 degrees (h=1/2), blue is at 240 degrees (h=2/3) and purple is at 300 degrees (h=5/6).
