@@ -27,16 +27,21 @@
 #include "ping_action_handler.h"
 #include "create_base_trajectory_action_handler.h"
 #include "create_head_trajectory_action_handler.h"
+#include "create_led_hsv_trajectory_action_handler.h"
 #include "create_envelope_trajectory_action_handler.h"
 #include "create_base_trajectory_view_action_handler.h"
 #include "create_head_trajectory_view_action_handler.h"
+#include "create_led_hsv_trajectory_view_action_handler.h"
 #include "create_envelope_trajectory_view_action_handler.h"
 #include "create_base_modulated_trajectory_view_action_handler.h"
 #include "create_head_modulated_trajectory_view_action_handler.h"
+#include "create_led_hsv_modulated_trajectory_view_action_handler.h"
 #include "create_base_mixed_trajectory_view_action_handler.h"
 #include "create_head_mixed_trajectory_view_action_handler.h"
+#include "create_led_hsv_mixed_trajectory_view_action_handler.h"
 #include "execute_base_trajectory_view_action_handler.h"
 #include "execute_head_trajectory_view_action_handler.h"
+#include "execute_led_hsv_trajectory_view_action_handler.h"
 #include "console.h"
 #include "operation_mode.h"
 #include "led.h"
@@ -59,8 +64,8 @@ LedGreen green_led;
 LedBlue blue_led;
 LedModulator led_modulator(&red_led, &green_led, &blue_led);  // Called internally from a PIT ISR.
 LedRGB rgb_led(&red_led, &green_led, &blue_led);
-LedHSVTrajectoryController led_controller("LedController", &rgb_led);
-LedUI led_ui(&led_controller, &rgb_led);
+LedHSVTrajectoryController led_trajectory_controller("LedController", &rgb_led);
+LedUI led_ui(&led_trajectory_controller, &rgb_led);
 
 Logger logger(&led_ui);
 
@@ -108,16 +113,21 @@ SyncTimeActionHandler sync_time_action_handler(&p2p_stream, &timer);
 MonitorBaseStateActionHandler monitor_base_state_action_handler(&p2p_stream, &timer);
 CreateBaseTrajectoryActionHandler create_base_trajectory_action_handler(&p2p_stream, &trajectory_store);
 CreateHeadTrajectoryActionHandler create_head_trajectory_action_handler(&p2p_stream, &trajectory_store);
+CreateLedHSVTrajectoryActionHandler create_led_hsv_trajectory_action_handler(&p2p_stream, &trajectory_store);
 CreateEnvelopeTrajectoryActionHandler create_envelope_trajectory_action_handler(&p2p_stream, &trajectory_store);
 CreateBaseTrajectoryViewActionHandler create_base_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateHeadTrajectoryViewActionHandler create_head_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
+CreateLedHSVTrajectoryViewActionHandler create_led_hsv_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateEnvelopeTrajectoryViewActionHandler create_envelope_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateBaseModulatedTrajectoryViewActionHandler create_base_modulated_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateHeadModulatedTrajectoryViewActionHandler create_head_modulated_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
+CreateLedHSVModulatedTrajectoryViewActionHandler create_led_hsv_modulated_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateBaseMixedTrajectoryViewActionHandler create_base_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 CreateHeadMixedTrajectoryViewActionHandler create_head_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
+CreateLedHSVMixedTrajectoryViewActionHandler create_led_hsv_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 ExecuteBaseTrajectoryViewActionHandler execute_base_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &base_trajectory_controller);
 ExecuteHeadTrajectoryViewActionHandler execute_head_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &head_trajectory_controller);
+ExecuteLedHSVTrajectoryViewActionHandler execute_led_hsv_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &led_trajectory_controller);
 
 static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_status, P2PActionClientStatus::LinkStatus new_status) {
   switch(new_status) {
@@ -132,6 +142,11 @@ static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_s
       execute_head_trajectory_view_action_handler.Abort();
       execute_base_trajectory_view_action_handler.is_enabled(false);
       execute_head_trajectory_view_action_handler.is_enabled(false);
+
+      // Abort ongoing LED trajectory and action, and disable the action before handing over control to the LED UI.
+      led_trajectory_controller.Stop();
+      execute_led_hsv_trajectory_view_action_handler.Abort();
+      execute_led_hsv_trajectory_view_action_handler.is_enabled(false);
       led_ui.SetStatus(LedUI::Status::kConnectingP2P);
       break;
     }
@@ -140,6 +155,8 @@ static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_s
       execute_base_trajectory_view_action_handler.is_enabled(true);
       execute_head_trajectory_view_action_handler.is_enabled(true);
       led_ui.SetStatus(LedUI::Status::kP2PConnected);
+      // Re-enable the LED trajectory execution action.
+      execute_led_hsv_trajectory_view_action_handler.is_enabled(true);
       break;
     }
   }
@@ -222,16 +239,21 @@ void setup() {
   p2p_action_server.Register(&monitor_base_state_action_handler);
   p2p_action_server.Register(&create_base_trajectory_action_handler);
   p2p_action_server.Register(&create_head_trajectory_action_handler);
+  p2p_action_server.Register(&create_led_hsv_trajectory_action_handler);
   p2p_action_server.Register(&create_envelope_trajectory_action_handler);
   p2p_action_server.Register(&create_base_trajectory_view_action_handler);
   p2p_action_server.Register(&create_head_trajectory_view_action_handler);
+  p2p_action_server.Register(&create_led_hsv_trajectory_view_action_handler);
   p2p_action_server.Register(&create_envelope_trajectory_view_action_handler);
   p2p_action_server.Register(&create_base_modulated_trajectory_view_action_handler);
   p2p_action_server.Register(&create_head_modulated_trajectory_view_action_handler);
+  p2p_action_server.Register(&create_led_hsv_modulated_trajectory_view_action_handler);
   p2p_action_server.Register(&create_base_mixed_trajectory_view_action_handler);
   p2p_action_server.Register(&create_head_mixed_trajectory_view_action_handler);
+  p2p_action_server.Register(&create_led_hsv_mixed_trajectory_view_action_handler);
   p2p_action_server.Register(&execute_base_trajectory_view_action_handler);
   p2p_action_server.Register(&execute_head_trajectory_view_action_handler);
+  p2p_action_server.Register(&execute_led_hsv_trajectory_view_action_handler);
 
   left_wheel.Start();
   right_wheel.Start();
@@ -262,7 +284,7 @@ void loop() {
   p2p_action_client_status.Run();
 
   RunPowerManager();
-  led_controller.Run();
+  led_trajectory_controller.Run();
 
   wheel_state_estimator.Run();
   RunRobotStateEstimator();
