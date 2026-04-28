@@ -2,12 +2,12 @@
 #define LOGGER_INCLUDED_
 
 #include "logger_interface.h"
-#include "led.h"
+#include "led_ui.h"
 
 class Logger : public LoggerInterface {
 public:
-  Logger() : base_logger_(nullptr), led_rgb_(nullptr) {}
-  Logger(LedRGB *led_rgb) : base_logger_(nullptr), led_rgb_(led_rgb) {}
+  Logger() : base_logger_(nullptr), led_ui_(nullptr) {}
+  Logger(LedUI *led_ui) : base_logger_(nullptr), led_ui_(led_ui) {}
 
   LoggerInterface **base_logger() { return &base_logger_; }
   const LoggerInterface *base_logger() const { return base_logger_; }
@@ -18,11 +18,8 @@ public:
   virtual void Fatal(const char *expr, const char *file_name, int line, const char *msg = "");
 
 private:
-  void ShowAssertOnLed();
-  static void LedAssertTimerIsr();
-
   LoggerInterface *base_logger_;
-  LedRGB * const led_rgb_;
+  LedUI * const led_ui_;
 };
 
 #endif  // LOGGER_INCLUDED_
