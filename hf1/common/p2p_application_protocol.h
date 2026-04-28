@@ -7,6 +7,7 @@
 // this into account and the size of the largest waypoint type.
 #define kP2PMaxNumWaypointsPerBaseTrajectory 10
 #define kP2PMaxNumWaypointsPerHeadTrajectory 10
+#define kP2PMaxNumWaypointsPerLedHSVTrajectory 10
 #define kP2PMaxNumWaypointsPerEnvelopeTrajectory 10
 
 // Action identifiers go in the 6 upper bits of the command field. The 2 lower bits indicate
@@ -29,16 +30,21 @@ typedef enum {
   kMonitorBaseState,
   kCreateBaseTrajectory,
   kCreateHeadTrajectory,
+  kCreateLedHSVTrajectory,
   kCreateEnvelopeTrajectory,
   kCreateBaseTrajectoryView,
   kCreateHeadTrajectoryView,
+  kCreateLedHSVTrajectoryView,
   kCreateEnvelopeTrajectoryView,
   kCreateBaseModulatedTrajectoryView,
   kCreateHeadModulatedTrajectoryView,
+  kCreateLedHSVModulatedTrajectoryView,
   kCreateBaseMixedTrajectoryView,
   kCreateHeadMixedTrajectoryView,
+  kCreateLedHSVMixedTrajectoryView,
   kExecuteBaseTrajectoryView,
   kExecuteHeadTrajectoryView,
+  kExecuteLedHSVTrajectoryView,
 
   kCount  // Must be the last entry in the enum.
 } P2PAction;
@@ -198,6 +204,38 @@ typedef struct {
   uint8_t status_code; // A Status code.
 } P2PCreateHeadTrajectoryReply;
 
+// --- Create LED trajectory ---
+typedef struct {
+  float hue;  // Fraction of a turn around the color circle.
+  float saturation; // 0 is least colorful and 1 is most colorful.
+  float value;  // 0 is darkest and 1 is brightest.
+} P2PColorHSV;
+
+typedef P2PColorHSV P2PLedHSVStateVars;
+
+typedef struct {
+  P2PLedHSVStateVars location;
+} P2PLedHSVTargetState;
+
+typedef struct {
+  float seconds;
+  P2PLedHSVTargetState target_state;
+} P2PLedHSVWaypoint;
+
+typedef struct {
+  uint32_t num_waypoints;
+  P2PLedHSVWaypoint waypoints[kP2PMaxNumWaypointsPerLedHSVTrajectory];
+} P2PLedHSVTrajectory;
+
+typedef struct {
+  uint8_t id;
+  P2PLedHSVTrajectory trajectory;
+} P2PCreateLedHSVTrajectoryRequest;
+
+typedef struct {
+  uint8_t status_code; // A Status code.
+} P2PCreateLedHSVTrajectoryReply;
+
 // --- Create envelope trajectory ---
 typedef struct {
   float value;
@@ -278,6 +316,27 @@ typedef struct {
   uint8_t status_code;
 } P2PCreateHeadTrajectoryViewReply;
 
+// --- Create LED trajectory view ---
+typedef struct {
+  // Identifier of the trajectory on which this view operates.
+  uint8_t trajectory_id;
+
+  // If >= 0, the trajectory loops this number of seconds.
+  // If < 0, the trajectory does not loop.
+  float loop_after_seconds;
+
+  P2PTrajectoryInterpolationConfig interpolation_config;
+} P2PLedHSVTrajectoryView;
+
+typedef struct {
+  uint8_t id;
+  P2PLedHSVTrajectoryView trajectory_view;
+} P2PCreateLedHSVTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateLedHSVTrajectoryViewReply;
+
 // --- Create envelope trajectory view ---
 typedef struct {
   // Identifier of the trajectory on which this view operates.
@@ -345,6 +404,16 @@ typedef struct {
   uint8_t status_code;
 } P2PCreateHeadModulatedTrajectoryViewReply;
 
+// --- Create LED modulated trajectory view ---
+typedef struct {
+  uint8_t id;
+  P2PModulatedTrajectoryView trajectory_view;
+} P2PCreateLedHSVModulatedTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateLedHSVModulatedTrajectoryViewReply;
+
 // --- Create base mixed trajectory view ---
 typedef struct {
   // ID of the first trajectory view to mix. 
@@ -383,6 +452,16 @@ typedef struct {
   uint8_t status_code;
 } P2PCreateHeadMixedTrajectoryViewReply;
 
+// --- Create LED modulated trajectory view ---
+typedef struct {
+  uint8_t id;
+  P2PMixedTrajectoryView trajectory_view;
+} P2PCreateLedHSVMixedTrajectoryViewRequest;
+
+typedef struct {
+  uint8_t status_code;
+} P2PCreateLedHSVMixedTrajectoryViewReply;
+
 // --- Execute base trajectory view ---
 typedef struct {
   P2PTrajectoryViewID trajectory_view_id;
@@ -408,6 +487,19 @@ typedef struct {
 typedef struct {
   uint8_t status_code;
 } P2PExecuteHeadTrajectoryViewReply;
+
+// --- Execute LED trajectory view ---
+typedef struct {
+  P2PTrajectoryViewID trajectory_view_id;
+} P2PExecuteLedHSVTrajectoryViewRequest;
+
+typedef struct {
+  float num_completed_laps;
+} P2PExecuteLedHSVTrajectoryViewProgress;
+
+typedef struct {
+  uint8_t status_code;
+} P2PExecuteLedHSVTrajectoryViewReply;
 
 #pragma pack(pop)
 
