@@ -10,6 +10,8 @@
 #define kP2PMaxNumWaypointsPerLedHSVTrajectory 10
 #define kP2PMaxNumWaypointsPerEnvelopeTrajectory 10
 
+#define kP2PShutdownRequestedMagicValue 0x52
+
 // Action identifiers go in the 6 upper bits of the command field. The 2 lower bits indicate
 // the action's stage: whether it is a request, a reply, a cancellation or a progress report.
 // Upon this, we can implement messages, services or actions (RPCs).
@@ -92,10 +94,7 @@ typedef struct  {
 } P2PPingRequest;
 
 typedef struct {
-  // Some compilers do sizeof(empty_struct)==1 to comply with the "different objects have different pointers" standard.
-  // Some can be configured to do sizeof(empty_struct)==0. Better to inflate the struct explicitly and have the same 
-  // size across binaries that may be built with different compilers.
-  uint8_t reserved;
+  uint8_t shutdown_requested; // If equal to kP2PShutdownRequestedMagicValue, the action client should shut down the machine.
 } P2PPingReply;
 
 // --- Time synchronization ---
