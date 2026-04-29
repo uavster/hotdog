@@ -62,20 +62,20 @@ public:
   virtual void Init() {}
 
   // Aborts the action from the server side of the P2P link.
-  // Subclasses must override this function to stop the action and send back a abort notification.
+  // Subclasses must override this function to stop the action and send back an abort notification.
   virtual void Abort() {}
 
-  // Called when the action request is received. Returns whether the action will be started.
-  // If false, the other end receives a P2PActionStage::kCancel stage; otherwise, the other 
-  // end keeps waiting for P2PActionStage::kReply or P2PActionStage::kProgress.
+  // Called when the action request is received. Returns whether the Run() should be called
+  // afterwards. If it returns false, it is the responsibility of the subclass to abort the 
+  // action and notify the client by sending a packet created with NewAbort().
   // Returns true if not implemented in the subclass.
   // When this is called, the request packet is guaranteed to be the oldest one in the input 
   // stream, if the handlers needs to access it.
   virtual bool OnRequest() { return true; }
 
   // Called continuously by the server's Run() if OnRequest() returned true, and while this 
-  // returns true as well. The subclass is responsible for sending a reply or progress
-  // updates.
+  // returns true as well. The subclass is responsible for sending a reply, progress
+  // updates or an abort to the client.
   // The request packet is guaranteed to be the oldest one in the input stream only the first
   // time this is called. 
   virtual bool Run() = 0;
