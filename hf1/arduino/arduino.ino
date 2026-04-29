@@ -144,16 +144,18 @@ static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_s
       execute_head_trajectory_view_action_handler.is_enabled(false);
 
       // Abort ongoing LED trajectory and action, and disable the action before handing over control to the LED UI.
-      led_trajectory_controller.Stop();
+      if (GetPowerManagerState() == PowerManagerState::kPowerOn) {
+        led_trajectory_controller.Stop();
+        led_ui.SetStatus(LedUI::Status::kConnectingP2P);
+      }
       execute_led_hsv_trajectory_view_action_handler.Abort();
       execute_led_hsv_trajectory_view_action_handler.is_enabled(false);
-      led_ui.SetStatus(LedUI::Status::kConnectingP2P);
       break;
     }
     case P2PActionClientStatus::LinkStatus::kActive: {
       // Re-enable the motion execution actions.
       execute_base_trajectory_view_action_handler.is_enabled(true);
-      execute_head_trajectory_view_action_handler.is_enabled(true);
+      execute_head_trajectory_view_action_handler.is_enabled(true);      
       led_ui.SetStatus(LedUI::Status::kP2PConnected);
       // Re-enable the LED trajectory execution action.
       execute_led_hsv_trajectory_view_action_handler.is_enabled(true);
@@ -283,7 +285,35 @@ void setup() {
 void loop() {
   p2p_action_client_status.Run();
 
-  RunPowerManager();
+  RunPowerManager(p2p_action_client_status);
+  switch(GetPowerManagerState()) {
+    case PowerManagerState::kPowerOffRequested: {
+      // Communicate shutdown with the LED.
+      led_ui.SetStatus(LedUI::Status::kShuttingDown);
+      
+      // Shutdown request; this state only happens once after the call.
+      // Stop all motion.
+      base_trajectory_controller.Stop();
+      head_trajectory_controller.Stop();
+
+      // Abort ongoing actions and disable handlers.
+      execute_base_trajectory_view_action_handler.Abort();
+      execute_head_trajectory_view_action_handler.Abort();
+      execute_base_trajectory_view_action_handler.is_enabled(false);
+      execute_head_trajectory_view_action_handler.is_enabled(false);
+      execute_led_hsv_trajectory_view_action_handler.Abort();
+      execute_led_hsv_trajectory_view_action_handler.is_enabled(false);
+      
+      // Configure ping to reply the action client with a shutdown request.
+      ping_action_handler.RequestShutdown();
+      break;
+    }
+    case PowerManagerState::kPowerOff:
+      PowerOff(); // This function does not return.
+      break;
+    default: break;
+  }
+
   led_trajectory_controller.Run();
 
   wheel_state_estimator.Run();

@@ -65,7 +65,7 @@ constexpr float kBlueHue = 4 / 6.0f;
 constexpr float kPurpleHue = 5 / 6.0f;
 
 constexpr float kLowestSaturation = 0.0f;
-constexpr float kHighestSaturation = 0.0f;
+constexpr float kHighestSaturation = 1.0f;
 
 constexpr float kDarkestValue = 0.0f;
 constexpr float kBrightestValue = 1.0f;

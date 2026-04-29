@@ -28,12 +28,23 @@
 #define POWER_INCLUDED_
 
 #include <optional>
+#include "p2p_action_client_status.h"
 
 // Initializes the power management module. Call before any other functions in this header.
 void InitPowerManager();
 
 // Runs the power manager. Call in the loop() function of the main script.
-void RunPowerManager();
+void RunPowerManager(const P2PActionClientStatus &p2p_action_client_status);
+
+enum class PowerManagerState {
+  kPowerOn, // Power is on. Power button is constantly checked for a power off request.
+  kPowerOffRequested, // Power off was requested by long-pressing the power button. This state is only set once.
+  kPoweringOff, // Waiting for the other end to shut down (until P2P link pings go silent).
+  kPowerOffGracePeriod, // The other end is no longer pinging; give it a grace period to finish shutting down.
+  kPowerOff // We assume the other end has shut down after the grace period. The caller should turn the power off. This is a terminal state.
+};
+
+PowerManagerState GetPowerManagerState();
 
 // Cuts power to the control board from the internal batteries or external power source.
 // Calling this function is equivalent to pressing the power button until hardware shutdown. 

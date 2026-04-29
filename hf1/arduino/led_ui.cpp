@@ -5,13 +5,15 @@ namespace {
 const ColorRGB kBootingColor = ColorRGB(1, 1, 1);
 const ColorRGB kBootErrorColor = ColorRGB(1, 0, 0);
 const ColorRGB kConnectingP2PColor = ColorRGB(0, 0, 1);
-const ColorRGB kP2PConnectedColor = ColorRGB(1, 0.7, 0);
+const ColorRGB kP2PConnectedColor = ColorRGB(0, 1, 0);
+
+constexpr float kShuttingDownBlinkingPeriodS = 0.25f;
 
 const Trajectory<ColorHSVTargetState, /*Capacity=*/2> kShuttingDownColorTrajectory({
   ColorHSVWaypoint(0, ColorHSVTargetState{{ ColorHSV(kRedHue, kLowestSaturation, kDarkestValue) }}),
-  ColorHSVWaypoint(0.5, ColorHSVTargetState{{ ColorHSV(kGreenHue, kHighestSaturation, kBrightestValue) }})
+  ColorHSVWaypoint(kShuttingDownBlinkingPeriodS, ColorHSVTargetState{{ ColorHSV(kGreenHue, kHighestSaturation, kBrightestValue) }})
 });
-const TrajectoryView<ColorHSVTargetState> kShuttingDownColorTrajectoryView(&kShuttingDownColorTrajectory, InterpolationConfig{ .type = InterpolationType::kNone }, /*loop_after_seconds=*/0.5);
+const TrajectoryView<ColorHSVTargetState> kShuttingDownColorTrajectoryView(&kShuttingDownColorTrajectory, InterpolationConfig{ .type = InterpolationType::kNone }, /*loop_after_seconds=*/kShuttingDownBlinkingPeriodS);
 } // namespace
 
 LedUI::LedUI(LedHSVTrajectoryController *led_trajectory_controller, LedRGB *led_rgb) 

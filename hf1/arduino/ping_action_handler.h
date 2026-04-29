@@ -8,10 +8,12 @@ public:
   using PingReceivedCallbackType = void (*)();
   // Does not take ownsership of the pointee, which must outlive this object.
   PingActionHandler(P2PPacketStreamArduino *p2p_stream, PingReceivedCallbackType ping_received_callback)
-    : P2PActionHandler<P2PPingRequest, P2PPingReply>(P2PAction::kPing, p2p_stream), ping_received_callback_(ping_received_callback) {}
+    : P2PActionHandler<P2PPingRequest, P2PPingReply>(P2PAction::kPing, p2p_stream), ping_received_callback_(ping_received_callback), is_shutdown_requested_(false) {}
 
   bool Run() override;
   bool OnRequest() override;
+
+  void RequestShutdown() { is_shutdown_requested_ = true; }
 
 private:
   bool TrySendingReply();
@@ -19,6 +21,7 @@ private:
   Status result_;
   enum { kProcessingRequest, kSendingReply } state_ = kProcessingRequest;
   PingReceivedCallbackType ping_received_callback_;
+  bool is_shutdown_requested_;
 };
 
 #endif  // PING_ACTION_HANDLER_
