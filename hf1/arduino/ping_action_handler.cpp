@@ -36,6 +36,6 @@ bool PingActionHandler::TrySendingReply() {
     return false;
   }
   P2PActionPacketAdapter<P2PPingReply> reply = *maybe_reply;
-  reply.Commit(/*guarantee_delivery=*/false);
+  reply.Commit(/*guarantee_delivery=*/true);
   return true;
 }
