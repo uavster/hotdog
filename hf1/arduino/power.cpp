@@ -17,7 +17,9 @@ constexpr int kPowerOffTeensyPinNumber = 5;
 constexpr int kPowerButtonTeensyPinNumber = 2;  // When changing this, set kPowerButtonIRQNumber to the corresponding IRQ number.
 constexpr IRQ_NUMBER_t kPowerButtonIRQNumber = IRQ_NUMBER_t::IRQ_PORTD; // IRQ number for kPowerButtonTeensyPinNumber. Do not use digitalPinToInterrupt(); it returns Arduino-specific interrupt numbers, which NVIC does not understand.
 
-constexpr TimerNanosType kPowerOffRequestButtonPressNs = 2'000'000'000ULL;
+constexpr TimerNanosType kPowerOffRequestButtonPressNs = 1'500'000'000ULL;
+
+constexpr TimerNanosType kPowerOffGracePeriodNs = 4'000'000'000ULL;
 
 void PowerOff() {
   pinMode(kPowerOffTeensyPinNumber, OUTPUT);
@@ -25,6 +27,8 @@ void PowerOff() {
   SleepForNanos(500'000'000);
   digitalWrite(kPowerOffTeensyPinNumber, 0);
   pinMode(kPowerOffTeensyPinNumber, INPUT);
+  // Ensure nothing else runs before powering off.
+  for(;;){}
 }
 
 bool IsPowerButtonPressed() {
@@ -62,12 +66,9 @@ static float GetADC1Filtered() {
   return result;
 }
 
-enum class PowerManagerState {
-  kPowerOn,
-  kPowerOffRequested
-};
-
 static PowerManagerState power_manager_state;
+
+PowerManagerState GetPowerManagerState() { return power_manager_state; };
 
 void InitPowerManager() {
   last_time_button_pressed_ns = kLastTimeButtonPressedInvalid;
@@ -94,7 +95,9 @@ static bool IsPowerOffRequested() {
   return result;
 }
 
-void RunPowerManager() {
+static TimerNanosType power_off_grace_period_start_ns;
+
+void RunPowerManager(const P2PActionClientStatus &p2p_action_client_status) {
   switch(power_manager_state) {
     case PowerManagerState::kPowerOn: 
       if (IsPowerOffRequested()) {
@@ -102,7 +105,19 @@ void RunPowerManager() {
         power_manager_state = PowerManagerState::kPowerOffRequested;
       }
       break;
-    case PowerManagerState::kPowerOffRequested:      
+    case PowerManagerState::kPowerOffRequested:
+      power_manager_state = PowerManagerState::kPoweringOff;    
+      break;
+    case PowerManagerState::kPoweringOff:
+      if (p2p_action_client_status.link_status() == P2PActionClientStatus::LinkStatus::kInactive) {
+        power_off_grace_period_start_ns = GetTimerNanoseconds();
+        power_manager_state = PowerManagerState::kPowerOffGracePeriod;
+      }
+      break;
+    case PowerManagerState::kPowerOffGracePeriod:
+      if (GetTimerNanoseconds() - power_off_grace_period_start_ns >= kPowerOffGracePeriodNs) {
+        power_manager_state = PowerManagerState::kPowerOff;
+      }
       break;
     default: ASSERT(false);
   }

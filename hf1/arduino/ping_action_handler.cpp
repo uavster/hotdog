@@ -36,6 +36,11 @@ bool PingActionHandler::TrySendingReply() {
     return false;
   }
   P2PActionPacketAdapter<P2PPingReply> reply = *maybe_reply;
+  if (is_shutdown_requested_) {
+    reply->shutdown_requested = kP2PShutdownRequestedMagicValue;
+  } else {
+    reply->shutdown_requested = 0;
+  }
   reply.Commit(/*guarantee_delivery=*/true);
   return true;
 }
