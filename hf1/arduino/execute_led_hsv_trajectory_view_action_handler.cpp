@@ -131,6 +131,7 @@ void ExecuteLedHSVTrajectoryViewActionHandler::Abort() {
     return;
   }
   led_hsv_trajectory_controller_.Stop();
+  led_ui_.Restore();
   state_ = kSendingAbort;
 }
 
@@ -172,4 +173,5 @@ bool ExecuteLedHSVTrajectoryViewActionHandler::TrySendingAbort() {
 
 void ExecuteLedHSVTrajectoryViewActionHandler::OnCancel() {
   led_hsv_trajectory_controller_.Stop();
+  led_ui_.Restore();
 }
