@@ -127,7 +127,7 @@ CreateHeadMixedTrajectoryViewActionHandler create_head_mixed_trajectory_view_act
 CreateLedHSVMixedTrajectoryViewActionHandler create_led_hsv_mixed_trajectory_view_action_handler(&p2p_stream, &trajectory_store);
 ExecuteBaseTrajectoryViewActionHandler execute_base_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &base_trajectory_controller);
 ExecuteHeadTrajectoryViewActionHandler execute_head_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &head_trajectory_controller);
-ExecuteLedHSVTrajectoryViewActionHandler execute_led_hsv_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &led_trajectory_controller);
+ExecuteLedHSVTrajectoryViewActionHandler execute_led_hsv_trajectory_view_action_handler(&p2p_stream, &trajectory_store, &led_trajectory_controller, &led_ui);
 
 static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_status, P2PActionClientStatus::LinkStatus new_status) {
   switch(new_status) {
@@ -145,7 +145,6 @@ static void link_status_changed_callback(P2PActionClientStatus::LinkStatus old_s
 
       // Abort ongoing LED trajectory and action, and disable the action before handing over control to the LED UI.
       if (GetPowerManagerState() == PowerManagerState::kPowerOn) {
-        led_trajectory_controller.Stop();
         led_ui.SetStatus(LedUI::Status::kConnectingP2P);
       }
       execute_led_hsv_trajectory_view_action_handler.Abort();

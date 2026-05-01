@@ -24,11 +24,16 @@ public:
 
     kShuttingDown // The system is shutting down.
   };
-  void SetStatus(LedUI::Status status) const;
+  void SetStatus(LedUI::Status status);
+
+  // If someone took over LED control via led_rgb or led_trajectory_controller, 
+  // calling Restore() sets again the status of the LedUI.
+  void Restore() { SetStatus(status_); }
 
 private:
   LedHSVTrajectoryController &led_trajectory_controller_;
   LedRGB &led_rgb_;
+  Status status_;
 };
 
 #endif  // LED_UI_INCLUDED_
